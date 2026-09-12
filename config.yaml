@@ -1,0 +1,45 @@
+# LabGenius Configuration File
+
+student:
+  name: "Bheesham Kumar Sajnani"
+  roll_number: "25F-DS-020"
+  department: "Data Science"
+  university: "Department of Data Science & Computing"
+  semester: "Spring 2026"
+  instructor: "Rohail Shaikh"
+
+system:
+  username: "bheeshamks"
+  hostname: "pop-os"
+  workspace_dir: "workspace"
+  default_lab_path: "~/Labs"
+
+ai:
+  # Provider options: 'gemini', 'openai', 'anthropic', 'ollama', 'mock'
+  # 'mock' provides realistic pre-built solutions for offline/testing without API keys
+  provider: "gemini"
+  model: "gemini-2.5-flash"
+  api_key_env: "GEMINI_API_KEY"
+  # Ollama settings (used if provider: 'ollama')
+  ollama_url: "http://localhost:11434"
+  ollama_model: "qwen2.5-coder:7b"
+  # Anti-AI Persona settings
+  persona: "undergraduate_student" # 'undergraduate_student', 'diligent_coder', 'concise'
+  scrub_buzzwords: true
+
+terminal_capture:
+  theme: "pop-os-dark" # 'pop-os-dark', 'cosmic-dark', 'ubuntu-yaru', 'vscode-dark'
+  font_family: "Fira Mono, DejaVu Sans Mono, monospace"
+  font_size: 13
+  window_width: 820
+  show_titlebar: true
+  include_cursor: true
+  watermark_roll_number: false # If true, prints student roll number in terminal banner
+
+document:
+  font_family: "Calibri"
+  heading_font: "Calibri Light"
+  code_font: "Consolas"
+  realistic_editing_minutes: 85 # Random jitter: +/- 15 mins
+  realistic_revisions: 6
+  application_tag: "Microsoft Office Word" # or 'LibreOffice/24.2'

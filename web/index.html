@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LabGenius — Autonomous Academic Lab Completer</title>
+  <meta name="description" content="Automated academic lab solver that generates realistic student code, executes on laptop, captures authentic Pop!_OS screenshots, and builds human-passing reports.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Navbar / Header -->
+    <header class="navbar">
+      <div class="brand">
+        <div class="logo-badge">LG</div>
+        <div class="brand-text">
+          <h1>LabGenius <span class="badge-tag">Academic Studio</span></h1>
+          <p class="subtitle">Autonomous Lab Completer & Authentic Screenshot Studio</p>
+        </div>
+      </div>
+      <div class="system-status">
+        <div class="status-indicator">
+          <span class="pulse-dot"></span>
+          <span id="os-status">Pop!_OS 24.04 (COSMIC)</span>
+        </div>
+        <div class="env-pill" id="user-env-pill">bheeshamks@pop-os</div>
+      </div>
+    </header>
+
+    <!-- Main Content Layout -->
+    <main class="main-layout">
+      <!-- Left Column: Settings & Configuration -->
+      <aside class="sidebar-panel">
+        <div class="card profile-card">
+          <div class="card-header">
+            <h3>Student Profile</h3>
+            <span class="lock-pill">Academic Tag</span>
+          </div>
+          <div class="form-group">
+            <label for="student-name">Full Name</label>
+            <input type="text" id="student-name" value="Bheesham Kumar Sajnani" placeholder="Enter student name">
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="roll-no">Roll Number</label>
+              <input type="text" id="roll-no" value="25F-DS-020" placeholder="e.g. 25F-DS-020">
+            </div>
+            <div class="form-group flex-1">
+              <label for="dept-name">Department</label>
+              <input type="text" id="dept-name" value="Data Science" placeholder="e.g. Data Science">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="instructor-name">Instructor</label>
+            <input type="text" id="instructor-name" value="Rohail Shaikh" placeholder="e.g. Rohail Shaikh">
+          </div>
+        </div>
+
+        <div class="card ai-card">
+          <div class="card-header">
+            <h3>Intelligence & Persona</h3>
+            <span class="active-pill" id="provider-badge">Gemini / Offline</span>
+          </div>
+          <div class="form-group">
+            <label for="ai-provider">Model &amp; Intelligence Tier</label>
+            <select id="ai-provider">
+              <option value="gemini-pro" selected>Google AI Pro — Gemini 2.5 Pro (Flagship / Best)</option>
+              <option value="gemini-flash">Google Gemini 2.5 Flash (Ultra Fast)</option>
+              <option value="gemini-1.5-pro">Google Gemini 1.5 Pro (2M Context)</option>
+              <option value="mock">Smart Offline Demo Mode (Instant &amp; Free)</option>
+              <option value="openai">OpenAI (GPT-4o-mini)</option>
+              <option value="ollama">Local Ollama (deepseek-r1 / qwen)</option>
+            </select>
+          </div>
+          <div class="form-group" id="api-key-group">
+            <label for="api-key">Google AI Studio API Key</label>
+            <div class="password-input-wrapper">
+              <input type="password" id="api-key" placeholder="Paste your Google AI API key here">
+              <button type="button" class="btn-toggle-pass" id="btn-toggle-pass">👁</button>
+            </div>
+            <small class="hint-text">From your Google AI Pro account via <a href="https://aistudio.google.com/" target="_blank" style="color:#60a5fa;">aistudio.google.com</a> (Get API Key). Or export GEMINI_API_KEY in terminal.</small>
+          </div>
+          <div class="anti-ai-shield">
+            <div class="shield-icon">🛡️</div>
+            <div class="shield-info">
+              <h4>Anti-AI Humanization Active</h4>
+              <p>Purges buzzwords ("delve", "crucial"), matches undergraduate coding patterns, and injects realistic Word edit duration.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card sys-card">
+          <div class="card-header">
+            <h3>Terminal Styling</h3>
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="terminal-theme">Window Theme</label>
+              <select id="terminal-theme">
+                <option value="pop-os-dark" selected>Pop!_OS Dark</option>
+                <option value="cosmic-dark">COSMIC Native</option>
+                <option value="ubuntu-yaru">Ubuntu Yaru</option>
+                <option value="vscode-dark">VS Code Terminal</option>
+              </select>
+            </div>
+            <div class="form-group flex-1">
+              <label for="terminal-font">Font Family</label>
+              <input type="text" id="terminal-font" value="Fira Mono" readonly>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right Column: Workspace & Results -->
+      <section class="workspace-panel">
+        <!-- Upload & Launch Stage -->
+        <div class="card upload-card" id="upload-card">
+          <div class="drop-zone" id="drop-zone">
+            <div class="upload-icon">📂</div>
+            <h3>Drop your Lab Manual here</h3>
+            <p>Supports <strong>.docx</strong> (preserves professor's template), <strong>.pdf</strong>, <strong>.txt</strong>, or <strong>.md</strong></p>
+            <input type="file" id="file-input" accept=".docx,.pdf,.txt,.md" style="display: none;">
+            <div class="btn-row">
+              <button class="btn btn-secondary" id="btn-browse">Browse Manual File</button>
+              <button class="btn btn-outline" id="btn-sample-lab">Load Sample Data Science Lab 03</button>
+            </div>
+            <div id="selected-file-info" class="selected-file-info" style="display: none;">
+              <span class="file-badge" id="selected-filename">sample_lab.docx</span>
+              <button class="btn-remove-file" id="btn-remove-file">✕</button>
+            </div>
+          </div>
+
+          <div class="action-footer">
+            <button class="btn btn-primary btn-glow" id="btn-run-all" disabled>
+              <span class="sparkle-icon">✨</span> Solve Lab Tasks &amp; Capture Screenshots
+            </button>
+          </div>
+        </div>
+
+        <!-- Progress Tracker Bar (Hidden until run) -->
+        <div class="card progress-card" id="progress-card" style="display: none;">
+          <div class="progress-header">
+            <div class="progress-title-block">
+              <h3 id="progress-step-title">Processing Lab Manual...</h3>
+              <p id="progress-step-desc">Executing tasks locally and capturing terminal windows...</p>
+            </div>
+            <span class="timer-badge" id="elapsed-timer">00:00</span>
+          </div>
+          <div class="progress-bar-container">
+            <div class="progress-bar-fill" id="progress-bar-fill"></div>
+          </div>
+          <div class="steps-flow">
+            <div class="step-node active" id="step-1"><span>1</span> Parse Manual</div>
+            <div class="step-node" id="step-2"><span>2</span> Persona Solver</div>
+            <div class="step-node" id="step-3"><span>3</span> Laptop Execution</div>
+            <div class="step-node" id="step-4"><span>4</span> Pop!_OS Screenshots</div>
+            <div class="step-node" id="step-5"><span>5</span> Anti-AI Sanitizer</div>
+          </div>
+        </div>
+
+        <!-- Results Showcase (Hidden until run finishes) -->
+        <div id="results-container" style="display: none;">
+          <!-- Completion Header / Download Card -->
+          <div class="card download-card">
+            <div class="download-left">
+              <div class="success-icon">✓</div>
+              <div>
+                <h2>Lab Manual Completed Successfully!</h2>
+                <p id="doc-title-text">Completed_Lab_03_25F-DS-020.docx</p>
+                <div class="meta-pills">
+                  <span class="meta-pill" id="meta-author">Author: Bheesham Kumar Sajnani</span>
+                  <span class="meta-pill" id="meta-time">Edit Time: 78 mins</span>
+                  <span class="meta-pill" id="meta-rev">Revision: 6</span>
+                  <span class="meta-pill meta-safe" id="meta-clean">Zero AI Fingerprints</span>
+                </div>
+              </div>
+            </div>
+            <div class="download-right">
+              <a href="#" class="btn btn-success btn-large" id="btn-download" download>
+                📥 Download Completed Report (.docx)
+              </a>
+            </div>
+          </div>
+
+          <!-- Tasks Review Tabs / Cards -->
+          <div class="tasks-feed" id="tasks-feed">
+            <!-- Dynamic task cards will be rendered here -->
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Image Lightbox Modal -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal-content">
+      <button class="modal-close" id="modal-close">✕</button>
+      <img id="modal-image" src="" alt="Screenshot Preview">
+      <div class="modal-caption" id="modal-caption"></div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
