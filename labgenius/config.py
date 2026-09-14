@@ -16,10 +16,15 @@ import yaml
 class StudentProfile:
     name: str = "Bheesham Kumar Sajnani"
     roll_number: str = "25F-DS-020"
+    section: str = "25F-DS"
     department: str = "Data Science"
-    university: str = "Department of Data Science & Computing"
+    university: str = "Dawood University of Engineering & Technology"
     semester: str = "Spring 2026"
-    instructor: str = "Rohail Shaikh"
+    instructor: str = ""
+    include_instructor: bool = False
+    include_logo: bool = True
+    logo_choice: str = "dawood"  # 'dawood', 'custom'
+    custom_logo_path: Optional[str] = None
 
 
 @dataclass
@@ -96,12 +101,20 @@ class Config:
         term_data = loaded_data.get("terminal_capture", {})
         doc_data = loaded_data.get("document", {})
 
+        # Determine provider first to guess default env var
+        ai_provider = ai_data.get("provider", "mock")
+        
+        default_env = "GEMINI_API_KEY"
+        if ai_provider == "openai":
+            default_env = "OPENAI_API_KEY"
+        elif ai_provider == "groq":
+            default_env = "GROQ_API_KEY"
+
         # Check API key from env if available
-        api_key_env = ai_data.get("api_key_env", "GEMINI_API_KEY")
-        env_key = os.environ.get(api_key_env) or os.environ.get("GEMINI_API_KEY")
+        api_key_env = ai_data.get("api_key_env", default_env)
+        env_key = os.environ.get(api_key_env) or os.environ.get("GEMINI_API_KEY") or os.environ.get("OPENAI_API_KEY") or os.environ.get("GROQ_API_KEY")
 
         # If user has no API key set, fallback gracefully to mock/auto
-        ai_provider = ai_data.get("provider", "mock")
         if ai_provider == "gemini" and not env_key:
             # If no key is set yet, we will notify and allow mock mode or direct input
             pass
@@ -110,10 +123,15 @@ class Config:
             student=StudentProfile(
                 name=student_data.get("name", "Bheesham Kumar Sajnani"),
                 roll_number=student_data.get("roll_number", "25F-DS-020"),
+                section=student_data.get("section", "25F-DS"),
                 department=student_data.get("department", "Data Science"),
-                university=student_data.get("university", "Department of Data Science & Computing"),
+                university=student_data.get("university", "Dawood University of Engineering & Technology"),
                 semester=student_data.get("semester", "Spring 2026"),
-                instructor=student_data.get("instructor", "Rohail Shaikh"),
+                instructor=student_data.get("instructor", ""),
+                include_instructor=student_data.get("include_instructor", False),
+                include_logo=student_data.get("include_logo", True),
+                logo_choice=student_data.get("logo_choice", "dawood"),
+                custom_logo_path=student_data.get("custom_logo_path", None),
             ),
             system=SystemSettings(
                 username=system_data.get("username", getpass.getuser()),

@@ -9,7 +9,7 @@ import html
 import textwrap
 import subprocess
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Tuple
 from PIL import Image, ImageChops
 import pygments
 from pygments import highlight
@@ -40,7 +40,7 @@ class ScreenshotStudio:
         return code_img_path, out_img_path
 
     def capture_code_screenshot(self, code_str: str, language: str, dest_path: Path) -> Path:
-        """Render an authentic light-mode VS Code snip with syntax highlighting and indent guides."""
+        """Render an authentic light-mode VS Code snip with syntax highlighting instantly."""
         try:
             lexer = get_lexer_by_name(language.lower())
         except Exception:
@@ -49,6 +49,25 @@ class ScreenshotStudio:
             except Exception:
                 lexer = get_lexer_by_name("c")
 
+        # Fast direct Pygments ImageFormatter (sub-50ms)
+        try:
+            from pygments.formatters import ImageFormatter
+            formatter = ImageFormatter(
+                font_name="DejaVu Sans Mono",
+                font_size=13,
+                line_numbers=False,
+                style="vs",
+                image_pad=16,
+            )
+            img_data = highlight(code_str.strip(), lexer, formatter)
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(dest_path, "wb") as f:
+                f.write(img_data)
+            return dest_path
+        except Exception:
+            pass
+
+        # Headless browser fallback if available
         formatter = HtmlFormatter(style="vs", noclasses=True)
         highlighted_code_html = highlight(code_str.strip(), lexer, formatter)
 
@@ -57,11 +76,7 @@ class ScreenshotStudio:
 <head>
 <meta charset="utf-8">
 <style>
-  * {{
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-  }}
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
   body {{
     background: #ffffff;
     padding: 14px 18px;
@@ -71,28 +86,11 @@ class ScreenshotStudio:
     color: #000000;
     display: inline-block;
   }}
-  .code-area {{
-    background-image: repeating-linear-gradient(
-      to right,
-      transparent 0px,
-      transparent calc(33.6px - 1px),
-      #ebebeb calc(33.6px - 1px),
-      #ebebeb 33.6px
-    );
-    background-position: 0px 0;
-  }}
-  pre {{
-    font-family: inherit;
-    font-size: inherit;
-    line-height: inherit;
-    margin: 0;
-  }}
+  pre {{ font-family: inherit; font-size: inherit; line-height: inherit; margin: 0; }}
 </style>
 </head>
 <body>
-<div class="code-area">
-  {highlighted_code_html}
-</div>
+<div class="code-area">{highlighted_code_html}</div>
 </body>
 </html>"""
 
@@ -104,7 +102,7 @@ class ScreenshotStudio:
         cmd = ["firefox", "--headless", "--screenshot", str(raw_png.resolve()), f"file://{html_file.resolve()}"]
 
         try:
-            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=8)
             if raw_png.exists():
                 self._auto_crop_white(raw_png, dest_path)
                 if raw_png.exists():
@@ -120,11 +118,11 @@ class ScreenshotStudio:
         return dest_path
 
     def capture_output_screenshot(self, output_text: str, dest_path: Path) -> Path:
-        """Render a clean, white-background console output screenshot matching student submissions."""
+        """Render a clean, white-background console output screenshot matching student submissions instantly."""
         if not output_text.strip():
-            output_text = f"Name: {self.student.name}\nRoll No: {self.student.roll_number}\n-------------------------\nExecution completed successfully."
+            output_text = "Execution completed successfully."
 
-        # Format long lines (e.g. prime numbers lists) to wrap cleanly like standard terminal width
+        # Format long lines to wrap cleanly like standard terminal width
         lines = output_text.strip().splitlines()
         formatted = []
         for line in lines:
@@ -132,20 +130,58 @@ class ScreenshotStudio:
                 formatted.append(textwrap.fill(line, width=68))
             else:
                 formatted.append(line)
-        formatted_output = "\n".join(formatted)
+        wrapped_lines = ("\n".join(formatted)).splitlines()
 
-        escaped_out = html.escape(formatted_output)
+        # Fast direct Pillow rendering (sub-30ms)
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+            font = None
+            for font_candidate in [
+                "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+                "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
+            ]:
+                if os.path.exists(font_candidate):
+                    try:
+                        font = ImageFont.truetype(font_candidate, 13)
+                        break
+                    except Exception:
+                        pass
+            if font is None:
+                font = ImageFont.load_default()
 
+            line_height = 20
+            max_w = 0
+            for line in wrapped_lines:
+                bbox = font.getbbox(line) if hasattr(font, "getbbox") else (0, 0, len(line) * 8, 14)
+                w = bbox[2] - bbox[0]
+                if w > max_w:
+                    max_w = w
+
+            total_h = len(wrapped_lines) * line_height + 24
+            total_w = max(max_w + 32, 280)
+
+            img = Image.new("RGB", (total_w, total_h), (255, 255, 255))
+            draw = ImageDraw.Draw(img)
+            y = 12
+            for line in wrapped_lines:
+                draw.text((16, y), line, font=font, fill=(15, 15, 15))
+                y += line_height
+
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            img.save(dest_path, "PNG", optimize=True)
+            return dest_path
+        except Exception:
+            pass
+
+        # Fallback to headless browser if Pillow fails
+        escaped_out = html.escape("\n".join(wrapped_lines))
         html_template = f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <style>
-  * {{
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-  }}
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
   body {{
     background: #ffffff;
     padding: 12px 16px;
@@ -155,19 +191,10 @@ class ScreenshotStudio:
     color: #000000;
     display: inline-block;
   }}
-  pre {{
-    font-family: inherit;
-    font-size: inherit;
-    line-height: inherit;
-    white-space: pre-wrap;
-    word-break: break-word;
-    margin: 0;
-  }}
+  pre {{ font-family: inherit; font-size: inherit; line-height: inherit; white-space: pre-wrap; margin: 0; }}
 </style>
 </head>
-<body>
-<pre>{escaped_out}</pre>
-</body>
+<body><pre>{escaped_out}</pre></body>
 </html>"""
 
         html_file = dest_path.parent / f"_temp_out_{dest_path.stem}.html"
@@ -178,7 +205,7 @@ class ScreenshotStudio:
         cmd = ["firefox", "--headless", "--screenshot", str(raw_png.resolve()), f"file://{html_file.resolve()}"]
 
         try:
-            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=8)
             if raw_png.exists():
                 self._auto_crop_white(raw_png, dest_path)
                 if raw_png.exists():

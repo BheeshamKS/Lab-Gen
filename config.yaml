@@ -3,14 +3,16 @@
 student:
   name: "Bheesham Kumar Sajnani"
   roll_number: "25F-DS-020"
+  section: "25F-DS"
   department: "Data Science"
-  university: "Department of Data Science & Computing"
+  university: "Dawood University of Engineering & Technology"
   semester: "Spring 2026"
-  instructor: "Rohail Shaikh"
+  instructor: ""
+  include_instructor: false
 
 system:
-  username: "bheeshamks"
-  hostname: "pop-os"
+  username: "student"
+  hostname: "linux"
   workspace_dir: "workspace"
   default_lab_path: "~/Labs"
 
@@ -28,7 +30,7 @@ ai:
   scrub_buzzwords: true
 
 terminal_capture:
-  theme: "pop-os-dark" # 'pop-os-dark', 'cosmic-dark', 'ubuntu-yaru', 'vscode-dark'
+  theme: "linux-dark" # 'linux-dark', 'cosmic-dark', 'ubuntu-yaru', 'vscode-dark'
   font_family: "Fira Mono, DejaVu Sans Mono, monospace"
   font_size: 13
   window_width: 820

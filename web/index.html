@@ -4,29 +4,46 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LabGenius — Autonomous Academic Lab Completer</title>
-  <meta name="description" content="Automated academic lab solver that generates realistic student code, executes on laptop, captures authentic Pop!_OS screenshots, and builds human-passing reports.">
+  <meta name="description" content="Automated academic lab solver that generates realistic student code, executes on laptop, captures authentic Linux screenshots, and builds human-passing reports.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=2.0">
 </head>
 <body>
   <div class="app-container">
-    <!-- Navbar / Header -->
+    <!-- Navbar / Header (Vercel Monochrome Developer Style) -->
     <header class="navbar">
       <div class="brand">
-        <div class="logo-badge">LG</div>
+        <div class="logo-badge">▲</div>
         <div class="brand-text">
-          <h1>LabGenius <span class="badge-tag">Academic Studio</span></h1>
-          <p class="subtitle">Autonomous Lab Completer & Authentic Screenshot Studio</p>
+          <h1>LabGenius <span class="badge-tag">STUDIO</span></h1>
+          <p class="subtitle">Autonomous Lab Completer &amp; Academic Screenshot Studio</p>
         </div>
       </div>
-      <div class="system-status">
-        <div class="status-indicator">
-          <span class="pulse-dot"></span>
-          <span id="os-status">Pop!_OS 24.04 (COSMIC)</span>
+      <div class="navbar-actions">
+        <button class="nav-btn" id="btn-doc-nav" onclick="switchMainView('doc')" style="display:none;" title="View interactive document preview">
+          Document Preview
+        </button>
+        <button class="nav-btn" id="btn-open-playground-nav" onclick="openNavPlayground()">
+          Playground
+        </button>
+        <button class="nav-btn btn-highlight" id="btn-nav-new-lab" onclick="closeAndStartNewLab()" title="Close current lab and upload a new lab manual">
+          + New Lab
+        </button>
+        <button class="nav-btn" id="btn-open-shortcuts" onclick="openShortcutsModal()">
+          <span class="kbd-hint">⌘K</span> Shortcuts
+        </button>
+        <button class="nav-btn btn-highlight" id="btn-quick-bundle" onclick="downloadSubmissionBundle()" title="Download complete submission zip package">
+          Submission ZIP
+        </button>
+        <div class="system-status">
+          <div class="status-indicator">
+            <span class="pulse-dot"></span>
+            <span id="os-status">Linux Desktop</span>
+          </div>
+          <div class="env-pill" id="user-env-pill">student@linux</div>
         </div>
-        <div class="env-pill" id="user-env-pill">bheeshamks@pop-os</div>
       </div>
     </header>
 
@@ -49,25 +66,72 @@
               <input type="text" id="roll-no" value="25F-DS-020" placeholder="e.g. 25F-DS-020">
             </div>
             <div class="form-group flex-1">
-              <label for="dept-name">Department</label>
-              <input type="text" id="dept-name" value="Data Science" placeholder="e.g. Data Science">
+              <label for="section-name">Section</label>
+              <input type="text" id="section-name" value="25F-DS" placeholder="e.g. 25F-DS">
             </div>
           </div>
           <div class="form-group">
-            <label for="instructor-name">Instructor</label>
-            <input type="text" id="instructor-name" value="Rohail Shaikh" placeholder="e.g. Rohail Shaikh">
+            <label for="dept-name">Department</label>
+            <input type="text" id="dept-name" value="Data Science" placeholder="e.g. Data Science">
+          </div>
+          <div class="form-group instructor-group">
+            <div class="toggle-row">
+              <label class="toggle-label" for="toggle-instructor">
+                <span>Include Instructor</span>
+                <span class="hint-badge">Off by Default</span>
+              </label>
+              <label class="switch">
+                <input type="checkbox" id="toggle-instructor">
+                <span class="slider round"></span>
+              </label>
+            </div>
+            <div id="instructor-input-wrapper" style="display: none; margin-top: 10px;">
+              <input type="text" id="instructor-name" value="Rohail Shaikh" placeholder="Instructor Name (e.g. Rohail Shaikh)">
+              <small class="hint-text">When toggled off, no trace of instructor will appear in the report.</small>
+            </div>
+          </div>
+          <div class="form-group logo-toggle-group">
+            <div class="toggle-row">
+              <label class="toggle-label" for="toggle-uni-logo">
+                <span>Include University Logo</span>
+                <span class="hint-badge active-badge">On by Default</span>
+              </label>
+              <label class="switch">
+                <input type="checkbox" id="toggle-uni-logo" checked onchange="handleLogoToggleChange()">
+                <span class="slider round"></span>
+              </label>
+            </div>
+            <div id="logo-options-wrapper" style="margin-top: 10px;">
+              <label for="logo-choice-select" style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px; display: block;">Logo Selection</label>
+              <select id="logo-choice-select" onchange="handleLogoChoiceChange()">
+                <option value="dawood" selected>Dawood University Logo (Default)</option>
+                <option value="custom">Upload Custom Logo...</option>
+              </select>
+              <div id="custom-logo-upload-wrapper" style="display: none; margin-top: 8px;">
+                <div class="custom-logo-row" style="display: flex; align-items: center; gap: 10px;">
+                  <img id="custom-logo-preview" src="/static/university_logo.png" alt="Logo Preview" style="max-height: 38px; max-width: 60px; border-radius: 4px; border: 1px solid var(--border-color); background: #fff; padding: 2px;">
+                  <label for="custom-logo-file" class="btn btn-outline btn-small" style="cursor: pointer; margin: 0; padding: 4px 10px; font-size: 0.8rem;">
+                    Choose Image
+                    <input type="file" id="custom-logo-file" accept="image/png, image/jpeg, image/jpg" style="display: none;" onchange="handleCustomLogoSelected(event)">
+                  </label>
+                  <span id="custom-logo-status" style="font-size: 0.75rem; color: var(--text-muted); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 120px;">Default Dawood Logo</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
         <div class="card ai-card">
           <div class="card-header">
-            <h3>Intelligence & Persona</h3>
+            <h3>Intelligence &amp; Persona</h3>
             <span class="active-pill" id="provider-badge">Gemini / Offline</span>
           </div>
           <div class="form-group">
             <label for="ai-provider">Model &amp; Intelligence Tier</label>
             <select id="ai-provider">
               <option value="gemini-pro" selected>Google AI Pro — Gemini 2.5 Pro (Flagship / Best)</option>
+              <option value="groq">Groq Cloud (Llama 3.3 70B Versatile — Lightning Fast &amp; Free)</option>
+              <option value="groq-8b">Groq Cloud (Llama 3.1 8B Instant — Real-Time)</option>
               <option value="gemini-flash">Google Gemini 2.5 Flash (Ultra Fast)</option>
               <option value="gemini-1.5-pro">Google Gemini 1.5 Pro (2M Context)</option>
               <option value="mock">Smart Offline Demo Mode (Instant &amp; Free)</option>
@@ -79,12 +143,16 @@
             <label for="api-key">Google AI Studio API Key</label>
             <div class="password-input-wrapper">
               <input type="password" id="api-key" placeholder="Paste your Google AI API key here">
-              <button type="button" class="btn-toggle-pass" id="btn-toggle-pass">👁</button>
+              <button type="button" class="btn-toggle-pass" id="btn-toggle-pass" title="Show/Hide Key">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
             </div>
-            <small class="hint-text">From your Google AI Pro account via <a href="https://aistudio.google.com/" target="_blank" style="color:#60a5fa;">aistudio.google.com</a> (Get API Key). Or export GEMINI_API_KEY in terminal.</small>
+            <small class="hint-text">From your Google AI Pro account via <a href="https://aistudio.google.com/" target="_blank">aistudio.google.com</a> (Get API Key). Or export GEMINI_API_KEY in terminal.</small>
           </div>
           <div class="anti-ai-shield">
-            <div class="shield-icon">🛡️</div>
+            <div class="shield-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
             <div class="shield-info">
               <h4>Anti-AI Humanization Active</h4>
               <p>Purges buzzwords ("delve", "crucial"), matches undergraduate coding patterns, and injects realistic Word edit duration.</p>
@@ -94,21 +162,32 @@
 
         <div class="card sys-card">
           <div class="card-header">
-            <h3>Terminal Styling</h3>
+            <h3>Terminal &amp; Environment</h3>
+            <span class="lock-pill">Custom Prompt</span>
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="terminal-username">Terminal Username</label>
+              <input type="text" id="terminal-username" value="student" placeholder="username (e.g. student)" oninput="updateTerminalPromptSettings()">
+            </div>
+            <div class="form-group flex-1">
+              <label for="terminal-hostname">PC / Host Name</label>
+              <input type="text" id="terminal-hostname" value="linux" placeholder="hostname (e.g. linux)" oninput="updateTerminalPromptSettings()">
+            </div>
           </div>
           <div class="form-row">
             <div class="form-group flex-1">
               <label for="terminal-theme">Window Theme</label>
               <select id="terminal-theme">
-                <option value="pop-os-dark" selected>Pop!_OS Dark</option>
-                <option value="cosmic-dark">COSMIC Native</option>
+                <option value="pop-os-dark" selected>Linux Dark</option>
+                <option value="cosmic-dark">Linux Native</option>
                 <option value="ubuntu-yaru">Ubuntu Yaru</option>
                 <option value="vscode-dark">VS Code Terminal</option>
               </select>
             </div>
             <div class="form-group flex-1">
-              <label for="terminal-font">Font Family</label>
-              <input type="text" id="terminal-font" value="Fira Mono" readonly>
+              <label for="terminal-prompt-preview">Active Shell Prompt</label>
+              <input type="text" id="terminal-prompt-preview" value="student@linux:~/workspace$" readonly class="readonly-input">
             </div>
           </div>
         </div>
@@ -119,7 +198,7 @@
         <!-- Upload & Launch Stage -->
         <div class="card upload-card" id="upload-card">
           <div class="drop-zone" id="drop-zone">
-            <div class="upload-icon">📂</div>
+            <div class="upload-icon">↑</div>
             <h3>Drop your Lab Manual here</h3>
             <p>Supports <strong>.docx</strong> (preserves professor's template), <strong>.pdf</strong>, <strong>.txt</strong>, or <strong>.md</strong></p>
             <input type="file" id="file-input" accept=".docx,.pdf,.txt,.md" style="display: none;">
@@ -134,8 +213,41 @@
           </div>
 
           <div class="action-footer">
-            <button class="btn btn-primary btn-glow" id="btn-run-all" disabled>
-              <span class="sparkle-icon">✨</span> Solve Lab Tasks &amp; Capture Screenshots
+            <!-- Custom Instructions Section -->
+            <div class="instructions-section">
+              <div class="section-title-row">
+                <label for="custom-instructions">Custom Instructions &amp; Requirements (Optional)</label>
+                <span class="hint-badge">Guided Solver</span>
+              </div>
+              <textarea id="custom-instructions" rows="3" placeholder="Tell the solver how to make your lab: e.g. 'Add detailed inline comments explaining each step', 'Use Python 3.10+ list comprehension', 'Format output nicely', 'Keep explanations concise under 2 sentences'..."></textarea>
+              <div class="preset-chips">
+                <span class="chip" onclick="addInstructionPreset('Add detailed step-by-step comments explaining the algorithm')">+ Detailed Comments</span>
+                <span class="chip" onclick="addInstructionPreset('Use clean undergraduate style and keep code simple')">+ Clean &amp; Simple</span>
+                <span class="chip" onclick="addInstructionPreset('Include Big-O time and space complexity in explanation')">+ Big-O Complexity</span>
+                <span class="chip" onclick="addInstructionPreset('Format terminal output with clean headers and separators')">+ Clean Formatted Output</span>
+                <span class="chip" onclick="addInstructionPreset('Strict adherence to academic grading rubric')">+ Rubric Strict</span>
+              </div>
+            </div>
+
+            <!-- Export Formats Selection (PDF and Word) -->
+            <div class="formats-section">
+              <label class="section-label">Export Formats to Generate:</label>
+              <div class="format-checkboxes">
+                <label class="format-pill">
+                  <input type="checkbox" id="fmt-pdf" checked>
+                  <span class="pill-badge">PDF</span>
+                  <span class="pill-desc">High-Res Print Ready</span>
+                </label>
+                <label class="format-pill">
+                  <input type="checkbox" id="fmt-docx" checked>
+                  <span class="pill-badge">Word (.docx)</span>
+                  <span class="pill-desc">Sanitized Academic</span>
+                </label>
+              </div>
+            </div>
+
+            <button class="btn btn-primary btn-large btn-glow" id="btn-run-all" disabled>
+              Solve Lab Tasks &amp; Capture Screenshots
             </button>
           </div>
         </div>
@@ -156,7 +268,7 @@
             <div class="step-node active" id="step-1"><span>1</span> Parse Manual</div>
             <div class="step-node" id="step-2"><span>2</span> Persona Solver</div>
             <div class="step-node" id="step-3"><span>3</span> Laptop Execution</div>
-            <div class="step-node" id="step-4"><span>4</span> Pop!_OS Screenshots</div>
+            <div class="step-node" id="step-4"><span>4</span> Linux Screenshots</div>
             <div class="step-node" id="step-5"><span>5</span> Anti-AI Sanitizer</div>
           </div>
         </div>
@@ -179,19 +291,274 @@
               </div>
             </div>
             <div class="download-right">
-              <a href="#" class="btn btn-success btn-large" id="btn-download" download>
-                📥 Download Completed Report (.docx)
-              </a>
+              <div class="download-btn-group">
+                <a href="#" class="btn btn-primary" id="btn-download-pdf" download>
+                  Download PDF
+                </a>
+                <a href="#" class="btn btn-secondary" id="btn-download-docx" download>
+                  Download Word (.docx)
+                </a>
+                <button type="button" class="btn btn-outline" id="btn-close-current-lab" onclick="closeAndStartNewLab()" title="Close current document and upload a new lab manual">
+                  ✕ Close &amp; New Lab
+                </button>
+              </div>
             </div>
           </div>
 
-          <!-- Tasks Review Tabs / Cards -->
-          <div class="tasks-feed" id="tasks-feed">
-            <!-- Dynamic task cards will be rendered here -->
+          <!-- Interactive Refinement & AI Edit Bar -->
+          <div class="card refine-card" id="refine-card">
+            <div class="refine-header">
+              <div class="refine-title">
+                <h3>Refine &amp; Edit via Instructions</h3>
+              </div>
+              <span class="lock-pill">Natural Language Refinement</span>
+            </div>
+            <p class="refine-subtitle">Want to modify something? Give follow-up instructions to refine code, tweak formatting, or re-run tasks.</p>
+            <div class="refine-form">
+              <div class="refine-controls">
+                <select id="refine-target-task">
+                  <option value="all">Scope: Entire Lab Report</option>
+                  <!-- Dynamically populated with task options -->
+                </select>
+                <input type="text" id="refine-input" placeholder="e.g. In Task 2, rewrite using a while loop and add inline comments..." />
+                <button class="btn btn-primary" id="btn-apply-refine">
+                  <span id="refine-btn-text">Apply &amp; Re-generate</span>
+                  <span class="spinner" id="refine-spinner" style="display:none;">⏳</span>
+                </button>
+              </div>
+              <div class="quick-refine-chips">
+                <span class="chip" onclick="setRefinePrompt('Add detailed inline comments explaining the logic step-by-step')">+ Add More Comments</span>
+                <span class="chip" onclick="setRefinePrompt('Simplify implementation to basic undergraduate style')">+ Simplify Code</span>
+                <span class="chip" onclick="setRefinePrompt('Format terminal outputs with clean dividers and spacing')">+ Clean Terminal Layout</span>
+                <span class="chip" onclick="setRefinePrompt('Expand the explanation and discussion answers with more detail')">+ Expand Discussion</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dual-View Switcher & Document Preview Controls -->
+          <!-- Vercel Monochrome Tabs Switcher -->
+          <div class="view-switcher-bar">
+            <div class="view-tabs">
+              <button class="view-tab-btn active" id="btn-view-pdf" onclick="switchMainView('pdf')">
+                High-Res PDF Viewer
+              </button>
+              <button class="view-tab-btn" id="btn-view-doc" onclick="switchMainView('doc')">
+                Document Canvas &amp; Editor
+              </button>
+              <button class="view-tab-btn" id="btn-view-scratchpad" onclick="switchMainView('scratchpad')">
+                Live Code Playground
+              </button>
+              <button class="view-tab-btn" id="btn-view-tasks" onclick="switchMainView('tasks')">
+                Task Cards
+              </button>
+            </div>
+            <div class="preview-actions">
+              <button class="btn btn-sm btn-primary" id="btn-save-canvas" onclick="saveDocumentCanvasEdits()">Save Edits (Ctrl+S)</button>
+              <button class="btn btn-sm btn-outline" id="btn-bundle-download" onclick="downloadSubmissionBundle()">Download ZIP</button>
+              <button class="btn btn-sm btn-outline" id="btn-print-doc" onclick="printDocumentPreview()">Print PDF</button>
+              <a href="#" target="_blank" class="btn btn-sm btn-outline" id="btn-open-new-tab">New Tab ↗</a>
+            </div>
+          </div>
+
+          <!-- 1. Embedded High-Res PDF View Container (Default View) -->
+          <div class="view-container" id="view-pdf-container">
+            <div class="pdf-frame-wrapper">
+              <iframe id="pdf-embed-frame" src="" width="100%" height="850px" style="border:none; border-radius: 4px;"></iframe>
+            </div>
+          </div>
+
+          <!-- 2. Full Document View Container with Inline Text Editor -->
+          <div class="view-container" id="view-doc-container" style="display: none;">
+            <!-- Inline Text Editor Formatting Toolbar -->
+            <div class="doc-editor-toolbar" id="doc-editor-toolbar">
+              <div class="toolbar-group">
+                <span class="editor-mode-badge" id="editor-status-indicator">● Edit Mode Active</span>
+                <span class="hint-pill">Click any text or table cell to edit directly</span>
+              </div>
+              <div class="toolbar-group">
+                <button class="format-btn" onclick="execFormat('bold')" title="Bold (Ctrl+B)"><b>B</b></button>
+                <button class="format-btn" onclick="execFormat('italic')" title="Italic (Ctrl+I)"><i>I</i></button>
+                <button class="format-btn" onclick="execFormat('underline')" title="Underline (Ctrl+U)"><u>U</u></button>
+                <button class="format-btn" onclick="wrapSelectionCode()" title="Inline Code (Ctrl+E)"><code>&lt;/&gt;</code></button>
+                <button class="format-btn" onclick="execFormat('formatBlock', '<h2>')" title="Heading 2">H2</button>
+                <button class="format-btn" onclick="execFormat('formatBlock', '<h3>')" title="Heading 3">H3</button>
+                <button class="format-btn" onclick="execFormat('insertUnorderedList')" title="Bullet List">• List</button>
+              </div>
+              <div class="toolbar-group">
+                <button class="btn btn-xs btn-outline" onclick="openCoverEditModal()">Edit Cover Details</button>
+                <span class="canvas-save-status" id="canvas-save-status">✓ All Edits Saved</span>
+              </div>
+            </div>
+
+            <div class="doc-canvas" id="doc-canvas">
+              <!-- Full Document Preview will be dynamically rendered here with contenteditable -->
+            </div>
+          </div>
+
+          <!-- 3. In-Browser Live Code Playground & Terminal Drawer -->
+          <div class="view-container" id="view-scratchpad-container" style="display: none;">
+            <div class="playground-layout">
+              <div class="playground-editor-pane">
+                <div class="pane-header">
+                  <div class="pane-title">
+                    <button class="btn btn-outline btn-sm" id="btn-back-to-doc" onclick="switchMainView('doc')" title="Switch back to Document Preview">
+                      ← Document Preview
+                    </button>
+                    <span>Live Code Playground</span>
+                  </div>
+                  <div class="pane-controls">
+                    <select id="scratch-lang" onchange="onScratchLangChange()">
+                      <option value="python" selected>Python 3 (DSA, NumPy)</option>
+                      <option value="c">C (gcc -lm)</option>
+                      <option value="sql">SQL (SQLite)</option>
+                    </select>
+                    <select id="scratch-template-select" onchange="loadSelectedTemplate()">
+                      <option value="">Starter Templates...</option>
+                      <option value="py-dsa-bst">DSA: Binary Search Tree (BST)</option>
+                      <option value="py-dsa-linkedlist">DSA: Singly Linked List</option>
+                      <option value="py-dsa-quicksort">DSA: QuickSort Algorithm</option>
+                      <option value="c-pointers-malloc">C: Pointers &amp; Malloc</option>
+                      <option value="c-prime-numbers">C: Prime Numbers (1-300)</option>
+                    </select>
+                    <button class="btn btn-primary btn-sm" id="btn-run-scratchpad-top" onclick="runPlaygroundCode()">
+                      <span>▶ Run Code</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="code-editor-container">
+                  <textarea id="scratch-code" rows="12" class="scratch-textarea" spellcheck="false" placeholder="// Write or paste your C, Python, or SQL code here..."></textarea>
+                </div>
+                <div class="stdin-container">
+                  <label for="scratch-stdin"><span class="terminal-prompt">&gt;</span> Standard Input (stdin) for programs expecting input:</label>
+                  <input type="text" id="scratch-stdin" placeholder="e.g. sample user input to be passed to scanf / input()" />
+                </div>
+                <div class="playground-actions">
+                  <button class="btn btn-primary" id="btn-run-scratchpad" onclick="runPlaygroundCode()">
+                    <span id="scratch-run-text">▶ Run Code (Ctrl+Enter)</span>
+                    <span class="spinner" id="scratch-spinner" style="display:none;"></span>
+                  </button>
+                  <button class="btn btn-outline" onclick="copyPlaygroundCode()">Copy Code</button>
+                  <button class="btn btn-outline" onclick="clearPlayground()">Clear</button>
+                </div>
+              </div>
+
+              <div class="playground-terminal-pane">
+                <div class="terminal-window">
+                  <div class="terminal-header">
+                    <div class="terminal-dots">
+                      <span class="dot"></span>
+                      <span class="dot"></span>
+                      <span class="dot"></span>
+                    </div>
+                    <span class="terminal-title" id="terminal-pane-title">terminal — Linux Terminal</span>
+                    <div class="terminal-metrics" id="scratch-metrics">Ready</div>
+                  </div>
+                  <div class="terminal-body" id="scratch-terminal-body">
+                    <div class="term-line prompt-line">
+                      <span class="term-user" id="term-user-prompt">student@linux</span>:<span class="term-path">~/workspace</span>$ <span class="term-cmd" id="term-cmd-display">ready</span>
+                    </div>
+                    <pre class="term-output" id="scratch-stdout">Click "▶ Run Code" to execute Python, C, or SQL locally and view authentic terminal output in real time.</pre>
+                    <pre class="term-error" id="scratch-stderr" style="display: none;"></pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. Task Cards Studio View -->
+          <div class="view-container" id="view-tasks-container" style="display: none;">
+            <div class="tasks-feed" id="tasks-feed">
+              <!-- Dynamic task cards will be rendered here -->
+            </div>
           </div>
         </div>
       </section>
     </main>
+  </div>
+
+  <!-- Direct Edit Modal -->
+  <div class="modal-overlay" id="edit-modal-overlay">
+    <div class="modal-content edit-modal-content">
+      <div class="modal-header">
+        <h3 id="edit-modal-title">Direct Edit: Task</h3>
+        <button class="modal-close" onclick="closeEditModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-task-id" value="" />
+        <div class="form-group">
+          <label for="edit-task-code">Source Code / SQL Query</label>
+          <textarea id="edit-task-code" rows="12" class="code-editor-area" spellcheck="false"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="edit-task-explanation">Explanation / Notes</label>
+          <textarea id="edit-task-explanation" rows="3"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeEditModal()">Cancel</button>
+        <button class="btn btn-primary" id="btn-save-direct-edit" onclick="submitDirectEdit()">
+          Save, Re-execute &amp; Update Report
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cover Page Edit Modal -->
+  <div class="modal-overlay" id="edit-cover-modal-overlay">
+    <div class="modal-content edit-modal-content">
+      <div class="modal-header">
+        <h3 id="edit-cover-modal-title">Edit First Page / Cover Details</h3>
+        <button class="modal-close" onclick="closeCoverEditModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="grid-2">
+          <div class="form-group">
+            <label for="edit-cover-name">Student Name</label>
+            <input type="text" id="edit-cover-name" placeholder="Student Name">
+          </div>
+          <div class="form-group">
+            <label for="edit-cover-roll">Roll Number</label>
+            <input type="text" id="edit-cover-roll" placeholder="e.g. 25F-DS-020">
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label for="edit-cover-section">Section</label>
+            <input type="text" id="edit-cover-section" placeholder="e.g. 25F-DS">
+          </div>
+          <div class="form-group">
+            <label for="edit-cover-subject">Subject / Department</label>
+            <input type="text" id="edit-cover-subject" placeholder="e.g. Database Systems Lab">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="edit-cover-lab-title">Lab Title</label>
+          <input type="text" id="edit-cover-lab-title" placeholder="e.g. Lab #3: DDL and DML Commands in MySQL">
+        </div>
+        <div class="form-group instructor-group" style="margin-top: 15px; padding: 14px; background: #0a0a0a; border: 1px solid var(--border-color); border-radius: 4px;">
+          <div class="toggle-row">
+            <label class="toggle-label" for="edit-cover-toggle-inst">
+              <span>Include Instructor</span>
+              <span class="hint-badge" style="font-size: 10.5px;">Off by Default</span>
+            </label>
+            <label class="switch">
+              <input type="checkbox" id="edit-cover-toggle-inst">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div id="edit-cover-inst-wrapper" style="display: none; margin-top: 10px;">
+            <input type="text" id="edit-cover-instructor" placeholder="Instructor Name (e.g. Rohail Shaikh)">
+            <small class="hint-text" style="font-size: 11px; color: #888888; display: block; margin-top: 4px;">When toggled off, no trace of instructor will appear in the report.</small>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeCoverEditModal()">Cancel</button>
+        <button class="btn btn-primary" id="btn-save-cover-edit" onclick="submitCoverEdit()">
+          Save &amp; Rebuild Report
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- Image Lightbox Modal -->
@@ -203,6 +570,30 @@
     </div>
   </div>
 
-  <script src="/static/app.js"></script>
+  <!-- Keyboard Shortcuts Modal -->
+  <div class="modal-overlay" id="shortcuts-modal-overlay">
+    <div class="modal-content shortcuts-modal-content">
+      <div class="modal-header">
+        <h3>Keyboard Shortcuts &amp; Studio Guide</h3>
+        <button class="modal-close" onclick="closeShortcutsModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="shortcuts-table">
+          <div class="shortcut-row"><span class="sc-key">Ctrl + S / ⌘S</span><span class="sc-desc">Save inline canvas edits and recompile all documents (Word, PDF, HTML, MD)</span></div>
+          <div class="shortcut-row"><span class="sc-key">Ctrl + Enter</span><span class="sc-desc">Run code in the live Code Playground</span></div>
+          <div class="shortcut-row"><span class="sc-key">Ctrl + K / ⌘K</span><span class="sc-desc">Toggle this Shortcuts &amp; Studio Guide</span></div>
+          <div class="shortcut-row"><span class="sc-key">Ctrl + B / ⌘B</span><span class="sc-desc">Bold selected text in the document editor</span></div>
+          <div class="shortcut-row"><span class="sc-key">Ctrl + I / ⌘I</span><span class="sc-desc">Italicize selected text in the document editor</span></div>
+          <div class="shortcut-row"><span class="sc-key">Ctrl + E</span><span class="sc-desc">Format selected text as inline code</span></div>
+          <div class="shortcut-row"><span class="sc-key">Esc</span><span class="sc-desc">Close any open modal or drawer</span></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeShortcutsModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js?v=2.0"></script>
 </body>
 </html>

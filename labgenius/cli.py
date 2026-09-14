@@ -25,7 +25,7 @@ console = Console()
 def render_banner(config: Config):
     banner_text = (
         "[bold cyan]LabGenius[/bold cyan] [bold white]v1.0.0[/bold white] — [italic green]Authentic Academic Lab Completer[/italic green]\n"
-        f"[dim]OS: Pop!_OS / COSMIC | User: {config.system.username} | Host: {config.system.hostname}[/dim]\n"
+        f"[dim]OS: Linux | User: {config.system.username} | Host: {config.system.hostname}[/dim]\n"
         f"[bold yellow]Student:[/] {config.student.name} ([bold]{config.student.roll_number}[/]) | [bold yellow]Dept:[/] {config.student.department}"
     )
     console.print(Panel(banner_text, border_style="cyan", expand=False))
@@ -38,7 +38,10 @@ def main():
     parser.add_argument("--name", type=str, default=None, help="Student Name override")
     parser.add_argument("--roll", type=str, default=None, help="Student Roll Number override")
     parser.add_argument("--dept", type=str, default=None, help="Department override")
-    parser.add_argument("--provider", type=str, choices=["gemini", "openai", "anthropic", "ollama", "mock"], default=None)
+    parser.add_argument("--section", type=str, default=None, help="Student Section override (e.g. 25F-DS)")
+    parser.add_argument("--instructor", type=str, default=None, help="Instructor name (only shown if --include-instructor is set)")
+    parser.add_argument("--include-instructor", action="store_true", default=False, help="Include instructor in the cover page table (default: false/off)")
+    parser.add_argument("--provider", type=str, choices=["gemini", "openai", "anthropic", "ollama", "mock", "groq", "openrouter"], default=None)
     parser.add_argument("--model", type=str, default=None, help="LLM model (e.g. gemini-2.5-pro, gemini-2.5-flash)")
     parser.add_argument("--api-key", type=str, default=None, help="LLM API Key")
     parser.add_argument("--dry-run", action="store_true", help="Parse tasks and display plan without executing")
@@ -52,8 +55,15 @@ def main():
         cfg.student.name = args.name
     if args.roll:
         cfg.student.roll_number = args.roll
+    if args.section:
+        cfg.student.section = args.section
     if args.dept:
         cfg.student.department = args.dept
+    cfg.student.include_instructor = args.include_instructor
+    if args.include_instructor and args.instructor:
+        cfg.student.instructor = args.instructor
+    elif not args.include_instructor:
+        cfg.student.instructor = ""
     if args.provider:
         cfg.ai.provider = args.provider
     if args.model:

@@ -35,12 +35,8 @@ def format_table(headers, rows):
 
 
 def execute_sql_file(sql_path: Path, db_path: Path, student_name: str, roll_no: str) -> str:
-    """Executes a SQL file and returns clean console output with student identity."""
-    output_lines = [
-        f"Name: {student_name}",
-        f"Roll No: {roll_no}",
-        "-------------------------",
-    ]
+    """Executes a SQL file and returns clean console output."""
+    output_lines = []
 
     with open(sql_path, "r", encoding="utf-8") as f:
         sql_content = f.read()
