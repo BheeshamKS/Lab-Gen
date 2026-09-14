@@ -4,13 +4,12 @@ Rewrites docProps/core.xml and docProps/app.xml in DOCX files to inject realisti
 times, matching student author metadata, and purging all traces of automated generators.
 """
 
-import os
 import io
 import random
 import zipfile
 import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 import xml.etree.ElementTree as ET
 
 from .config import Config

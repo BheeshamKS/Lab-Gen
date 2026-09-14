@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 LabGenius End-to-End Demonstration Script.
-Executes sample Data Science lab manual, captures Pop!_OS terminal screenshots,
+Executes sample Data Science lab manual, captures Linux terminal screenshots,
 builds completed report, sanitizes metadata, and generates PDF.
 """
 

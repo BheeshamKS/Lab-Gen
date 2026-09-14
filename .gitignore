@@ -1,4 +1,17 @@
-/.venv
-/__pycache__
-/output
-/uploads
+# Python virtual environments & bytecode
+.venv/
+/.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Application runtime outputs & workspace
+/output/
+/uploads/
+/workspace/
+/scratch/
+
+# Temporary / OS files
+.DS_Store
+*.swp
+*~

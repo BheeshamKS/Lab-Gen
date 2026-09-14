@@ -9,7 +9,7 @@ import time
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple, Dict
 
 from .config import Config
 from .solver import TaskSolution
@@ -112,13 +112,13 @@ class CodeRunner:
 
         elif lang == "c":
             bin_name = code_path.stem
-            full_cmd = f'gcc -O2 -o "{bin_name}" "{fname}" && ./"{bin_name}"'
-            display_cmd = f"gcc -o {bin_name} {fname} && ./{bin_name}"
+            full_cmd = f'gcc -O2 -o "{bin_name}" "{fname}" -lm && ./"{bin_name}"'
+            display_cmd = f"gcc -o {bin_name} {fname} -lm && ./{bin_name}"
             return full_cmd, display_cmd
 
         elif lang in ["cpp", "c++"]:
             bin_name = code_path.stem
-            full_cmd = f'g++ -O2 -o "{bin_name}" "{fname}" && ./"{bin_name}"'
+            full_cmd = f'g++ -O2 -o "{bin_name}" "{fname}" -lm && ./"{bin_name}"'
             display_cmd = f"g++ -o {bin_name} {fname} && ./{bin_name}"
             return full_cmd, display_cmd
 

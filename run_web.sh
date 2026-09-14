@@ -18,4 +18,4 @@ echo " Starting LabGenius Web Application Dashboard..."
 echo " Open in your browser: http://127.0.0.1:8000"
 echo "=========================================================="
 
-"$UVICORN" web_app:app --host 127.0.0.1 --port 8000 --reload
+"$UVICORN" web_app:app --host 127.0.0.1 --port 8000 --reload --reload-dir labgenius --reload-dir web --reload-include web_app.py
