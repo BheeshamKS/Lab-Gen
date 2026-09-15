@@ -1840,6 +1840,941 @@ input:checked + .slider:before {
 .studio-toast.visible {
   opacity: 1;
   transform: translateY(0);
+/* ==========================================================================
+   Doc Tools Studio & Multi-Format Merger Styles (Monochrome)
+   ========================================================================== */
+.doctools-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.doctools-header {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.doctools-title-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.doctools-badge {
+  font-family: 'Fira Code', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  background: #ffffff;
+  color: #000000;
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  text-transform: uppercase;
+  margin-top: 3px;
+  white-space: nowrap;
+}
+
+.doctools-heading-text h2 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 2px;
+  letter-spacing: -0.3px;
+}
+
+.doctools-heading-text p {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.doctools-subtabs {
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 12px;
+  flex-wrap: wrap;
+}
+
+.doctools-tab-btn {
+  background: #111111;
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: var(--transition);
+}
+
+.doctools-tab-btn:hover {
+  background: #1a1a1a;
+  color: #ffffff;
+  border-color: #444444;
+}
+
+.doctools-tab-btn.active {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+  font-weight: 600;
+}
+
+.doctool-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+/* ==========================================================================
+   Merger 3-Step Progressive Flow & Stepper Bar
+   ========================================================================== */
+.merger-stepper-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 12px 18px;
+  margin-bottom: 16px;
+}
+
+.merger-step-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: #0d0d0d;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  flex: 1;
+  transition: var(--transition);
+}
+
+.merger-step-btn:hover {
+  background: #141414;
+  border-color: #404040;
+}
+
+.merger-step-btn.active {
+  background: #171717;
+  border-color: #ffffff;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.08);
+}
+
+.merger-step-btn.completed {
+  border-color: #333333;
+}
+
+.step-num-badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #1a1a1a;
+  color: #888888;
+  font-family: 'Fira Code', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  border: 1px solid #333333;
+}
+
+.merger-step-btn.active .step-num-badge {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+}
+
+.merger-step-btn.completed .step-num-badge {
+  background: #1b2e1e;
+  color: #4ade80;
+  border-color: #27522d;
+}
+
+.step-text-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.step-nav-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.step-nav-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.step-connector-line {
+  width: 20px;
+  height: 1px;
+  background: var(--border-color);
+  flex-shrink: 0;
+}
+
+.step-connector-line.active {
+  background: #ffffff;
+}
+
+/* Step Views & Step Cards */
+.merger-step-view {
+  animation: fadeIn 0.18s ease;
+}
+
+.step-card {
+  padding: 24px;
+}
+
+.step-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.step-card-header h3 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.step-card-desc {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.step-badge-counter {
+  font-family: 'Fira Code', monospace;
+  font-size: 11px;
+  background: #171717;
+  color: #ededed;
+  border: 1px solid #333333;
+  padding: 4px 10px;
+  border-radius: var(--radius-xs);
+  white-space: nowrap;
+}
+
+/* Staged Files Section in Step 1 */
+.staged-files-section {
+  margin-top: 20px;
+  padding: 16px 20px;
+  background: #0d0d0d;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.staged-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.staged-header h4 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.staged-chips-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.staged-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #161616;
+  border: 1px solid #333333;
+  border-radius: var(--radius-xs);
+  padding: 6px 12px;
+  font-size: 12px;
+  color: #ededed;
+  transition: var(--transition);
+}
+
+.staged-chip:hover {
+  border-color: #555555;
+}
+
+.staged-chip-remove {
+  background: transparent;
+  border: none;
+  color: #888888;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 2px;
+  display: flex;
+  align-items: center;
+}
+
+.staged-chip-remove:hover {
+  color: #ff5555;
+}
+
+/* Step Footer Navigation */
+.step-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 14px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-color);
+}
+
+.step-footer-actions.space-between {
+  justify-content: space-between;
+}
+
+.step-hint-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-right: auto;
+}
+
+.action-right-wrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Sequence Summary in Step 3 */
+.merger-sequence-summary {
+  background: #0d0d0d;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 14px 18px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.summary-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.summary-flow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.summary-item-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #171717;
+  border: 1px solid #333333;
+  padding: 4px 10px;
+  border-radius: var(--radius-xs);
+  font-size: 12px;
+  font-family: 'Fira Code', monospace;
+  color: #ededed;
+}
+
+.summary-arrow {
+  color: #666666;
+  font-size: 11px;
+}
+
+/* Merger Dropzone */
+.merger-dropzone {
+  border: 2px dashed #333333;
+  border-radius: var(--radius-sm);
+  padding: 32px 24px;
+  text-align: center;
+  background: #0d0d0d;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.merger-dropzone:hover, .merger-dropzone.drag-active {
+  border-color: #ffffff;
+  background: #141414;
+}
+
+.merger-drop-icon {
+  margin-bottom: 12px;
+  color: #ffffff;
+}
+
+.merger-dropzone h3 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.merger-dropzone p {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  max-width: 500px;
+  margin: 0 auto 16px;
+}
+
+.merger-drop-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* Merger Queue */
+.merger-queue-card {
+  padding: 16px 20px;
+}
+
+.merger-queue-header {
+  margin-bottom: 14px;
+}
+
+.queue-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.queue-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.queue-title-group h3 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.queue-count-pill {
+  font-family: 'Fira Code', monospace;
+  font-size: 11px;
+  background: #171717;
+  color: #ededed;
+  border: 1px solid #333333;
+  padding: 2px 8px;
+  border-radius: var(--radius-xs);
+}
+
+.queue-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.queue-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.merger-queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 80px;
+}
+
+.merger-empty-state {
+  text-align: center;
+  padding: 30px 20px;
+  background: #0d0d0d;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+}
+
+.merger-empty-state .empty-icon {
+  font-size: 28px;
+  margin-bottom: 6px;
+}
+
+.merger-empty-state p {
+  font-size: 13px;
+  font-weight: 500;
+  color: #ededed;
+  margin-bottom: 2px;
+}
+
+.merger-empty-state small {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+/* Merger List Item */
+.merger-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #111111;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  user-select: none;
+}
+
+.merger-item:hover {
+  background: #161616;
+  border-color: #404040;
+}
+
+.merger-item.dragging {
+  opacity: 0.45;
+  background: #222222;
+  border: 1px dashed #ffffff;
+}
+
+.merger-item.drag-over-top {
+  border-top: 2px solid #ffffff;
+}
+
+.merger-item.drag-over-bottom {
+  border-bottom: 2px solid #ffffff;
+}
+
+.merger-item-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.drag-handle {
+  cursor: grab;
+  color: #666666;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s;
+}
+
+.drag-handle:hover {
+  color: #ffffff;
+}
+
+.merger-order-badge {
+  font-family: 'Fira Code', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  background: #222222;
+  border: 1px solid #383838;
+  padding: 2px 7px;
+  border-radius: var(--radius-xs);
+  min-width: 32px;
+  text-align: center;
+}
+
+.merger-type-badge {
+  font-family: 'Fira Code', monospace;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--radius-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.merger-type-badge.pdf {
+  background: #2a1010;
+  color: #ff6b6b;
+  border: 1px solid #5a2020;
+}
+
+.merger-type-badge.docx {
+  background: #0f1c2e;
+  color: #60a5fa;
+  border: 1px solid #1e3a5f;
+}
+
+.merger-file-details {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.merger-file-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.merger-file-size {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.merger-item-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.merger-btn-icon {
+  background: transparent;
+  color: #888888;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 12px;
+  transition: var(--transition);
+}
+
+.merger-btn-icon:hover {
+  background: #222222;
+  color: #ffffff;
+  border-color: #444444;
+}
+
+.merger-btn-remove:hover {
+  background: #331111;
+  color: #ff5555;
+  border-color: #662222;
+}
+
+/* Export Settings */
+.export-settings-card {
+  padding: 20px;
+}
+
+.export-settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.export-settings-header h3 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.export-format-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #ededed;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.format-choice-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.format-choice-card {
+  background: #0d0d0d;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  transition: var(--transition);
+}
+
+.format-choice-card:hover {
+  background: #141414;
+  border-color: #444444;
+}
+
+.format-choice-card.active {
+  background: #161616;
+  border-color: #ffffff;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.08);
+}
+
+.format-radio-indicator {
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid #666666;
+  border-radius: 50%;
+  margin-top: 2px;
+  position: relative;
+  flex-shrink: 0;
+  transition: border-color 0.15s;
+}
+
+.format-choice-card.active .format-radio-indicator {
+  border-color: #ffffff;
+}
+
+.format-choice-card.active .format-radio-indicator::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: #ffffff;
+  border-radius: 50%;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.format-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.format-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  color: #ffffff;
+}
+
+.format-pill {
+  font-family: 'Fira Code', monospace;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+}
+
+.format-pill.pdf-pill {
+  background: #331111;
+  color: #ff6b6b;
+  border: 1px solid #662222;
+}
+
+.format-pill.docx-pill {
+  background: #0f1c2e;
+  color: #60a5fa;
+  border: 1px solid #1e3a5f;
+}
+
+.format-info p {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.export-config-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  margin-bottom: 20px;
+}
+
+.filename-input-wrapper {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.filename-input-wrapper input {
+  padding-right: 50px;
+}
+
+.filename-ext {
+  position: absolute;
+  right: 12px;
+  font-family: 'Fira Code', monospace;
+  font-size: 12px;
+  color: #888888;
+  pointer-events: none;
+}
+
+.checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-main);
+  cursor: pointer;
+  padding: 9px 0;
+}
+
+.merger-action-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
+}
+
+.btn-lg {
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.merger-status-msg {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+/* Merger Result Card */
+.merger-result-card {
+  margin-top: 16px;
+  background: #0f1710;
+  border: 1px solid #204523;
+  border-radius: var(--radius-sm);
+  padding: 16px 20px;
+}
+
+.result-card-inner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.result-success-icon {
+  width: 38px;
+  height: 38px;
+  background: #204523;
+  color: #4ade80;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.result-info {
+  flex: 1;
+}
+
+.result-info h4 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 6px;
+}
+
+.result-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.result-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Converter, Splitter, Inspector general styles */
+.converter-box, .splitter-box, .inspector-box {
+  padding: 6px;
+}
+
+.converter-box h3, .splitter-box h3, .inspector-box h3 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.converter-box p, .splitter-box p, .inspector-box p {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.converter-mode-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.converter-upload-area, .splitter-upload-area, .inspector-upload-area {
+  border: 2px dashed #333333;
+  border-radius: var(--radius-sm);
+  padding: 28px 20px;
+  text-align: center;
+  background: #0d0d0d;
+  cursor: pointer;
+  transition: var(--transition);
+  margin-bottom: 16px;
+}
+
+.converter-upload-area:hover, .splitter-upload-area:hover, .inspector-upload-area:hover {
+  border-color: #ffffff;
+  background: #141414;
+}
+
+.selected-file-pill {
+  font-family: 'Fira Code', monospace;
+  font-size: 12px;
+  background: #1c1c1c;
+  border: 1px solid #383838;
+  color: #ffffff;
+  padding: 4px 12px;
+  border-radius: var(--radius-xs);
+  display: inline-block;
+  margin-top: 10px;
+}
+
+.converter-actions {
+  margin-top: 14px;
+}
+
+.converter-result-box, .splitter-result-box {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: #0f1710;
+  border: 1px solid #204523;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 /* Print Styles */
