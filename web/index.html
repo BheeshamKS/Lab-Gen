@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=2.0">
+  <link rel="stylesheet" href="/static/style.css?v=2.1">
 </head>
 <body>
   <div class="app-container">
@@ -27,6 +27,10 @@
         </button>
         <button class="nav-btn" id="btn-open-playground-nav" onclick="openNavPlayground()">
           Playground
+        </button>
+        <button class="nav-btn" id="btn-open-doctools-nav" onclick="openNavDocTools()" title="Document Utilities & Multi-Format Merger">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 2px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+          Doc Tools
         </button>
         <button class="nav-btn btn-highlight" id="btn-nav-new-lab" onclick="closeAndStartNewLab()" title="Close current lab and upload a new lab manual">
           + New Lab
@@ -351,6 +355,10 @@
               <button class="view-tab-btn" id="btn-view-tasks" onclick="switchMainView('tasks')">
                 Task Cards
               </button>
+              <button class="view-tab-btn" id="btn-view-doctools" onclick="switchMainView('doctools')">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 2px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                Doc Tools
+              </button>
             </div>
             <div class="preview-actions">
               <button class="btn btn-sm btn-primary" id="btn-save-canvas" onclick="saveDocumentCanvasEdits()">Save Edits (Ctrl+S)</button>
@@ -469,6 +477,380 @@
           <div class="view-container" id="view-tasks-container" style="display: none;">
             <div class="tasks-feed" id="tasks-feed">
               <!-- Dynamic task cards will be rendered here -->
+            </div>
+          </div>
+
+          <!-- 5. Doc Tools Studio View (Multi-Format Document Merger & Utilities) -->
+          <div class="view-container" id="view-doctools-container" style="display: none;">
+            <div class="doctools-layout">
+              <!-- Top Banner & Sub-tool Navigation -->
+              <div class="doctools-header">
+                <div class="doctools-title-group">
+                  <div class="doctools-badge">DOC TOOLS STUDIO</div>
+                  <div class="doctools-heading-text">
+                    <h2>Multi-Format Document Studio &amp; Merger</h2>
+                    <p>Upload multiple documents, reorder via drag &amp; drop, and export merged PDF or Word (.docx) documents with 100% fidelity.</p>
+                  </div>
+                </div>
+                <div class="doctools-subtabs">
+                  <button type="button" class="doctools-tab-btn active" id="tab-btn-merger" onclick="switchDocTool('merger')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2v-3"/><path d="M18 9l-6 6-3-3"/></svg>
+                    Document Merger
+                  </button>
+                  <button type="button" class="doctools-tab-btn" id="tab-btn-converter" onclick="switchDocTool('converter')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+                    Format Converter
+                  </button>
+                  <button type="button" class="doctools-tab-btn" id="tab-btn-splitter" onclick="switchDocTool('splitter')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><line x1="20" y1="4" x2="8.12" y2="15.88"></line><line x1="14.47" y1="14.48" x2="20" y2="20"></line><line x1="8.12" y1="8.12" x2="12" y2="12"></line></svg>
+                    Page Splitter
+                  </button>
+                  <button type="button" class="doctools-tab-btn" id="tab-btn-extractor" onclick="switchDocTool('extractor')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                    Text &amp; Info Inspector
+                  </button>
+                </div>
+              </div>
+
+              <!-- ============================================================== -->
+              <!-- Tool 1: Multi-Document Merger (Main Showcase)                   -->
+              <!-- ============================================================== -->
+              <!-- ============================================================== -->
+              <!-- Tool 1: Multi-Document Merger (Step-by-Step Progressive Flow)   -->
+              <!-- ============================================================== -->
+              <div class="doctool-panel active" id="panel-doc-merger">
+                <!-- Stepper Progress Navigation Header -->
+                <div class="merger-stepper-bar">
+                  <div class="merger-step-btn active" id="stepper-step-1" onclick="goToMergerStep(1)">
+                    <div class="step-num-badge">1</div>
+                    <div class="step-text-wrap">
+                      <span class="step-nav-title">Upload Documents</span>
+                      <span class="step-nav-sub">PDF or Word (.docx)</span>
+                    </div>
+                  </div>
+                  <div class="step-connector-line" id="stepper-line-1"></div>
+                  <div class="merger-step-btn" id="stepper-step-2" onclick="goToMergerStep(2)">
+                    <div class="step-num-badge">2</div>
+                    <div class="step-text-wrap">
+                      <span class="step-nav-title">Reorder Sequence</span>
+                      <span class="step-nav-sub">Drag to set order</span>
+                    </div>
+                  </div>
+                  <div class="step-connector-line" id="stepper-line-2"></div>
+                  <div class="merger-step-btn" id="stepper-step-3" onclick="goToMergerStep(3)">
+                    <div class="step-num-badge">3</div>
+                    <div class="step-text-wrap">
+                      <span class="step-nav-title">Export &amp; Download</span>
+                      <span class="step-nav-sub">PDF or DOCX</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- ------------------------------------------------------------ -->
+                <!-- STEP 1: Upload Documents                                     -->
+                <!-- ------------------------------------------------------------ -->
+                <div class="merger-step-view" id="merger-step-view-1">
+                  <div class="card doctool-card step-card">
+                    <div class="step-card-header">
+                      <div>
+                        <h3>Step 1: Upload Your Documents</h3>
+                        <p class="step-card-desc">Upload multiple PDF and/or Word (.docx) files. You can mix and match formats freely.</p>
+                      </div>
+                      <span class="step-badge-counter" id="step1-counter-badge">0 Files Ready</span>
+                    </div>
+
+                    <div class="merger-dropzone" id="merger-dropzone" onclick="document.getElementById('merger-file-input').click()">
+                      <div class="merger-drop-icon">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                      </div>
+                      <h3>Drag &amp; drop files here</h3>
+                      <p>Drop PDF and Word (.docx) documents, or browse files from your computer.</p>
+                      <input type="file" id="merger-file-input" multiple accept=".pdf,.docx" style="display: none;" onchange="handleMergerFilesSelected(event)">
+                      <div class="merger-drop-actions" onclick="event.stopPropagation()">
+                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('merger-file-input').click()">
+                          Browse Files
+                        </button>
+                        <button type="button" class="btn btn-outline" onclick="loadSampleMergeFiles()">
+                          ⚡ Load Sample Documents
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Staged Files Preview (Shows up as soon as files are uploaded) -->
+                    <div class="staged-files-section" id="staged-files-section" style="display: none;">
+                      <div class="staged-header">
+                        <h4>Staged Files (<span id="staged-count-text">0</span>)</h4>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="clearMergerQueue()">Clear All</button>
+                      </div>
+                      <div class="staged-chips-list" id="staged-chips-list">
+                        <!-- Dynamic file chips will render here -->
+                      </div>
+                    </div>
+
+                    <div class="step-footer-actions">
+                      <div class="step-hint-text" id="step1-hint-text">Add at least 1 document to proceed to reordering.</div>
+                      <button type="button" class="btn btn-primary btn-lg" id="btn-proceed-to-step2" onclick="goToMergerStep(2)" disabled>
+                        <span>Next: Arrange Order →</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- ------------------------------------------------------------ -->
+                <!-- STEP 2: Reorder Sequence                                      -->
+                <!-- ------------------------------------------------------------ -->
+                <div class="merger-step-view" id="merger-step-view-2" style="display: none;">
+                  <div class="card doctool-card step-card">
+                    <div class="step-card-header">
+                      <div>
+                        <h3>Step 2: Drag &amp; Drop to Arrange Order</h3>
+                        <p class="step-card-desc">Drag any document card up or down to set your desired order. Files merge sequentially from top (#1) to bottom.</p>
+                      </div>
+                      <div class="queue-controls">
+                        <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('merger-file-input').click()">
+                          + Add More Files
+                        </button>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="clearMergerQueue()">
+                          Clear All
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- The Draggable List -->
+                    <div class="merger-queue-list" id="merger-queue-list">
+                      <!-- Dynamic items render here -->
+                    </div>
+
+                    <div class="step-footer-actions space-between">
+                      <button type="button" class="btn btn-outline" onclick="goToMergerStep(1)">
+                        ← Back to Upload
+                      </button>
+                      <button type="button" class="btn btn-primary btn-lg" id="btn-proceed-to-step3" onclick="goToMergerStep(3)">
+                        <span>Next: Export Options →</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- ------------------------------------------------------------ -->
+                <!-- STEP 3: Export & Download                                     -->
+                <!-- ------------------------------------------------------------ -->
+                <div class="merger-step-view" id="merger-step-view-3" style="display: none;">
+                  <div class="card doctool-card step-card">
+                    <div class="step-card-header">
+                      <div>
+                        <h3>Step 3: Choose Export Format &amp; Merge</h3>
+                        <p class="step-card-desc">Select whether you want a print-ready vector PDF or an editable Microsoft Word (.docx) document.</p>
+                      </div>
+                      <span class="lock-pill">Local Execution</span>
+                    </div>
+
+                    <!-- Sequence Summary Breadcrumbs -->
+                    <div class="merger-sequence-summary">
+                      <span class="summary-label">Merge Sequence:</span>
+                      <div class="summary-flow" id="summary-flow-chips">
+                        <!-- e.g. #1 FileA.pdf ➔ #2 FileB.docx -->
+                      </div>
+                    </div>
+
+                    <div class="export-format-selector">
+                      <label class="export-format-label">Select Output Format:</label>
+                      <div class="format-choice-grid">
+                        <div class="format-choice-card active" id="format-card-pdf" onclick="selectExportFormat('pdf')">
+                          <div class="format-radio-indicator"></div>
+                          <div class="format-info">
+                            <div class="format-name">
+                              <span class="format-pill pdf-pill">PDF</span>
+                              <strong>PDF Document (.pdf)</strong>
+                            </div>
+                            <p>High-resolution vectorized layout with locked formatting and high-resolution visuals. Universal academic submission standard.</p>
+                          </div>
+                        </div>
+
+                        <div class="format-choice-card" id="format-card-docx" onclick="selectExportFormat('docx')">
+                          <div class="format-radio-indicator"></div>
+                          <div class="format-info">
+                            <div class="format-name">
+                              <span class="format-pill docx-pill">DOCX</span>
+                              <strong>Word Document (.docx)</strong>
+                            </div>
+                            <p>Fully editable Microsoft Word document (.docx). Stitches sections, paragraphs, tables, and images seamlessly.</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="export-config-row">
+                      <div class="form-group flex-2">
+                        <label for="merger-out-filename">Output Document Filename</label>
+                        <div class="filename-input-wrapper">
+                          <input type="text" id="merger-out-filename" value="Merged_Lab_Submission" placeholder="Enter output file name">
+                          <span class="filename-ext" id="merger-filename-ext">.pdf</span>
+                        </div>
+                      </div>
+
+                      <div class="form-group flex-1">
+                        <label>Page Separation</label>
+                        <label class="checkbox-container">
+                          <input type="checkbox" id="merger-page-break" checked>
+                          <span>Insert Page Break between documents</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div class="step-footer-actions space-between">
+                      <button type="button" class="btn btn-outline" onclick="goToMergerStep(2)">
+                        ← Back to Reorder
+                      </button>
+                      <div class="action-right-wrap">
+                        <span class="merger-status-msg" id="merger-status-msg">Ready to merge</span>
+                        <button type="button" class="btn btn-primary btn-lg" id="btn-execute-merge" onclick="executeDocumentMerge()">
+                          <span id="btn-merge-text">⚡ Merge Documents into PDF</span>
+                          <span class="spinner" id="merger-spinner" style="display: none;"></span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Result Showcase Card -->
+                    <div class="merger-result-card" id="merger-result-card" style="display: none; margin-top: 24px;">
+                      <div class="result-card-inner">
+                        <div class="result-success-icon">✓</div>
+                        <div class="result-info">
+                          <h4 id="result-title">Documents Merged Successfully!</h4>
+                          <div class="result-pills">
+                            <span class="meta-pill" id="result-filename-pill">Merged_Lab_Submission.pdf</span>
+                            <span class="meta-pill" id="result-size-pill">1.2 MB</span>
+                            <span class="meta-pill" id="result-pages-pill">4 Pages</span>
+                            <span class="meta-pill meta-safe">Verified 100% Local</span>
+                          </div>
+                        </div>
+                        <div class="result-actions">
+                          <a href="#" class="btn btn-primary" id="btn-download-merged" download>Download File</a>
+                          <button type="button" class="btn btn-secondary" id="btn-preview-merged" onclick="previewMergedDocument()">Preview Document ↗</button>
+                          <button type="button" class="btn btn-outline btn-sm" onclick="resetMergerWorkflow()">+ Start New Merge</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ============================================================== -->
+              <!-- Tool 2: Format Converter (PDF ↔ DOCX)                           -->
+              <!-- ============================================================== -->
+              <div class="doctool-panel" id="panel-doc-converter" style="display: none;">
+                <div class="card doctool-card">
+                  <div class="converter-box">
+                    <h3>Quick Format Converter</h3>
+                    <p>Convert any Word (.docx) document to PDF or any PDF to editable Word (.docx) document.</p>
+                    
+                    <div class="converter-mode-selector">
+                      <button type="button" class="btn btn-secondary active" id="btn-mode-docx2pdf" onclick="setConverterMode('docx2pdf')">
+                        Word (.docx) ➔ PDF
+                      </button>
+                      <button type="button" class="btn btn-secondary" id="btn-mode-pdf2docx" onclick="setConverterMode('pdf2docx')">
+                        PDF ➔ Word (.docx)
+                      </button>
+                    </div>
+
+                    <div class="converter-upload-area" onclick="document.getElementById('converter-file-input').click()">
+                      <div class="upload-icon">⇄</div>
+                      <h4 id="converter-drop-title">Select Word (.docx) file to convert to PDF</h4>
+                      <p>Drag and drop or click to choose file</p>
+                      <input type="file" id="converter-file-input" accept=".docx" style="display: none;" onchange="handleConverterFileSelected(event)">
+                      <div id="converter-selected-file" class="selected-file-pill" style="display: none;"></div>
+                    </div>
+
+                    <div class="converter-actions">
+                      <button type="button" class="btn btn-primary" id="btn-run-convert" onclick="runDocumentConvert()" disabled>
+                        <span>Convert Document</span>
+                        <span class="spinner" id="converter-spinner" style="display: none;"></span>
+                      </button>
+                    </div>
+
+                    <div class="converter-result-box" id="converter-result-box" style="display: none;">
+                      <span id="converter-result-text">Converted successfully!</span>
+                      <a href="#" class="btn btn-primary btn-sm" id="btn-download-converted" download>Download Converted File</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ============================================================== -->
+              <!-- Tool 3: PDF Page Splitter / Extractor                          -->
+              <!-- ============================================================== -->
+              <div class="doctool-panel" id="panel-doc-splitter" style="display: none;">
+                <div class="card doctool-card">
+                  <div class="splitter-box">
+                    <h3>PDF Page Splitter &amp; Extractor</h3>
+                    <p>Extract specific pages or page ranges from a PDF manual into a clean standalone document.</p>
+
+                    <div class="splitter-upload-area" onclick="document.getElementById('splitter-file-input').click()">
+                      <div class="upload-icon">✂</div>
+                      <h4>Select PDF Document to Split</h4>
+                      <p>Click or drop PDF here</p>
+                      <input type="file" id="splitter-file-input" accept=".pdf" style="display: none;" onchange="handleSplitterFileSelected(event)">
+                      <div id="splitter-selected-file" class="selected-file-pill" style="display: none;"></div>
+                    </div>
+
+                    <div class="splitter-controls" id="splitter-controls" style="display: none; margin-top: 20px;">
+                      <div class="form-group">
+                        <label for="splitter-range-input">Page Range to Extract (1-indexed)</label>
+                        <input type="text" id="splitter-range-input" placeholder="e.g. 1-3, 5, 8-10" value="1-2">
+                        <small class="hint-text">Specify comma-separated pages or hyphenated ranges. Document has <span id="splitter-total-pages">0</span> total pages.</small>
+                      </div>
+
+                      <button type="button" class="btn btn-primary" id="btn-run-split" onclick="runDocumentSplit()">
+                        <span>Extract Specified Pages</span>
+                        <span class="spinner" id="splitter-spinner" style="display: none;"></span>
+                      </button>
+                    </div>
+
+                    <div class="splitter-result-box" id="splitter-result-box" style="display: none;">
+                      <span id="splitter-result-text">Pages extracted successfully!</span>
+                      <a href="#" class="btn btn-primary btn-sm" id="btn-download-split" download>Download Extracted PDF</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ============================================================== -->
+              <!-- Tool 4: Text & Metadata Inspector                              -->
+              <!-- ============================================================== -->
+              <div class="doctool-panel" id="panel-doc-extractor" style="display: none;">
+                <div class="card doctool-card">
+                  <div class="inspector-box">
+                    <h3>Document Text &amp; Metadata Inspector</h3>
+                    <p>Quickly inspect words, characters, page count, and extract plain text from any PDF or Word document.</p>
+
+                    <div class="inspector-upload-area" onclick="document.getElementById('inspector-file-input').click()">
+                      <div class="upload-icon">📄</div>
+                      <h4>Select PDF or DOCX file to inspect</h4>
+                      <p>Click or drop document here</p>
+                      <input type="file" id="inspector-file-input" accept=".pdf,.docx" style="display: none;" onchange="handleInspectorFileSelected(event)">
+                    </div>
+
+                    <div class="inspector-results" id="inspector-results" style="display: none; margin-top: 20px;">
+                      <div class="meta-pills" style="margin-bottom: 15px;">
+                        <span class="meta-pill" id="inspect-filename">File: manual.pdf</span>
+                        <span class="meta-pill" id="inspect-words">0 Words</span>
+                        <span class="meta-pill" id="inspect-chars">0 Characters</span>
+                        <span class="meta-pill" id="inspect-pages">0 Pages</span>
+                        <span class="meta-pill" id="inspect-size">0 KB</span>
+                      </div>
+
+                      <div class="form-group">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                          <label for="inspect-text-content">Extracted Text Preview</label>
+                          <button type="button" class="btn btn-outline btn-sm" onclick="copyInspectedText()">Copy Text</button>
+                        </div>
+                        <textarea id="inspect-text-content" rows="10" readonly class="code-editor-area"></textarea>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
@@ -594,6 +976,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=2.0"></script>
+  <script src="/static/app.js?v=2.1"></script>
 </body>
 </html>

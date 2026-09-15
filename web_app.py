@@ -7,8 +7,10 @@ import os
 import time
 import shutil
 import json
+import re
+import tempfile
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 import uvicorn
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
 from fastapi.responses import FileResponse, HTMLResponse
@@ -21,6 +23,7 @@ from labgenius.runner import CodeRunner
 from labgenius.capture import ScreenshotStudio
 from labgenius.builder import DocumentBuilder
 from labgenius.sanitizer import DocumentSanitizer
+import labgenius.doc_tools as doc_tools
 
 app = FastAPI(title="LabGenius Web App", version="1.0.0")
 
@@ -981,11 +984,222 @@ async def download_file(filename: str):
     }
     media_type = media_map.get(ext, "application/octet-stream")
 
-    return FileResponse(
-        path=str(file_path),
-        filename=filename,
-        media_type=media_type,
-    )
+# ==============================================================================
+# Doc Tools API Endpoints (Multi-Document Merger, Converter, Splitter, Inspector)
+# ==============================================================================
+
+@app.post("/api/doc-tools/merge")
+async def api_merge_documents(
+    files: List[UploadFile] = File(...),
+    order: Optional[str] = Form(None),
+    export_format: str = Form("pdf"),
+    filename: Optional[str] = Form(None),
+    page_break: bool = Form(True),
+):
+    if not files:
+        raise HTTPException(status_code=400, detail="No files uploaded for merging.")
+
+    temp_dir = Path(tempfile.mkdtemp(prefix="labgen_upload_merge_"))
+    try:
+        saved_files = {}
+        for upload in files:
+            safe_name = Path(upload.filename or f"doc_{time.time()}").name
+            dest_path = temp_dir / safe_name
+            with open(dest_path, "wb") as buf:
+                shutil.copyfileobj(upload.file, buf)
+            saved_files[safe_name] = dest_path
+
+        # Determine file order
+        ordered_paths = []
+        if order:
+            try:
+                order_list = json.loads(order)
+                if isinstance(order_list, list):
+                    for name in order_list:
+                        if name in saved_files:
+                            ordered_paths.append(saved_files[name])
+            except Exception as e:
+                print("[-] Could not parse custom order json:", e)
+
+        # Append any remaining files not specified in order list
+        for name, p in saved_files.items():
+            if p not in ordered_paths:
+                ordered_paths.append(p)
+
+        if not ordered_paths:
+            raise HTTPException(status_code=400, detail="No valid documents found to merge.")
+
+        ext_clean = export_format.strip().lower().lstrip(".")
+        if ext_clean not in ["pdf", "docx"]:
+            ext_clean = "pdf"
+
+        # Sanitize filename
+        clean_name = re.sub(r'[^a-zA-Z0-9_\- ]', '', (filename or "Merged_Document").strip())
+        if not clean_name:
+            clean_name = f"Merged_Document_{int(time.time())}"
+        out_filename = f"{clean_name}.{ext_clean}"
+        out_path = OUTPUT_DIR / out_filename
+
+        # Execute merge
+        result = doc_tools.merge_documents(
+            input_files=ordered_paths,
+            output_format=ext_clean,
+            output_path=out_path,
+            insert_page_break=page_break,
+        )
+
+        return {
+            "success": True,
+            "filename": out_filename,
+            "download_url": f"/api/download/{out_filename}",
+            "preview_url": f"/api/preview/pdf/{out_filename}" if ext_clean == "pdf" else None,
+            "format": ext_clean,
+            "size_formatted": result.get("size_formatted"),
+            "page_count": result.get("page_count"),
+            "paragraph_count": result.get("paragraph_count"),
+            "file_count": len(ordered_paths),
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+@app.post("/api/doc-tools/convert")
+async def api_convert_document(
+    file: UploadFile = File(...),
+    target_format: str = Form("pdf"),
+):
+    temp_dir = Path(tempfile.mkdtemp(prefix="labgen_upload_conv_"))
+    try:
+        safe_name = Path(file.filename or "doc").name
+        dest_path = temp_dir / safe_name
+        with open(dest_path, "wb") as buf:
+            shutil.copyfileobj(file.file, buf)
+
+        target_clean = target_format.strip().lower().lstrip(".")
+        if target_clean not in ["pdf", "docx"]:
+            target_clean = "pdf"
+
+        out_filename = f"{Path(safe_name).stem}_converted.{target_clean}"
+        out_path = OUTPUT_DIR / out_filename
+
+        result = doc_tools.convert_document(dest_path, target_clean, out_path)
+        return {
+            "success": True,
+            "filename": out_filename,
+            "download_url": f"/api/download/{out_filename}",
+            "preview_url": f"/api/preview/pdf/{out_filename}" if target_clean == "pdf" else None,
+            "format": target_clean,
+            "size_formatted": result.get("size_formatted"),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+@app.post("/api/doc-tools/extract-pages")
+async def api_extract_pdf_pages(
+    file: UploadFile = File(...),
+    page_ranges: str = Form(...),
+):
+    temp_dir = Path(tempfile.mkdtemp(prefix="labgen_upload_extract_"))
+    try:
+        safe_name = Path(file.filename or "doc.pdf").name
+        dest_path = temp_dir / safe_name
+        with open(dest_path, "wb") as buf:
+            shutil.copyfileobj(file.file, buf)
+
+        clean_ranges = re.sub(r'[^0-9,\-]', '', page_ranges)
+        out_filename = f"{Path(safe_name).stem}_pages_{clean_ranges.replace(',', '_')}.pdf"
+        out_path = OUTPUT_DIR / out_filename
+
+        result = doc_tools.extract_pdf_pages(dest_path, page_ranges, out_path)
+        return {
+            "success": True,
+            "filename": out_filename,
+            "download_url": f"/api/download/{out_filename}",
+            "preview_url": f"/api/preview/pdf/{out_filename}",
+            "format": "pdf",
+            "extracted_pages_count": result.get("extracted_pages_count"),
+            "total_source_pages": result.get("total_source_pages"),
+            "size_formatted": result.get("size_formatted"),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+@app.post("/api/doc-tools/inspect")
+async def api_inspect_document(file: UploadFile = File(...)):
+    temp_dir = Path(tempfile.mkdtemp(prefix="labgen_upload_inspect_"))
+    try:
+        safe_name = Path(file.filename or "doc").name
+        dest_path = temp_dir / safe_name
+        with open(dest_path, "wb") as buf:
+            shutil.copyfileobj(file.file, buf)
+
+        result = doc_tools.inspect_document(dest_path)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+@app.get("/api/doc-tools/sample-files")
+async def api_get_doc_tools_sample_files():
+    """
+    Creates and returns URLs to 2 ready-to-test sample documents (1 DOCX, 1 PDF) in OUTPUT_DIR.
+    """
+    import docx as pydocx
+    sample_docx = OUTPUT_DIR / "Sample_Lab_Part1_Intro.docx"
+    sample_pdf = OUTPUT_DIR / "Sample_Lab_Part2_Appendix.pdf"
+
+    if not sample_docx.exists():
+        d = pydocx.Document()
+        d.add_heading("Part 1: Laboratory Manual & Objectives", level=1)
+        d.add_paragraph("This is the introductory section from Word (.docx). It includes student objectives, apparatus requirements, and theory.")
+        p = d.add_paragraph()
+        p.add_run("Student Name: ").bold = True
+        p.add_run("Bheesham Kumar Sajnani\n")
+        p.add_run("Experiment: ").bold = True
+        p.add_run("Database Indexing & Query Optimization")
+        d.save(str(sample_docx))
+
+    if not sample_pdf.exists():
+        temp_docx = OUTPUT_DIR / "_temp_part2.docx"
+        d2 = pydocx.Document()
+        d2.add_heading("Part 2: Execution Results & Appendix", level=1)
+        d2.add_paragraph("This is the appendix section originally formatted as a standalone PDF report.")
+        d2.add_paragraph("Terminal Query Benchmarks: execution time 0.042s, buffer hits 98.4%.")
+        d2.save(str(temp_docx))
+        subprocess.run(["libreoffice", "--headless", "--convert-to", "pdf", str(temp_docx), "--outdir", str(OUTPUT_DIR)], check=True)
+        if (OUTPUT_DIR / "_temp_part2.pdf").exists():
+            (OUTPUT_DIR / "_temp_part2.pdf").rename(sample_pdf)
+        if temp_docx.exists():
+            temp_docx.unlink()
+
+    return {
+        "samples": [
+            {
+                "name": sample_docx.name,
+                "url": f"/api/download/{sample_docx.name}",
+                "type": "docx",
+                "size_formatted": doc_tools._format_size(os.path.getsize(sample_docx)),
+            },
+            {
+                "name": sample_pdf.name,
+                "url": f"/api/download/{sample_pdf.name}",
+                "type": "pdf",
+                "size_formatted": doc_tools._format_size(os.path.getsize(sample_pdf)),
+            }
+        ]
+    }
 
 
 def start():

@@ -1261,19 +1261,42 @@ function switchMainView(viewName) {
   const pdfContainer = document.getElementById('view-pdf-container');
   const scratchContainer = document.getElementById('view-scratchpad-container');
   const tasksContainer = document.getElementById('view-tasks-container');
+  const doctoolsContainer = document.getElementById('view-doctools-container');
 
   const btnDoc = document.getElementById('btn-view-doc');
   const btnPdf = document.getElementById('btn-view-pdf');
   const btnScratch = document.getElementById('btn-view-scratchpad');
   const btnTasks = document.getElementById('btn-view-tasks');
+  const btnDocTools = document.getElementById('btn-view-doctools');
 
-  [btnDoc, btnPdf, btnScratch, btnTasks].forEach(b => {
+  [btnDoc, btnPdf, btnScratch, btnTasks, btnDocTools].forEach(b => {
     if (b) b.classList.remove('active');
   });
 
-  [docContainer, pdfContainer, scratchContainer, tasksContainer].forEach(c => {
+  [docContainer, pdfContainer, scratchContainer, tasksContainer, doctoolsContainer].forEach(c => {
     if (c) c.style.display = 'none';
   });
+
+  // Handle download-card and refine-card visibility:
+  const downloadCard = document.querySelector('.download-card');
+  const refineCard = document.getElementById('refine-card');
+  const previewActions = document.querySelector('.preview-actions');
+
+  if (viewName === 'doctools') {
+    if (downloadCard) downloadCard.style.display = 'none';
+    if (refineCard) refineCard.style.display = 'none';
+    if (previewActions) previewActions.style.display = 'none';
+  } else {
+    if (currentLabData) {
+      if (downloadCard) downloadCard.style.display = 'flex';
+      if (refineCard) refineCard.style.display = 'block';
+      if (previewActions) previewActions.style.display = 'flex';
+    } else {
+      if (downloadCard) downloadCard.style.display = 'none';
+      if (refineCard) refineCard.style.display = 'none';
+      if (previewActions) previewActions.style.display = 'none';
+    }
+  }
 
   if (viewName === 'doc' && docContainer && btnDoc) {
     docContainer.style.display = 'block';
@@ -1292,6 +1315,10 @@ function switchMainView(viewName) {
   } else if (viewName === 'tasks' && tasksContainer && btnTasks) {
     tasksContainer.style.display = 'block';
     btnTasks.classList.add('active');
+  } else if (viewName === 'doctools' && doctoolsContainer && btnDocTools) {
+    doctoolsContainer.style.display = 'block';
+    btnDocTools.classList.add('active');
+    goToMergerStep(currentMergerStep || 1);
   } else {
     if (docContainer && btnDoc) {
       docContainer.style.display = 'block';
@@ -1919,4 +1946,747 @@ function escapeHtml(str) {
 function escapeJs(str) {
   if (!str) return '';
   return String(str).replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+}
+
+// =============================================================
+// Doc Tools Studio Engine (Multi-Document Merger, Converter, Splitter, Inspector)
+// =============================================================
+
+let mergerQueue = []; // Array of { id, file, name, sizeFormatted, type }
+let mergerExportFormat = 'pdf';
+let lastMergedResult = null;
+let currentConverterMode = 'docx2pdf';
+let selectedConverterFile = null;
+let selectedSplitterFile = null;
+let selectedInspectorFile = null;
+
+function openNavDocTools() {
+  const uploadCard = document.getElementById('upload-card');
+  if (uploadCard) uploadCard.style.display = 'none';
+  const resultsContainer = document.getElementById('results-container');
+  if (resultsContainer) resultsContainer.style.display = 'block';
+  switchMainView('doctools');
+  goToMergerStep(currentMergerStep || 1);
+}
+
+function switchDocTool(toolId) {
+  const tabs = ['merger', 'converter', 'splitter', 'extractor'];
+  tabs.forEach(t => {
+    const btn = document.getElementById(`tab-btn-${t}`);
+    const panel = document.getElementById(`panel-doc-${t}`);
+    if (btn) {
+      if (t === toolId) btn.classList.add('active');
+      else btn.classList.remove('active');
+    }
+    if (panel) {
+      panel.style.display = (t === toolId) ? 'block' : 'none';
+    }
+  });
+}
+
+function formatByteSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+// -------------------------------------------------------------
+// Multi-Document Merger Logic (3-Step Progressive Flow)
+// -------------------------------------------------------------
+
+let currentMergerStep = 1;
+
+function goToMergerStep(stepNum) {
+  if (stepNum > 1 && mergerQueue.length === 0) {
+    alert('Please upload or load at least 1 document first.');
+    return;
+  }
+
+  currentMergerStep = stepNum;
+
+  // 1. Toggle Step Views
+  for (let s = 1; s <= 3; s++) {
+    const viewEl = document.getElementById(`merger-step-view-${s}`);
+    if (viewEl) {
+      viewEl.style.display = (s === stepNum) ? 'block' : 'none';
+    }
+  }
+
+  // 2. Update Stepper Header Badges & Lines
+  for (let s = 1; s <= 3; s++) {
+    const stepBtn = document.getElementById(`stepper-step-${s}`);
+    if (stepBtn) {
+      stepBtn.classList.remove('active', 'completed');
+      if (s === stepNum) {
+        stepBtn.classList.add('active');
+      } else if (s < stepNum) {
+        stepBtn.classList.add('completed');
+      }
+    }
+  }
+
+  const line1 = document.getElementById('stepper-line-1');
+  const line2 = document.getElementById('stepper-line-2');
+  if (line1) {
+    if (stepNum >= 2) line1.classList.add('active');
+    else line1.classList.remove('active');
+  }
+  if (line2) {
+    if (stepNum >= 3) line2.classList.add('active');
+    else line2.classList.remove('active');
+  }
+
+  // 3. Step Specific Rendering
+  if (stepNum === 1) {
+    renderStagedFiles();
+  } else if (stepNum === 2) {
+    renderMergerQueue();
+  } else if (stepNum === 3) {
+    renderMergerSequenceSummary();
+  }
+}
+
+function handleMergerFilesSelected(event) {
+  const files = Array.from(event.target.files || []);
+  if (!files.length) return;
+
+  files.forEach(file => {
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (ext !== 'pdf' && ext !== 'docx') {
+      alert(`Skipping unsupported file "${file.name}". Only .pdf and .docx are supported.`);
+      return;
+    }
+    mergerQueue.push({
+      id: 'doc_' + Math.random().toString(36).substring(2, 9),
+      file: file,
+      name: file.name,
+      sizeFormatted: formatByteSize(file.size),
+      type: ext
+    });
+  });
+
+  // Reset file input so re-selecting same files triggers change event
+  event.target.value = '';
+  renderStagedFiles();
+  renderMergerQueue();
+  showToast(`Added ${files.length} document${files.length === 1 ? '' : 's'}!`);
+}
+
+function renderStagedFiles() {
+  const section = document.getElementById('staged-files-section');
+  const list = document.getElementById('staged-chips-list');
+  const countBadge = document.getElementById('step1-counter-badge');
+  const countText = document.getElementById('staged-count-text');
+  const proceedBtn = document.getElementById('btn-proceed-to-step2');
+  const hintText = document.getElementById('step1-hint-text');
+
+  const count = mergerQueue.length;
+  if (countBadge) countBadge.textContent = `${count} File${count === 1 ? '' : 's'} Ready`;
+  if (countText) countText.textContent = count;
+
+  if (count === 0) {
+    if (section) section.style.display = 'none';
+    if (proceedBtn) {
+      proceedBtn.disabled = true;
+      const span = proceedBtn.querySelector('span');
+      if (span) span.textContent = 'Next: Arrange Order →';
+    }
+    if (hintText) hintText.textContent = 'Add at least 1 document to proceed to reordering.';
+    return;
+  }
+
+  if (section) section.style.display = 'block';
+  if (proceedBtn) {
+    proceedBtn.disabled = false;
+    const span = proceedBtn.querySelector('span');
+    if (span) span.textContent = `Next: Arrange Order (${count} File${count === 1 ? '' : 's'}) →`;
+  }
+  if (hintText) hintText.textContent = `${count} document${count === 1 ? '' : 's'} staged. Click Next to arrange merge sequence.`;
+
+  if (list) {
+    list.innerHTML = mergerQueue.map((item, idx) => `
+      <div class="staged-chip">
+        <span class="merger-type-badge ${item.type}">${item.type.toUpperCase()}</span>
+        <span style="font-weight: 500;">${escapeHtml(item.name)}</span>
+        <span style="color: var(--text-muted); font-size: 11px;">(${item.sizeFormatted})</span>
+        <button type="button" class="staged-chip-remove" onclick="removeStagedFile(${idx})" title="Remove">✕</button>
+      </div>
+    `).join('');
+  }
+}
+
+function removeStagedFile(idx) {
+  mergerQueue.splice(idx, 1);
+  renderStagedFiles();
+  renderMergerQueue();
+}
+
+function renderMergerSequenceSummary() {
+  const flowContainer = document.getElementById('summary-flow-chips');
+  if (!flowContainer) return;
+
+  if (!mergerQueue.length) {
+    flowContainer.innerHTML = '<span style="color: var(--text-muted); font-size: 12px;">No documents arranged.</span>';
+    return;
+  }
+
+  flowContainer.innerHTML = mergerQueue.map((item, idx) => `
+    <div class="summary-item-chip">
+      <span style="color: #888;">#${idx + 1}</span>
+      <span class="merger-type-badge ${item.type}" style="font-size: 9.5px; padding: 1px 5px;">${item.type.toUpperCase()}</span>
+      <span>${escapeHtml(item.name)}</span>
+    </div>
+    ${idx < mergerQueue.length - 1 ? '<span class="summary-arrow">➔</span>' : ''}
+  `).join('');
+}
+
+function renderMergerQueue() {
+  const listEl = document.getElementById('merger-queue-list');
+  const countEl = document.getElementById('merger-queue-count');
+  const statusEl = document.getElementById('merger-status-msg');
+
+  if (!listEl) return;
+
+  if (countEl) {
+    countEl.textContent = `${mergerQueue.length} Document${mergerQueue.length === 1 ? '' : 's'}`;
+  }
+
+  if (mergerQueue.length === 0) {
+    listEl.innerHTML = `
+      <div class="merger-empty-state" id="merger-empty-state">
+        <div class="empty-icon">📂</div>
+        <p>No documents in queue yet.</p>
+        <small>Go back to Step 1 or click <strong>⚡ Load Sample Documents</strong> to add files.</small>
+      </div>
+    `;
+    if (statusEl) statusEl.textContent = 'Add documents to begin';
+    return;
+  }
+
+  if (statusEl) {
+    statusEl.textContent = `${mergerQueue.length} files ready to merge sequentially.`;
+  }
+
+  listEl.innerHTML = mergerQueue.map((item, idx) => {
+    const isFirst = idx === 0;
+    const isLast = idx === mergerQueue.length - 1;
+    return `
+      <div class="merger-item" draggable="true" data-index="${idx}" id="merger-item-${idx}">
+        <div class="merger-item-left">
+          <div class="drag-handle" title="Drag to reorder">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="9" cy="5" r="2"></circle><circle cx="9" cy="12" r="2"></circle><circle cx="9" cy="19" r="2"></circle>
+              <circle cx="15" cy="5" r="2"></circle><circle cx="15" cy="12" r="2"></circle><circle cx="15" cy="19" r="2"></circle>
+            </svg>
+          </div>
+          <span class="merger-order-badge">#${idx + 1}</span>
+          <span class="merger-type-badge ${item.type}">${item.type.toUpperCase()}</span>
+          <div class="merger-file-details">
+            <span class="merger-file-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span>
+            <span class="merger-file-size">${item.sizeFormatted}</span>
+          </div>
+        </div>
+        <div class="merger-item-right">
+          <button type="button" class="merger-btn-icon" onclick="moveMergerItem(${idx}, -1)" ${isFirst ? 'disabled style="opacity:0.3;cursor:default;"' : ''} title="Move Up">▲</button>
+          <button type="button" class="merger-btn-icon" onclick="moveMergerItem(${idx}, 1)" ${isLast ? 'disabled style="opacity:0.3;cursor:default;"' : ''} title="Move Down">▼</button>
+          <button type="button" class="merger-btn-icon merger-btn-remove" onclick="removeMergerItem(${idx})" title="Remove">✕</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  attachMergerDragAndDrop();
+}
+
+function attachMergerDragAndDrop() {
+  const items = document.querySelectorAll('.merger-item');
+  let draggedIndex = null;
+
+  items.forEach(item => {
+    item.addEventListener('dragstart', (e) => {
+      draggedIndex = parseInt(item.getAttribute('data-index'), 10);
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', draggedIndex);
+      setTimeout(() => item.classList.add('dragging'), 0);
+    });
+
+    item.addEventListener('dragend', () => {
+      item.classList.remove('dragging');
+      document.querySelectorAll('.merger-item').forEach(el => {
+        el.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+    });
+
+    item.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const rect = item.getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      item.classList.remove('drag-over-top', 'drag-over-bottom');
+      if (e.clientY < mid) {
+        item.classList.add('drag-over-top');
+      } else {
+        item.classList.add('drag-over-bottom');
+      }
+    });
+
+    item.addEventListener('dragleave', () => {
+      item.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+
+    item.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const targetIndex = parseInt(item.getAttribute('data-index'), 10);
+      item.classList.remove('drag-over-top', 'drag-over-bottom');
+
+      if (draggedIndex === null || draggedIndex === targetIndex) return;
+
+      const rect = item.getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      let newIndex = (e.clientY < mid) ? targetIndex : targetIndex + 1;
+      if (draggedIndex < newIndex) {
+        newIndex--;
+      }
+
+      const moved = mergerQueue.splice(draggedIndex, 1)[0];
+      mergerQueue.splice(newIndex, 0, moved);
+      renderMergerQueue();
+      renderMergerSequenceSummary();
+    });
+  });
+}
+
+function moveMergerItem(index, direction) {
+  const newIndex = index + direction;
+  if (newIndex < 0 || newIndex >= mergerQueue.length) return;
+  const item = mergerQueue.splice(index, 1)[0];
+  mergerQueue.splice(newIndex, 0, item);
+  renderMergerQueue();
+  renderMergerSequenceSummary();
+}
+
+function removeMergerItem(index) {
+  mergerQueue.splice(index, 1);
+  renderMergerQueue();
+  renderStagedFiles();
+  renderMergerSequenceSummary();
+  if (mergerQueue.length === 0 && currentMergerStep > 1) {
+    goToMergerStep(1);
+  }
+}
+
+function clearMergerQueue() {
+  if (mergerQueue.length && confirm('Are you sure you want to clear all documents from the merge queue?')) {
+    mergerQueue = [];
+    renderStagedFiles();
+    renderMergerQueue();
+    const resultCard = document.getElementById('merger-result-card');
+    if (resultCard) resultCard.style.display = 'none';
+    if (currentMergerStep > 1) {
+      goToMergerStep(1);
+    }
+  }
+}
+
+function selectExportFormat(format) {
+  mergerExportFormat = format;
+  const cardPdf = document.getElementById('format-card-pdf');
+  const cardDocx = document.getElementById('format-card-docx');
+  const extLabel = document.getElementById('merger-filename-ext');
+  const btnText = document.getElementById('btn-merge-text');
+
+  if (format === 'pdf') {
+    if (cardPdf) cardPdf.classList.add('active');
+    if (cardDocx) cardDocx.classList.remove('active');
+    if (extLabel) extLabel.textContent = '.pdf';
+    if (btnText) btnText.textContent = '⚡ Merge Documents into PDF';
+  } else {
+    if (cardDocx) cardDocx.classList.add('active');
+    if (cardPdf) cardPdf.classList.remove('active');
+    if (extLabel) extLabel.textContent = '.docx';
+    if (btnText) btnText.textContent = '⚡ Merge Documents into Word (.docx)';
+  }
+}
+
+async function loadSampleMergeFiles() {
+  const statusEl = document.getElementById('merger-status-msg');
+  if (statusEl) statusEl.textContent = 'Loading sample documents...';
+
+  try {
+    const res = await fetch('/api/doc-tools/sample-files');
+    const data = await res.json();
+    if (!data.samples || !data.samples.length) {
+      throw new Error('No sample files available.');
+    }
+
+    for (const s of data.samples) {
+      const fileRes = await fetch(s.url);
+      const blob = await fileRes.blob();
+      const fileObj = new File([blob], s.name, { type: s.type === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      mergerQueue.push({
+        id: 'sample_' + Math.random().toString(36).substring(2, 9),
+        file: fileObj,
+        name: s.name,
+        sizeFormatted: s.size_formatted,
+        type: s.type
+      });
+    }
+
+    renderStagedFiles();
+    renderMergerQueue();
+    showToast('Loaded 2 sample documents! Click "Next: Arrange Order" to proceed.');
+  } catch (err) {
+    console.error('Failed to load samples:', err);
+    alert('Failed to load sample documents: ' + err.message);
+  }
+}
+
+async function executeDocumentMerge() {
+  if (!mergerQueue.length) {
+    alert('Please add at least one document to the merge queue.');
+    return;
+  }
+
+  const btn = document.getElementById('btn-execute-merge');
+  const spinner = document.getElementById('merger-spinner');
+  const btnText = document.getElementById('btn-merge-text');
+  const statusEl = document.getElementById('merger-status-msg');
+  const resultCard = document.getElementById('merger-result-card');
+
+  btn.disabled = true;
+  if (spinner) spinner.style.display = 'inline-block';
+  if (btnText) btnText.textContent = 'Merging Documents...';
+  if (statusEl) statusEl.textContent = 'Converting components and assembling master document...';
+  if (resultCard) resultCard.style.display = 'none';
+
+  try {
+    const formData = new FormData();
+    const orderedNames = [];
+
+    mergerQueue.forEach(item => {
+      formData.append('files', item.file, item.name);
+      orderedNames.push(item.name);
+    });
+
+    formData.append('order', JSON.stringify(orderedNames));
+    formData.append('export_format', mergerExportFormat);
+    const filenameInput = document.getElementById('merger-out-filename');
+    if (filenameInput && filenameInput.value.trim()) {
+      formData.append('filename', filenameInput.value.trim());
+    }
+    const pageBreakCb = document.getElementById('merger-page-break');
+    formData.append('page_break', pageBreakCb ? pageBreakCb.checked : true);
+
+    const res = await fetch('/api/doc-tools/merge', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Merging failed');
+    }
+
+    const data = await res.json();
+    lastMergedResult = data;
+
+    // Show Result Card
+    if (resultCard) {
+      resultCard.style.display = 'block';
+      const titleEl = document.getElementById('result-title');
+      const filenamePill = document.getElementById('result-filename-pill');
+      const sizePill = document.getElementById('result-size-pill');
+      const pagesPill = document.getElementById('result-pages-pill');
+      const downloadBtn = document.getElementById('btn-download-merged');
+      const previewBtn = document.getElementById('btn-preview-merged');
+
+      if (titleEl) titleEl.textContent = `Documents Merged into ${data.format.toUpperCase()}!`;
+      if (filenamePill) filenamePill.textContent = data.filename;
+      if (sizePill) sizePill.textContent = data.size_formatted;
+      if (pagesPill) {
+        if (data.format === 'pdf' && data.page_count) {
+          pagesPill.textContent = `${data.page_count} Pages`;
+          pagesPill.style.display = 'inline-block';
+        } else if (data.format === 'docx' && data.paragraph_count) {
+          pagesPill.textContent = `${data.paragraph_count} Paragraphs`;
+          pagesPill.style.display = 'inline-block';
+        } else {
+          pagesPill.style.display = 'none';
+        }
+      }
+
+      if (downloadBtn) {
+        downloadBtn.href = data.download_url;
+        downloadBtn.setAttribute('download', data.filename);
+      }
+
+      if (previewBtn) {
+        previewBtn.style.display = (data.format === 'pdf' || data.preview_url) ? 'inline-flex' : 'none';
+      }
+
+      resultCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    if (statusEl) statusEl.textContent = `Completed! Successfully merged ${data.file_count} documents.`;
+    showToast(`Merged into ${data.filename}!`);
+  } catch (err) {
+    console.error('Merge error:', err);
+    alert('Document merge failed: ' + err.message);
+    if (statusEl) statusEl.textContent = 'Merge failed: ' + err.message;
+  } finally {
+    btn.disabled = false;
+    if (spinner) spinner.style.display = 'none';
+    if (btnText) btnText.textContent = `⚡ Merge Documents into ${mergerExportFormat === 'pdf' ? 'PDF' : 'Word (.docx)'}`;
+  }
+}
+
+function previewMergedDocument() {
+  if (!lastMergedResult) return;
+  if (lastMergedResult.preview_url) {
+    // Open in interactive PDF viewer
+    const frame = document.getElementById('pdf-embed-frame');
+    if (frame) {
+      frame.src = lastMergedResult.preview_url;
+    }
+    switchMainView('pdf');
+  } else {
+    window.open(lastMergedResult.download_url, '_blank');
+  }
+}
+
+function resetMergerWorkflow() {
+  mergerQueue = [];
+  lastMergedResult = null;
+  const resultCard = document.getElementById('merger-result-card');
+  if (resultCard) resultCard.style.display = 'none';
+  renderStagedFiles();
+  renderMergerQueue();
+  goToMergerStep(1);
+}
+
+function resetMergerForm() {
+  resetMergerWorkflow();
+}
+
+// -------------------------------------------------------------
+// Format Converter Logic
+// -------------------------------------------------------------
+
+function setConverterMode(mode) {
+  currentConverterMode = mode;
+  const btnDocx = document.getElementById('btn-mode-docx2pdf');
+  const btnPdf = document.getElementById('btn-mode-pdf2docx');
+  const title = document.getElementById('converter-drop-title');
+  const input = document.getElementById('converter-file-input');
+  const selectedPill = document.getElementById('converter-selected-file');
+  const convertBtn = document.getElementById('btn-run-convert');
+  const resultBox = document.getElementById('converter-result-box');
+
+  if (resultBox) resultBox.style.display = 'none';
+  if (selectedPill) selectedPill.style.display = 'none';
+  selectedConverterFile = null;
+  if (convertBtn) convertBtn.disabled = true;
+
+  if (mode === 'docx2pdf') {
+    if (btnDocx) btnDocx.classList.add('active');
+    if (btnPdf) btnPdf.classList.remove('active');
+    if (title) title.textContent = 'Select Word (.docx) file to convert to PDF';
+    if (input) input.accept = '.docx';
+  } else {
+    if (btnPdf) btnPdf.classList.add('active');
+    if (btnDocx) btnDocx.classList.remove('active');
+    if (title) title.textContent = 'Select PDF file to convert to Word (.docx)';
+    if (input) input.accept = '.pdf';
+  }
+}
+
+function handleConverterFileSelected(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  selectedConverterFile = file;
+
+  const pill = document.getElementById('converter-selected-file');
+  if (pill) {
+    pill.textContent = `Selected: ${file.name} (${formatByteSize(file.size)})`;
+    pill.style.display = 'inline-block';
+  }
+
+  const btn = document.getElementById('btn-run-convert');
+  if (btn) btn.disabled = false;
+}
+
+async function runDocumentConvert() {
+  if (!selectedConverterFile) return;
+
+  const btn = document.getElementById('btn-run-convert');
+  const spinner = document.getElementById('converter-spinner');
+  const resultBox = document.getElementById('converter-result-box');
+  const resultText = document.getElementById('converter-result-text');
+  const downloadLink = document.getElementById('btn-download-converted');
+
+  btn.disabled = true;
+  if (spinner) spinner.style.display = 'inline-block';
+  if (resultBox) resultBox.style.display = 'none';
+
+  try {
+    const formData = new FormData();
+    formData.append('file', selectedConverterFile);
+    formData.append('target_format', currentConverterMode === 'docx2pdf' ? 'pdf' : 'docx');
+
+    const res = await fetch('/api/doc-tools/convert', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Conversion failed');
+    }
+
+    const data = await res.json();
+    if (resultBox) resultBox.style.display = 'flex';
+    if (resultText) resultText.textContent = `Converted: ${data.filename} (${data.size_formatted})`;
+    if (downloadLink) {
+      downloadLink.href = data.download_url;
+      downloadLink.setAttribute('download', data.filename);
+    }
+    showToast(`Converted into ${data.filename}!`);
+  } catch (err) {
+    alert('Conversion error: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    if (spinner) spinner.style.display = 'none';
+  }
+}
+
+// -------------------------------------------------------------
+// PDF Page Splitter Logic
+// -------------------------------------------------------------
+
+function handleSplitterFileSelected(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  selectedSplitterFile = file;
+
+  const pill = document.getElementById('splitter-selected-file');
+  if (pill) {
+    pill.textContent = `Selected: ${file.name} (${formatByteSize(file.size)})`;
+    pill.style.display = 'inline-block';
+  }
+
+  const controls = document.getElementById('splitter-controls');
+  if (controls) controls.style.display = 'block';
+
+  // Inspect total pages
+  const form = new FormData();
+  form.append('file', file);
+  fetch('/api/doc-tools/inspect', { method: 'POST', body: form })
+    .then(r => r.json())
+    .then(data => {
+      const totalEl = document.getElementById('splitter-total-pages');
+      if (totalEl) totalEl.textContent = data.page_count || '1+';
+    })
+    .catch(() => {});
+}
+
+async function runDocumentSplit() {
+  if (!selectedSplitterFile) return;
+
+  const rangeInput = document.getElementById('splitter-range-input');
+  const rangeVal = rangeInput ? rangeInput.value.trim() : '1';
+  if (!rangeVal) {
+    alert('Please enter a valid page range (e.g. 1-3, 5).');
+    return;
+  }
+
+  const btn = document.getElementById('btn-run-split');
+  const spinner = document.getElementById('splitter-spinner');
+  const resultBox = document.getElementById('splitter-result-box');
+  const resultText = document.getElementById('splitter-result-text');
+  const downloadLink = document.getElementById('btn-download-split');
+
+  btn.disabled = true;
+  if (spinner) spinner.style.display = 'inline-block';
+  if (resultBox) resultBox.style.display = 'none';
+
+  try {
+    const formData = new FormData();
+    formData.append('file', selectedSplitterFile);
+    formData.append('page_ranges', rangeVal);
+
+    const res = await fetch('/api/doc-tools/extract-pages', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Extraction failed');
+    }
+
+    const data = await res.json();
+    if (resultBox) resultBox.style.display = 'flex';
+    if (resultText) resultText.textContent = `Extracted ${data.extracted_pages_count} pages (${data.size_formatted})`;
+    if (downloadLink) {
+      downloadLink.href = data.download_url;
+      downloadLink.setAttribute('download', data.filename);
+    }
+    showToast(`Pages extracted into ${data.filename}!`);
+  } catch (err) {
+    alert('Split error: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    if (spinner) spinner.style.display = 'none';
+  }
+}
+
+// -------------------------------------------------------------
+// Document Text & Info Inspector Logic
+// -------------------------------------------------------------
+
+async function handleInspectorFileSelected(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const resultsDiv = document.getElementById('inspector-results');
+  if (resultsDiv) resultsDiv.style.display = 'block';
+
+  document.getElementById('inspect-filename').textContent = `File: ${file.name}`;
+  document.getElementById('inspect-size').textContent = formatByteSize(file.size);
+  document.getElementById('inspect-text-content').value = 'Analyzing document and extracting text...';
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch('/api/doc-tools/inspect', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Inspection failed');
+    }
+
+    const data = await res.json();
+    document.getElementById('inspect-words').textContent = `${data.word_count} Words`;
+    document.getElementById('inspect-chars').textContent = `${data.char_count} Chars`;
+    if (data.format === 'pdf') {
+      document.getElementById('inspect-pages').textContent = `${data.page_count} Pages`;
+    } else {
+      document.getElementById('inspect-pages').textContent = `${data.paragraph_count} Paragraphs`;
+    }
+    document.getElementById('inspect-text-content').value = data.text_preview || '(No text extracted)';
+  } catch (err) {
+    document.getElementById('inspect-text-content').value = 'Error extracting text: ' + err.message;
+  }
+}
+
+function copyInspectedText() {
+  const area = document.getElementById('inspect-text-content');
+  if (area && area.value) {
+    navigator.clipboard.writeText(area.value);
+    showToast('Copied extracted text!');
+  }
 }
