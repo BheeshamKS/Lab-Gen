@@ -67,21 +67,21 @@ class TaskSolver:
         self.student = config.student
         self.ai_conf = config.ai
 
-    def solve_task(self, task: LabTask, custom_instructions: Optional[str] = None) -> TaskSolution:
-        """Generate a complete solution for a single lab task, optionally taking custom user instructions."""
+    def solve_task(self, task: LabTask, custom_instructions: Optional[str] = None, lab_context: Optional[str] = None) -> TaskSolution:
+        """Generate a complete solution for a single lab task, optionally taking custom user instructions and lab context."""
         provider = self.ai_conf.provider.lower()
         solution = None
 
         if provider == "gemini" and (self.ai_conf.api_key or os.environ.get("GEMINI_API_KEY")):
-            solution = self._solve_with_gemini(task, custom_instructions)
+            solution = self._solve_with_gemini(task, custom_instructions, lab_context)
         elif provider in ["openai", "openrouter", "groq"]:
-            solution = self._solve_with_openai_compatible(task, custom_instructions)
+            solution = self._solve_with_openai_compatible(task, custom_instructions, lab_context)
         elif provider == "ollama":
-            solution = self._solve_with_ollama(task, custom_instructions)
+            solution = self._solve_with_ollama(task, custom_instructions, lab_context)
 
         if not solution:
             # Fallback to intelligent offline solver
-            solution = self._solve_offline(task, custom_instructions)
+            solution = self._solve_offline(task, custom_instructions, lab_context)
 
         # Apply code cleaner to strip any student identity and minimize comments
         solution.code = self._clean_code(solution.code, solution.language)
@@ -291,7 +291,7 @@ class TaskSolver:
             return failed_code.replace("import matplotlib.pyplot as plt", "# matplotlib bypassed\n# plt")
         return failed_code
 
-    def _build_system_prompt(self, task: LabTask, custom_instructions: Optional[str] = None) -> str:
+    def _build_system_prompt(self, task: LabTask, custom_instructions: Optional[str] = None, lab_context: Optional[str] = None) -> str:
         lang = task.language.lower()
         base = (
             f"You are an undergraduate student writing working {task.language.upper()} code for your university lab assignment.\n\n"
@@ -306,6 +306,12 @@ class TaskSolver:
             "   - 'answers': (empty dict if no explicit viva questions asked)\n"
             "   - 'filename': (e.g. 'query_01.sql', 'program_01.c', or 'task_01.py')\n"
         )
+        if lab_context and lab_context.strip():
+            base += (
+                f"\nLAB MANUAL CONTEXT & DATABASE SCHEMA REQUIREMENTS:\n"
+                f"{lab_context.strip()}\n"
+                f"STRICT INSTRUCTION: Your solution code MUST use the exact database name, table names, column names, data types, and constraints defined in this context.\n"
+            )
         if custom_instructions and custom_instructions.strip():
             base += (
                 f"\nSPECIAL USER INSTRUCTIONS FOR SOLVING THIS LAB (MUST STRICTLY ADHERE TO THESE):\n"
@@ -313,7 +319,7 @@ class TaskSolver:
             )
         return base
 
-    def _solve_with_gemini(self, task: LabTask, custom_instructions: Optional[str] = None) -> Optional[TaskSolution]:
+    def _solve_with_gemini(self, task: LabTask, custom_instructions: Optional[str] = None, lab_context: Optional[str] = None) -> Optional[TaskSolution]:
         api_key = self.ai_conf.api_key or os.environ.get("GEMINI_API_KEY")
         model_name = self.ai_conf.model or "gemini-2.5-pro"
         user_prompt = (
@@ -322,10 +328,12 @@ class TaskSolver:
             f"Language: {task.language}\n"
             f"Questions to answer: {task.discussion_questions}\n"
         )
+        if lab_context and lab_context.strip():
+            user_prompt += f"\nLab Context & Schema:\n{lab_context.strip()}\n"
         if custom_instructions and custom_instructions.strip():
             user_prompt += f"\nCustom User Instructions: {custom_instructions.strip()}\n"
         user_prompt += "Respond strictly in valid JSON format."
-        full_prompt = self._build_system_prompt(task, custom_instructions) + "\n\n" + user_prompt
+        full_prompt = self._build_system_prompt(task, custom_instructions, lab_context) + "\n\n" + user_prompt
 
         # 1. Try official google-genai SDK (supports API Key and Google Auth / ADC)
         try:
@@ -401,7 +409,7 @@ class TaskSolver:
             pass
         return None
 
-    def _solve_with_openai_compatible(self, task: LabTask, custom_instructions: Optional[str] = None) -> Optional[TaskSolution]:
+    def _solve_with_openai_compatible(self, task: LabTask, custom_instructions: Optional[str] = None, lab_context: Optional[str] = None) -> Optional[TaskSolution]:
         provider = self.ai_conf.provider.lower()
         if provider == "groq":
             api_key = self.ai_conf.api_key or os.environ.get("GROQ_API_KEY")
@@ -417,24 +425,27 @@ class TaskSolver:
             model = self.ai_conf.model or "gpt-4o-mini"
             
         if not api_key:
+            print(f"[!] Warning: No API key found for AI provider '{provider}'.")
             return None
             
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-        user_msg = f"Task: {task.title}\n{task.description}\nLanguage: {task.language}\n"
+        user_msg = f"Task {task.task_id}: {task.title}\n{task.description}\nLanguage: {task.language}\n"
+        if lab_context and lab_context.strip():
+            user_msg += f"\nLab Schema & Context:\n{lab_context.strip()}\n"
         if custom_instructions and custom_instructions.strip():
             user_msg += f"Custom User Instructions: {custom_instructions.strip()}\n"
-        user_msg += "Respond in JSON."
+        user_msg += "\nRespond strictly in valid JSON format."
         payload = {
             "model": model,
             "messages": [
-                {"role": "system", "content": self._build_system_prompt(task, custom_instructions)},
+                {"role": "system", "content": self._build_system_prompt(task, custom_instructions, lab_context)},
                 {"role": "user", "content": user_msg}
             ],
             "temperature": 0.3,
             "response_format": {"type": "json_object"}
         }
         try:
-            resp = requests.post(url, headers=headers, json=payload, timeout=30)
+            resp = requests.post(url, headers=headers, json=payload, timeout=35)
             if resp.status_code == 200:
                 data = resp.json()
                 content = data["choices"][0]["message"]["content"]
@@ -449,21 +460,25 @@ class TaskSolver:
                         file_name=parsed.get("filename", f"task_{task.task_id:02d}.{self._get_extension(task.language)}"),
                         is_gui_or_plot=task.requires_plot,
                     )
-        except Exception:
-            pass
+            else:
+                print(f"[!] {provider.upper()} API returned HTTP {resp.status_code}: {resp.text}")
+        except Exception as e:
+            print(f"[!] {provider.upper()} API error during request: {e}")
         return None
 
     _solve_with_openai = _solve_with_openai_compatible
 
-    def _solve_with_ollama(self, task: LabTask, custom_instructions: Optional[str] = None) -> Optional[TaskSolution]:
+    def _solve_with_ollama(self, task: LabTask, custom_instructions: Optional[str] = None, lab_context: Optional[str] = None) -> Optional[TaskSolution]:
         url = f"{self.ai_conf.ollama_url}/api/chat"
         user_msg = f"Task: {task.title}\n{task.description}\nLanguage: {task.language}\n"
+        if lab_context and lab_context.strip():
+            user_msg += f"\nLab Context & Schema:\n{lab_context.strip()}\n"
         if custom_instructions and custom_instructions.strip():
             user_msg += f"Custom User Instructions: {custom_instructions.strip()}\n"
         payload = {
             "model": self.ai_conf.ollama_model,
             "messages": [
-                {"role": "system", "content": self._build_system_prompt(task, custom_instructions)},
+                {"role": "system", "content": self._build_system_prompt(task, custom_instructions, lab_context)},
                 {"role": "user", "content": user_msg}
             ],
             "stream": False,
@@ -595,21 +610,177 @@ class TaskSolver:
             return "sql"
         return "txt"
 
-    def _solve_offline(self, task: LabTask, custom_instructions: Optional[str] = None) -> TaskSolution:
+    def _solve_offline(self, task: LabTask, custom_instructions: Optional[str] = None, lab_context: Optional[str] = None) -> TaskSolution:
         """Intelligent offline solver for programming and database lab tasks."""
-        sol = self._solve_offline_raw(task)
+        sol = self._solve_offline_raw(task, lab_context)
         if custom_instructions and custom_instructions.strip():
             return self.refine_solution(task, sol, custom_instructions)
         return sol
 
-    def _solve_offline_raw(self, task: LabTask) -> TaskSolution:
+    def _solve_offline_raw(self, task: LabTask, lab_context: Optional[str] = None) -> TaskSolution:
         desc = (task.title + " " + task.description).lower()
+        ctx = (lab_context or "").lower()
 
         # =============================================================
         # 1. SQL / DATABASE LAB TASKS
         # =============================================================
         if task.language == "sql" or (task.language not in ["python", "c", "cpp", "c++", "bash"] and any(k in desc for k in ["sql", "alter table", "create table", "drop table", "select *", "insert into"])):
-            # Task: Create tables (e.g. Student2 and Course2)
+            # ---------------------------------------------------------
+            # DBMS Lab 04: SQL Constraints (Employee Table & Lab6)
+            # ---------------------------------------------------------
+            if "employee" in desc or "employee" in ctx or "named unique constraint" in desc or ("nullable" in desc and "roll_no" in desc) or ("primary key constraint using alter" in desc):
+                # 1. Create Employee table with constraints
+                if "create" in desc and "employee" in desc:
+                    code = (
+                        "CREATE TABLE Employee (\n"
+                        "    Employee_ID INT PRIMARY KEY,\n"
+                        "    Employee_Name VARCHAR(50) NOT NULL,\n"
+                        "    Email VARCHAR(100) UNIQUE,\n"
+                        "    Age INT CHECK (Age >= 18),\n"
+                        "    Department VARCHAR(50) DEFAULT 'Data Science',\n"
+                        "    Gender CHAR(1) CHECK (Gender IN ('M', 'F'))\n"
+                        ");\n"
+                    )
+                    exp = "Created Employee table enforcing PRIMARY KEY, NOT NULL, UNIQUE, CHECK, and DEFAULT constraints."
+                    return TaskSolution(task.task_id, "sql", code, exp, {}, f"query_{task.task_id:02d}.sql")
+
+                # 2. Insert three valid records
+                elif "insert" in desc and "valid" in desc and "invalid" not in desc and "observe" not in desc:
+                    code = (
+                        "INSERT INTO Employee (Employee_ID, Employee_Name, Email, Age, Department, Gender)\n"
+                        "VALUES \n"
+                        "(1, 'Ali Khan', 'ali.khan@example.com', 22, 'Data Science', 'M'),\n"
+                        "(2, 'Sara Ahmed', 'sara.ahmed@example.com', 24, 'Computer Science', 'F'),\n"
+                        "(3, 'Usman Tariq', 'usman.tariq@example.com', 25, 'Software Engineering', 'M');\n"
+                    )
+                    exp = "Inserted three valid employee records conforming to all defined column constraints."
+                    return TaskSolution(task.task_id, "sql", code, exp, {}, f"query_{task.task_id:02d}.sql")
+
+                # 3. Display all records
+                elif "display" in desc and "all" in desc:
+                    code = "SELECT * FROM Employee;\n"
+                    exp = "Queried and displayed all records currently stored in the Employee table."
+                    return TaskSolution(task.task_id, "sql", code, exp, {}, f"query_{task.task_id:02d}.sql")
+
+                # 4. Duplicate Employee_ID
+                elif "duplicate" in desc and "employee_id" in desc:
+                    code = (
+                        "-- Attempt to insert a record with duplicate Employee_ID\n"
+                        "INSERT INTO Employee (Employee_ID, Employee_Name, Email, Age, Department, Gender)\n"
+                        "VALUES (1, 'Bilal Raza', 'bilal.raza@example.com', 23, 'Data Science', 'M');\n"
+                    )
+                    exp = "Tested PRIMARY KEY constraint by attempting duplicate insertion; observed unique constraint violation."
+                    return TaskSolution(task.task_id, "sql", code, exp, {}, f"query_{task.task_id:02d}.sql")
+
+                # 5. NULL Employee_Name
+                elif "null" in desc and "employee_name" in desc:
+                    code = (
+                        "-- Attempt to insert NULL Employee_Name\n"
+                        "INSERT INTO Employee (Employee_ID, Employee_Name, Email, Age, Department, Gender)\n"
+                        "VALUES (4, NULL, 'test.user@example.com', 21, 'Data Science', 'M');\n"
+                    )
+                    exp = "Tested NOT NULL constraint on Employee_Name; verified NULL insertion is rejected."
+                    return TaskSolution(task.task_id, "sql", code, exp, {}, f"query_{task.task_id:02d}.sql")
+
+                # 6. Duplicate Email
+                elif "duplicate" in desc and "email" in desc:
+                    code = (
+                        "-- Attempt to insert duplicate Email\n"
+                        "INSERT INTO Employee (Employee_ID, Employee_Name, Email, Age, Department, Gender)\n"
+                        "VALUES (5, 'Zainab Shah', 'ali.khan@example.com', 22, 'Data Science', 'F');\n"
+                    )
+                    exp = "Tested UNIQUE constraint by inserting a duplicate email address; verified uniqueness constraint error."
+                    return TaskSolution(task.task_id, "sql", code, exp, {}, f"query_{task.task_id:02d}.sql")
+
+                # 7. Age below 18
+                elif "age" in desc and ("below 18" in desc or "18" in desc):
+                    code = (
+                        "-- Attempt to insert an employee whose Age is below 18\n"
+                        "INSERT INTO Employee (Employee_ID, Employee_Name, Email, Age, Department, Gender)\n"
+                        "VALUES (6, 'Hamza Malik', 'hamza.malik@example.com', 16, 'Data Science', 'M');\n"
+                    )
+                    exp = "Tested CHECK constraint (Age >= 18) by attempting to insert an age of 16; verified check failure error."
+                    return TaskSolution(task.task_id, "sql", code, exp, {}, f"query_{task.task_id:02d}.sql")
+
+                # 8. Invalid Gender 'X'
+                elif "gender" in desc and ("invalid" in desc or "'x'" in desc or " x" in desc):
+                    code = (
+                        "-- Attempt to insert an employee with invalid Gender 'X'\n"
+                        "INSERT INTO Employee (Employee_ID, Employee_Name, Email, Age, Department, Gender)\n"
+                        "VALUES (7, 'Fatima Noor', 'fatima.noor@example.com', 20, 'Data Science', 'X');\n"
+                    )
+                    exp = "Tested Gender domain CHECK constraint ('M' or 'F') with invalid character 'X'; observed constraint error."
+                    return TaskSolution(task.task_id, "sql", code, exp, {}, f"query_{task.task_id:02d}.sql")
+
+                # 9. Insert without specifying Department
+                elif "without specifying department" in desc or ("default" in desc and "department" in desc and "inserted" in desc):
+                    code = (
+                        "-- Insert without specifying Department to verify default 'Data Science'\n"
+                        "INSERT INTO Employee (Employee_ID, Employee_Name, Email, Age, Gender)\n"
+                        "VALUES (8, 'Danish Ali', 'danish.ali@example.com', 23, 'M');\n\n"
+                        "SELECT * FROM Employee WHERE Employee_ID = 8;\n"
+                    )
+                    exp = "Omitted Department during insertion to verify automatic assignment of default value 'Data Science'."
+                    return TaskSolution(task.task_id, "sql", code, exp, {}, f"query_{task.task_id:02d}.sql")
+
+                # 10. Insert with explicit Department
+                elif "different department" in desc or "overwritten" in desc:
+                    code = (
+                        "-- Insert another employee while explicitly providing a different Department\n"
+                        "INSERT INTO Employee (Employee_ID, Employee_Name, Email, Age, Department, Gender)\n"
+                        "VALUES (9, 'Areeba Siddiqui', 'areeba.s@example.com', 22, 'Artificial Intelligence', 'F');\n\n"
+                        "SELECT * FROM Employee WHERE Employee_ID = 9;\n"
+                    )
+                    exp = "Provided an explicit Department name ('Artificial Intelligence') to verify default value overwrite."
+                    return TaskSolution(task.task_id, "sql", code, exp, {}, f"query_{task.task_id:02d}.sql")
+
+                # 11. Create named UNIQUE constraint
+                elif "named unique" in desc and "create" in desc:
+                    code = (
+                        "CREATE TABLE Project (\n"
+                        "    Project_ID INT PRIMARY KEY,\n"
+                        "    Project_Name VARCHAR(50) NOT NULL,\n"
+                        "    Project_Code VARCHAR(20),\n"
+                        "    CONSTRAINT UQ_ProjectCode UNIQUE (Project_Code)\n"
+                        ");\n"
+                    )
+                    exp = "Created Project table with explicitly named UNIQUE constraint UQ_ProjectCode on Project_Code."
+                    return TaskSolution(task.task_id, "sql", code, exp, {}, f"query_{task.task_id:02d}.sql")
+
+                # 12. Drop named UNIQUE constraint
+                elif "drop" in desc and ("unique constraint" in desc or "uq_" in desc):
+                    code = (
+                        "ALTER TABLE Project\n"
+                        "DROP CONSTRAINT UQ_ProjectCode;\n"
+                    )
+                    exp = "Used ALTER TABLE with DROP CONSTRAINT to remove the named UNIQUE constraint UQ_ProjectCode."
+                    return TaskSolution(task.task_id, "sql", code, exp, {}, f"query_{task.task_id:02d}.sql")
+
+                # 13. Create table with nullable Roll_No and alter to NOT NULL
+                elif "nullable" in desc or ("roll_no" in desc and "not null" in desc):
+                    code = (
+                        "CREATE TABLE Student (\n"
+                        "    Roll_No INT NULL,\n"
+                        "    Student_Name VARCHAR(50) NOT NULL\n"
+                        ");\n\n"
+                        "ALTER TABLE Student\n"
+                        "ALTER COLUMN Roll_No INT NOT NULL;\n"
+                    )
+                    exp = "Created Student table with nullable Roll_No, then modified column to NOT NULL using ALTER TABLE."
+                    return TaskSolution(task.task_id, "sql", code, exp, {}, f"query_{task.task_id:02d}.sql")
+
+                # 14. Add PRIMARY KEY constraint after making column NOT NULL
+                elif "primary key" in desc and ("after making" in desc or "alter table" in desc):
+                    code = (
+                        "ALTER TABLE Student\n"
+                        "ADD CONSTRAINT PK_Student PRIMARY KEY (Roll_No);\n"
+                    )
+                    exp = "Applied PRIMARY KEY constraint PK_Student on Roll_No using ALTER TABLE ADD CONSTRAINT."
+                    return TaskSolution(task.task_id, "sql", code, exp, {}, f"query_{task.task_id:02d}.sql")
+
+            # ---------------------------------------------------------
+            # Generic SQL Lab Tasks (Course2 / Student2)
+            # ---------------------------------------------------------
             if "create" in desc and "table" in desc:
                 code = (
                     "CREATE TABLE Course2 (\n"

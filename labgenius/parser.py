@@ -6,7 +6,7 @@ Isolates assigned lab tasks from theory notes, extracts table patterns, and dete
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Tuple
 
 try:
     import docx
@@ -43,6 +43,7 @@ class LabManual:
     tasks: List[LabTask] = field(default_factory=list)
     raw_text: str = ""
     is_docx_template: bool = False
+    context: str = ""
 
 
 class ManualParser:
@@ -159,7 +160,7 @@ class ManualParser:
                     break
 
         # 2. Find and Extract ONLY the Task Section
-        tasks = self._extract_tasks_from_docx_body(doc, overall_lang)
+        tasks, preamble_context = self._extract_tasks_from_docx_body(doc, overall_lang)
 
         return LabManual(
             file_path=self.path,
@@ -170,20 +171,24 @@ class ManualParser:
             tasks=tasks,
             raw_text=full_text,
             is_docx_template=False,
+            context=preamble_context,
         )
 
-    def _extract_tasks_from_docx_body(self, doc: Any, default_lang: str) -> List[LabTask]:
+    def _extract_tasks_from_docx_body(self, doc: Any, default_lang: str) -> Tuple[List[LabTask], str]:
         """Traverses document body in order to extract tasks and attach any trailing tables."""
         tasks: List[LabTask] = []
         in_task_section = False
         current_task_num = 0
         current_task_title = ""
         current_task_lines: List[str] = []
+        preamble_lines: List[str] = []
 
         imperatives = [
             "create", "display", "add", "delete", "change", "drop", "write", "implement",
             "query", "find", "calculate", "design", "update", "select", "insert", "execute",
-            "verify", "show", "truncate", "enforce", "alter", "modify"
+            "verify", "show", "truncate", "enforce", "alter", "modify",
+            "try", "use", "test", "check", "apply", "set", "demonstrate", "observe",
+            "run", "make", "construct", "build", "retrieve", "list", "remove", "rename"
         ]
         intro_starters = [
             "perform the following", "follow the instructions", "note:", "instructions:", "guidelines:"
@@ -204,7 +209,8 @@ class ManualParser:
                 desc = "\n".join(current_task_lines).strip()
                 first_line = current_task_lines[0].strip() if current_task_lines else ""
                 if not current_task_title:
-                    t_snippet = first_line[:60] if len(first_line) > 60 else first_line
+                    first_line_clean = first_line.splitlines()[0].strip()
+                    t_snippet = first_line_clean[:130].strip() if len(first_line_clean) > 130 else first_line_clean
                     current_task_title = f"Task {current_task_num}: {t_snippet}"
                 tasks.append(
                     LabTask(
@@ -232,7 +238,7 @@ class ManualParser:
                     is_end = any(re.search(end_m, p_text, re.IGNORECASE) for end_m in self.END_SECTION_MARKERS)
                     if is_end:
                         save_task()
-                        return tasks
+                        return tasks, "\n".join(preamble_lines).strip()
 
                 m_exp = re.match(
                     r"^(?:experiment|task|exercise|activity|program|part|problem)\s*#?\s*([0-9]+)\s*[\u2013\u2014\-:\.]\s*(.*)",
@@ -252,7 +258,7 @@ class ManualParser:
                     save_task()
                     current_task_num = int(m_exp.group(1))
                     rest = m_exp.group(2).strip()
-                    current_task_title = p_text.splitlines()[0][:75]
+                    current_task_title = p_text.splitlines()[0][:130]
                     if rest:
                         current_task_lines = [rest]
                     continue
@@ -279,6 +285,16 @@ class ManualParser:
                         continue
 
                 if any(p_text.lower().startswith(intro) for intro in intro_starters):
+                    # Preamble encountered before the explicit task list
+                    if current_task_lines:
+                        preamble_lines.extend(current_task_lines)
+                        current_task_lines = []
+                    if tasks:
+                        for t in tasks:
+                            preamble_lines.append(f"{t.title}\n{t.description}")
+                        tasks.clear()
+                    current_task_num = 0
+                    current_task_title = ""
                     continue
 
                 if not has_explicit_experiment_headings:
@@ -287,7 +303,7 @@ class ManualParser:
                         save_task()
                         current_task_num = int(task_match.group(1))
                         rest = task_match.group(2).strip()
-                        current_task_title = f"Task {current_task_num}: {rest[:60]}"
+                        current_task_title = f"Task {current_task_num}: {rest[:130]}"
                         current_task_lines = [rest] if rest else []
                         continue
 
@@ -296,7 +312,7 @@ class ManualParser:
                         save_task()
                         current_task_num += 1
                         b_text = m_bullet.group(1).strip()
-                        current_task_title = f"Task {current_task_num}: {b_text[:60]}"
+                        current_task_title = f"Task {current_task_num}: {b_text[:130]}"
                         current_task_lines = [b_text]
                         continue
 
@@ -304,14 +320,16 @@ class ManualParser:
                     if first_word in imperatives and len(p_text) > 10:
                         save_task()
                         current_task_num += 1
-                        current_task_title = f"Task {current_task_num}: {p_text[:60]}"
+                        current_task_title = f"Task {current_task_num}: {p_text[:130]}"
                         current_task_lines = [p_text]
                         continue
 
                 if current_task_num > 0:
                     current_task_lines.append(p_text)
+                else:
+                    preamble_lines.append(p_text)
 
-            elif tag == "tbl" and in_task_section and current_task_num > 0:
+            elif tag == "tbl" and in_task_section:
                 tbl = docx.table.Table(el, doc)
                 table_lines = []
                 for row in tbl.rows:
@@ -320,17 +338,20 @@ class ManualParser:
                     if row_str:
                         table_lines.append(row_str)
                 if table_lines:
-                    current_task_lines.append("\n[Observation / Data Table]:")
-                    current_task_lines.extend(table_lines)
+                    tbl_block = "\n[Observation / Data Table]:\n" + "\n".join(table_lines)
+                    if current_task_num > 0:
+                        current_task_lines.append(tbl_block)
+                    else:
+                        preamble_lines.append(tbl_block)
 
         save_task()
 
         if not tasks:
             tasks = self._fallback_extract_tasks(doc, default_lang)
 
-        return tasks
+        return tasks, "\n".join(preamble_lines).strip()
 
-    def _fallback_extract_tasks(self, doc: docx.Document, default_lang: str) -> List[LabTask]:
+    def _fallback_extract_tasks(self, doc: Any, default_lang: str) -> List[LabTask]:
         """Fallback if no explicit 'LAB TASKS:' heading exists."""
         tasks = []
         paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]

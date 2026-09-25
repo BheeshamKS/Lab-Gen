@@ -122,8 +122,8 @@ def _build_tasks_response(tasks, solutions, exec_results, screenshots):
             "code": sol.code if sol else "",
             "explanation": sol.explanation if sol else "",
             "answers": sol.discussion_answers if sol else {},
-            "code_screenshot_url": code_url or out_url,
-            "output_screenshot_url": out_url or code_url,
+            "code_screenshot_url": code_url,
+            "output_screenshot_url": out_url,
             "screenshot_url": out_url or code_url,
             "success": res.success if res else True,
         })
@@ -248,6 +248,19 @@ async def run_lab(
         if theme:
             cfg.terminal.theme = theme
 
+        # Validate AI provider key if Groq selected
+        if cfg.ai.provider == "groq":
+            groq_key = cfg.ai.api_key or os.environ.get("GROQ_API_KEY")
+            if not groq_key:
+                return {
+                    "success": False,
+                    "error": (
+                        "Groq Cloud API Key is required when Groq is selected. "
+                        "Please paste your free Groq API key (starts with 'gsk_...') in the settings, "
+                        "or export GROQ_API_KEY in terminal, or select 'Smart Offline Demo Mode'."
+                    )
+                }
+
         upload_target_dir = BASE_DIR / "uploads"
         upload_target_dir.mkdir(parents=True, exist_ok=True)
 
@@ -289,9 +302,10 @@ async def run_lab(
         exec_results = []
         screenshots = []
 
-        # 3. Solve & Execute (respecting custom instructions if provided)
+        # 3. Solve & Execute (respecting custom instructions and lab context)
+        lab_context_str = getattr(lab_manual, "context", "") or ""
         for task in lab_manual.tasks:
-            sol = solver.solve_task(task, custom_instructions=instructions)
+            sol = solver.solve_task(task, custom_instructions=instructions, lab_context=lab_context_str)
             solutions.append(sol)
 
             res = runner.execute(sol, sample_input=task.sample_input)

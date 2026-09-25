@@ -601,8 +601,16 @@ async function runLabPipeline() {
     formData.append('custom_logo', customLogoFile);
   }
 
-  formData.append('provider', document.getElementById('ai-provider').value);
-  formData.append('api_key', document.getElementById('api-key').value);
+  const selectedProvider = document.getElementById('ai-provider').value;
+  const enteredApiKey = document.getElementById('api-key')?.value.trim() || '';
+  if ((selectedProvider === 'groq' || selectedProvider === 'groq-8b') && !enteredApiKey) {
+    alert("Groq Cloud requires an API Key. Please paste your free Groq API key (starts with 'gsk_...') in the API Key input box, or choose 'Smart Offline Demo Mode'.");
+    document.getElementById('api-key')?.focus();
+    return;
+  }
+
+  formData.append('provider', selectedProvider);
+  formData.append('api_key', enteredApiKey);
   formData.append('theme', document.getElementById('terminal-theme').value);
 
   const termUser = document.getElementById('terminal-username')?.value.trim();
@@ -1040,16 +1048,23 @@ function renderFullDocument(data) {
       vivaHtml = `<div class="doc-viva-section" style="margin-top: 16px;"><strong style="font-size: 13px; color: #000000; display: block; margin-bottom: 8px;">Discussion &amp; Viva Answers (Editable):</strong>${items}</div>`;
     }
 
+    const rawTitle = (task.title || '').trim();
+    const cleanTitle = rawTitle.replace(/^(?:task|query|program|experiment)\s*#?\s*[0-9]+[\s:\.\u2013\u2014\-]+/i, '').trim() || rawTitle;
+    const rawDesc = (task.description || '').trim();
+    const cleanDesc = rawDesc.replace(/^(?:task|query|program|experiment)\s*#?\s*[0-9]+[\s:\.\u2013\u2014\-]+/i, '').trim();
+
     html += `
       <div class="doc-prog-block" id="doc-task-${task.task_id}">
         <div class="doc-prog-header">
-          <h2 class="doc-prog-title" contenteditable="true" spellcheck="false" data-task-id="${task.task_id}" data-task-field="title">${prefix} ${String(task.task_id).padStart(2, '0')}: ${escapeHtml(task.title)}</h2>
+          <h2 class="doc-prog-title" contenteditable="true" spellcheck="false" data-task-id="${task.task_id}" data-task-field="title">Task ${String(task.task_id).padStart(2, '0')}: ${escapeHtml(cleanTitle)}</h2>
           <div class="doc-prog-actions">
             <button class="btn-doc-edit" onclick="openEditModal(${task.task_id})">Code Modal</button>
             <button class="btn-doc-edit" onclick="sendTaskToPlayground(${task.task_id})">Playground</button>
           </div>
         </div>
-        <p class="doc-prog-desc" contenteditable="true" spellcheck="true" data-task-id="${task.task_id}" data-task-field="description">${escapeHtml(task.description || '')}</p>
+        ${cleanDesc && cleanDesc.toLowerCase() !== cleanTitle.toLowerCase() ? `
+          <p class="doc-prog-desc" contenteditable="true" spellcheck="true" data-task-id="${task.task_id}" data-task-field="description"><strong style="color:#111;">Question / Details:</strong> ${escapeHtml(cleanDesc)}</p>
+        ` : ''}
 
         <div class="doc-label">${task.language === 'sql' ? 'QUERY / CODE (Editable):' : 'PROGRAM SOURCE CODE (Editable):'}</div>
         ${codeImg ? `

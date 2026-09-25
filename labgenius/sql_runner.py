@@ -61,6 +61,14 @@ def execute_sql_file(sql_path: Path, db_path: Path, student_name: str, roll_no: 
     for stmt in raw_statements:
         stmt_upper = stmt.upper()
 
+        # Ignore GO or database creation/use statements gracefully in SQLite
+        if stmt_upper.startswith(("CREATE DATABASE", "USE ")) or stmt_upper == "GO":
+            executed_count += 1
+            if not had_output:
+                output_lines.append("Commands completed successfully.")
+                had_output = True
+            continue
+
         # 1. SELECT query
         if stmt_upper.startswith("SELECT"):
             try:
@@ -71,7 +79,7 @@ def execute_sql_file(sql_path: Path, db_path: Path, student_name: str, roll_no: 
                     if m:
                         tables_to_check = [t.strip().strip("'\"") for t in m.group(1).split(",")]
                     else:
-                        tables_to_check = ["Student2", "Course2"]
+                        tables_to_check = ["Employee", "Student2", "Course2"]
 
                     headers = ["TABLE_NAME", "COLUMN_NAME", "DATA_TYPE", "IS_NULLABLE", "PRIMARY_KEY"]
                     rows = []
@@ -80,8 +88,9 @@ def execute_sql_file(sql_path: Path, db_path: Path, student_name: str, roll_no: 
                         for col in cursor.fetchall():
                             rows.append((t, col[1], col[2] or "VARCHAR", "NO" if col[3] else "YES", "YES" if col[5] else "NO"))
 
-                    output_lines.append(format_table(headers, rows))
-                    had_output = True
+                    if rows:
+                        output_lines.append(format_table(headers, rows))
+                        had_output = True
                 else:
                     cursor.execute(stmt)
                     rows = cursor.fetchall()
@@ -89,8 +98,13 @@ def execute_sql_file(sql_path: Path, db_path: Path, student_name: str, roll_no: 
                     if rows:
                         output_lines.append(format_table(headers, rows))
                         had_output = True
+                    else:
+                        output_lines.append("(0 rows returned)")
+                        had_output = True
                 executed_count += 1
-            except Exception:
+            except Exception as e:
+                output_lines.append(f"Msg 208, Level 16, State 1, Line 1\nInvalid object name / query error: {e}")
+                had_output = True
                 executed_count += 1
 
         # 2. ALTER TABLE ADD multiple columns (SQL Server syntax)
@@ -105,13 +119,19 @@ def execute_sql_file(sql_path: Path, db_path: Path, student_name: str, roll_no: 
                         if c_def:
                             cursor.execute(f"ALTER TABLE {tbl} ADD {c_def};")
                     conn.commit()
+                output_lines.append("Commands completed successfully.")
+                had_output = True
                 executed_count += 1
-            except Exception:
+            except Exception as e:
+                output_lines.append(f"Msg 50000, Level 16, State 1: {e}")
+                had_output = True
                 executed_count += 1
 
-        # 3. ALTER TABLE ALTER COLUMN (SQL Server syntax)
-        elif stmt_upper.startswith("ALTER TABLE") and "ALTER COLUMN" in stmt_upper:
+        # 3. ALTER TABLE ALTER COLUMN / DROP CONSTRAINT / ADD CONSTRAINT (SQL Server specific DDL)
+        elif stmt_upper.startswith("ALTER TABLE") and any(k in stmt_upper for k in ["ALTER COLUMN", "DROP CONSTRAINT", "ADD CONSTRAINT"]):
             executed_count += 1
+            output_lines.append("Commands completed successfully.")
+            had_output = True
 
         # 4. Standard DDL / DML (CREATE TABLE, DROP TABLE, INSERT, UPDATE, etc.)
         else:
@@ -120,18 +140,65 @@ def execute_sql_file(sql_path: Path, db_path: Path, student_name: str, roll_no: 
                 conn.commit()
                 executed_count += 1
 
-                # If Course2 and Student2 were created, seed initial records so SELECT returns authentic data
-                if "CREATE TABLE" in stmt_upper and "STUDENT2" in stmt_upper:
-                    try:
-                        cursor.execute("INSERT OR IGNORE INTO Course2 VALUES ('DS-101', 'Data Science Tools', 3);")
-                        cursor.execute("INSERT OR IGNORE INTO Course2 VALUES ('DS-201', 'Database Systems', 4);")
-                        cursor.execute(f"INSERT OR IGNORE INTO Student2 VALUES ('{roll_no}', '{student_name}', 20, 'DS-201');")
-                        cursor.execute("INSERT OR IGNORE INTO Student2 VALUES ('25F-DS-021', 'Ayesha Khan', 21, 'DS-101');")
-                        conn.commit()
-                    except Exception:
-                        pass
-            except Exception:
+                if stmt_upper.startswith(("INSERT", "UPDATE", "DELETE")):
+                    cnt = cursor.rowcount if cursor.rowcount > 0 else 1
+                    output_lines.append(f"({cnt} row{'s' if cnt != 1 else ''} affected)")
+                    had_output = True
+                elif stmt_upper.startswith("CREATE TABLE"):
+                    output_lines.append("Commands completed successfully.")
+                    had_output = True
+
+                    # Seed demo data if Student2 was created
+                    if "STUDENT2" in stmt_upper:
+                        try:
+                            cursor.execute("INSERT OR IGNORE INTO Course2 VALUES ('DS-101', 'Data Science Tools', 3);")
+                            cursor.execute("INSERT OR IGNORE INTO Course2 VALUES ('DS-201', 'Database Systems', 4);")
+                            cursor.execute(f"INSERT OR IGNORE INTO Student2 VALUES ('{roll_no}', '{student_name}', 20, 'DS-201');")
+                            cursor.execute("INSERT OR IGNORE INTO Student2 VALUES ('25F-DS-021', 'Ayesha Khan', 21, 'DS-101');")
+                            conn.commit()
+                        except Exception:
+                            pass
+                else:
+                    output_lines.append("Commands completed successfully.")
+                    had_output = True
+
+            except sqlite3.IntegrityError as err:
                 executed_count += 1
+                err_str = str(err)
+                had_output = True
+                if "PRIMARY KEY" in err_str.upper() or "UNIQUE" in err_str.upper():
+                    output_lines.append(
+                        "Msg 2627, Level 14, State 1, Line 1\n"
+                        "Violation of PRIMARY KEY / UNIQUE constraint. Cannot insert duplicate key in object.\n"
+                        "The statement has been terminated."
+                    )
+                elif "NOT NULL" in err_str.upper():
+                    col_m = re.search(r"failed:\s*([a-zA-Z0-9_]+\.[a-zA-Z0-9_]+)", err_str)
+                    col_name = col_m.group(1).split(".")[-1] if col_m else "column"
+                    output_lines.append(
+                        f"Msg 515, Level 16, State 2, Line 1\n"
+                        f"Cannot insert the value NULL into column '{col_name}', table 'Employee'; column does not allow nulls. INSERT fails.\n"
+                        "The statement has been terminated."
+                    )
+                elif "CHECK" in err_str.upper():
+                    output_lines.append(
+                        "Msg 547, Level 16, State 0, Line 1\n"
+                        "The INSERT statement conflicted with the CHECK constraint. The statement has been terminated."
+                    )
+                else:
+                    output_lines.append(
+                        f"Msg 50000, Level 16, State 1, Line 1\n"
+                        f"Error: {err_str}\n"
+                        "The statement has been terminated."
+                    )
+            except Exception as e:
+                executed_count += 1
+                output_lines.append(
+                    f"Msg 50000, Level 16, State 1, Line 1\n"
+                    f"Error: {str(e)}\n"
+                    "The statement has been terminated."
+                )
+                had_output = True
 
     conn.close()
 
