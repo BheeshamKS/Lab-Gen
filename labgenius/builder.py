@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 import base64
 import subprocess
+import re
 import html
 import docx
 from docx.shared import Inches, Pt
@@ -132,21 +133,38 @@ class DocumentBuilder:
             res = next((r for r in exec_results if r.task_id == task.task_id), exec_results[idx] if idx < len(exec_results) else None)
             code_img, out_img = task_screenshots[idx] if idx < len(task_screenshots) else (None, None)
 
-            # Program / Query Heading
-            prefix = "Query" if task.language == "sql" else "Program"
+            # 1. Task Question / Problem Statement FIRST
+            raw_title = task.title.strip()
+            clean_title = re.sub(r"^(?:task|query|program|experiment)\s*#?\s*[0-9]+[\s:\.\u2013\u2014\-]+", "", raw_title, flags=re.IGNORECASE).strip()
+            if not clean_title:
+                clean_title = raw_title
+
             p_prog = doc.add_paragraph()
-            r_prog = p_prog.add_run(f"{prefix} {task.task_id:02d}:  ")
+            r_prog = p_prog.add_run(f"Task {task.task_id:02d}: {clean_title}")
             r_prog.font.bold = True
-            r_prog.font.size = Pt(20.0)
-            p_prog.paragraph_format.space_before = Pt(0)
+            r_prog.font.size = Pt(14.0)
+            p_prog.paragraph_format.space_before = Pt(4)
             p_prog.paragraph_format.space_after = Pt(4)
 
-            # Subheading: CODE / QUERY:
+            # Requirements / Description details if any
+            raw_desc = task.description.strip() if task.description else ""
+            clean_desc = re.sub(r"^(?:task|query|program|experiment)\s*#?\s*[0-9]+[\s:\.\u2013\u2014\-]+", "", raw_desc, flags=re.IGNORECASE).strip()
+            if clean_desc and clean_desc.lower() != clean_title.lower():
+                p_desc = doc.add_paragraph()
+                p_desc.paragraph_format.space_before = Pt(0)
+                p_desc.paragraph_format.space_after = Pt(6)
+                r_dl = p_desc.add_run("Requirements / Details: ")
+                r_dl.font.bold = True
+                r_dl.font.size = Pt(11.0)
+                r_dt = p_desc.add_run(clean_desc)
+                r_dt.font.size = Pt(10.5)
+
+            # 2. Subheading: CODE / QUERY:
             p_c_lbl = doc.add_paragraph()
             r_cl = p_c_lbl.add_run("QUERY:" if task.language == "sql" else "CODE:")
             r_cl.font.bold = True
-            r_cl.font.size = Pt(18.0)
-            p_c_lbl.paragraph_format.space_before = Pt(0)
+            r_cl.font.size = Pt(13.0)
+            p_c_lbl.paragraph_format.space_before = Pt(4)
             p_c_lbl.paragraph_format.space_after = Pt(4)
 
             # Code Screenshot Image
@@ -156,11 +174,11 @@ class DocumentBuilder:
                 p_code_img.paragraph_format.space_after = Pt(6)
                 self._add_image_natural(p_code_img, code_img, max_width_in=6.0, max_height_in=5.2)
 
-            # Subheading: OUTPUT:
+            # 3. Subheading: OUTPUT:
             p_o_lbl = doc.add_paragraph()
             r_ol = p_o_lbl.add_run("OUTPUT:")
             r_ol.font.bold = True
-            r_ol.font.size = Pt(18.0)
+            r_ol.font.size = Pt(13.0)
             p_o_lbl.paragraph_format.space_before = Pt(4)
             p_o_lbl.paragraph_format.space_after = Pt(4)
 
