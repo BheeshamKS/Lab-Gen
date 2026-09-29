@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 
 from labgenius.config import Config
 from labgenius.parser import ManualParser
-from labgenius.solver import TaskSolver
+from labgenius.solver import TaskSolver, AntiAIFilter
 from labgenius.runner import CodeRunner
 from labgenius.capture import ScreenshotStudio
 from labgenius.builder import DocumentBuilder
@@ -182,6 +182,8 @@ async def run_lab(
     formats: Optional[str] = Form(None),
     username: Optional[str] = Form(None),
     hostname: Optional[str] = Form(None),
+    subject: Optional[str] = Form(None),
+    custom_subject: Optional[str] = Form(None),
     include_logo: Optional[str] = Form("true"),
     logo_choice: Optional[str] = Form("dawood"),
     custom_logo: Optional[UploadFile] = File(None),
@@ -198,16 +200,41 @@ async def run_lab(
     WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
 
     try:
+        # Mandatory Subject / Course Validation
+        if not subject or not subject.strip():
+            return {
+                "success": False,
+                "error": "Subject / Course is required! Please select Database Systems (DBMS), Data Structures & Algorithms (DSA), or specify an Other Subject."
+            }
+
+        sub_clean = subject.strip().lower()
+        if sub_clean == "other" and (not custom_subject or not custom_subject.strip()):
+            return {
+                "success": False,
+                "error": "Please enter your custom Subject / Course name."
+            }
+
+        if sub_clean == "dbms":
+            course_name_val = "Database Management Systems (DBMS)"
+        elif sub_clean == "dsa":
+            course_name_val = "Data Structures and Algorithms"
+        elif sub_clean == "other":
+            course_name_val = custom_subject.strip()
+        else:
+            course_name_val = subject.strip()
+
         # Load and configure
         cfg = Config.load()
+        if department and department.strip():
+            cfg.student.department = department.strip()
+        elif not cfg.student.department:
+            cfg.student.department = "Data Science"
         if name:
             cfg.student.name = name
         if roll_number:
             cfg.student.roll_number = roll_number
         if section:
             cfg.student.section = section
-        if department:
-            cfg.student.department = department
         if username and username.strip():
             cfg.system.username = username.strip()
         if hostname and hostname.strip():
@@ -288,8 +315,9 @@ async def run_lab(
             raise HTTPException(status_code=400, detail="No manual file uploaded or selected.")
 
         # 1. Parse Manual
-        parser_obj = ManualParser(str(target_manual_path))
+        parser_obj = ManualParser(str(target_manual_path), subject=sub_clean, subject_name=course_name_val)
         lab_manual = parser_obj.parse()
+        lab_manual.course_name = course_name_val
 
         # 2. Modules
         solver = TaskSolver(cfg)
@@ -318,6 +346,14 @@ async def run_lab(
             code_img, out_img = studio.capture_task_screenshots(sol, res)
             screenshots.append((code_img, out_img))
 
+        # Solve Viva Questions if present in the manual
+        if getattr(lab_manual, "viva_questions", None):
+            lab_manual.viva_answers = solver.solve_viva_questions(
+                lab_manual.viva_questions,
+                course_name=course_name_val,
+                custom_instructions=instructions
+            )
+
         clean_lab = f"LAB{lab_manual.lab_number}_completed" if lab_manual.lab_number else "Completed_Lab_Report"
 
         # 4. Compile all formats (.docx, .pdf, .md, .html)
@@ -337,7 +373,14 @@ async def run_lab(
         tasks_response = _build_tasks_response(lab_manual.tasks, solutions, exec_results, screenshots)
 
         lab_title_val = _format_lab_title(lab_manual)
-        course_name_val = lab_manual.course_name or cfg.student.department or "Data Science"
+
+        viva_list = []
+        if getattr(lab_manual, "viva_answers", None):
+            for q, a in lab_manual.viva_answers:
+                viva_list.append({"question": q, "answer": a})
+        elif getattr(lab_manual, "viva_questions", None):
+            for q in lab_manual.viva_questions:
+                viva_list.append({"question": q, "answer": ""})
 
         return _set_last_result({
             "success": True,
@@ -348,6 +391,7 @@ async def run_lab(
             "lab_title": lab_title_val,
             "course_name": course_name_val,
             "tasks": tasks_response,
+            "viva_answers": viva_list,
             "metadata": compiled_files["verification"],
             "has_pdf": bool(compiled_files["pdf"]),
         })
@@ -512,6 +556,7 @@ async def edit_cover(
     roll_number: Optional[str] = Form(None),
     section: Optional[str] = Form(None),
     department: Optional[str] = Form(None),
+    subject: Optional[str] = Form(None),
     lab_title: Optional[str] = Form(None),
     include_instructor: Optional[str] = Form("false"),
     instructor: Optional[str] = Form(None),
@@ -539,7 +584,8 @@ async def edit_cover(
             cfg.student.section = section.strip()
         if department:
             cfg.student.department = department.strip()
-            lab_manual.course_name = department.strip()
+        if subject:
+            lab_manual.course_name = subject.strip()
         if lab_title:
             cleaned_title = lab_title.strip()
             import re
@@ -686,7 +732,10 @@ async def save_document_canvas(payload: dict = Body(...)):
                 cfg.student.section = cover["section"].strip()
             if cover.get("department"):
                 cfg.student.department = cover["department"].strip()
-                lab_manual.course_name = cover["department"].strip()
+            if cover.get("subject"):
+                lab_manual.course_name = cover["subject"].strip()
+            elif cover.get("course_name"):
+                lab_manual.course_name = cover["course_name"].strip()
             if cover.get("lab_title"):
                 lab_manual.title = cover["lab_title"].strip()
             is_inst = bool(cover.get("include_instructor"))
@@ -733,6 +782,15 @@ async def save_document_canvas(payload: dict = Body(...)):
                             screenshots[idx] = (c_img, o_img)
                     break
 
+        # 3. Update Viva Answers if present
+        viva_payload = payload.get("viva_answers", [])
+        if viva_payload and isinstance(viva_payload, list):
+            lab_manual.viva_answers = [
+                (v.get("question", "").strip(), AntiAIFilter.humanize_answer(v.get("answer", "").strip()))
+                for v in viva_payload
+                if isinstance(v, dict) and v.get("question")
+            ]
+
         builder = DocumentBuilder(cfg)
         sanitizer = DocumentSanitizer(cfg)
 
@@ -753,6 +811,7 @@ async def save_document_canvas(payload: dict = Body(...)):
             "lab_title": lab_title_val,
             "course_name": course_name_val,
             "tasks": tasks_response,
+            "viva_answers": [{"question": q, "answer": a} for q, a in getattr(lab_manual, "viva_answers", [])],
             "metadata": compiled_files["verification"],
             "has_pdf": bool(compiled_files["pdf"]),
             "message": "All document edits saved and recompiled across all formats!",

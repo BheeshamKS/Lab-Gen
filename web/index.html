@@ -217,6 +217,28 @@
           </div>
 
           <div class="action-footer">
+            <!-- Mandatory Subject / Course Selector -->
+            <div class="subject-selection-box" id="subject-selection-box">
+              <div class="section-title-row">
+                <label for="subject-select" class="section-label">
+                  Subject / Course <span class="required-badge">* Mandatory</span>
+                </label>
+                <span class="hint-badge" id="subject-hint-badge">Choose Subject</span>
+              </div>
+              <div class="subject-select-wrapper">
+                <select id="subject-select" class="subject-select-dropdown" onchange="handleSubjectSelectChange()">
+                  <option value="" disabled selected>-- Select Subject / Course (Required) --</option>
+                  <option value="dbms">Database Systems (DBMS)</option>
+                  <option value="dsa">Data Structures &amp; Algorithms (DSA)</option>
+                  <option value="other">Other Subject? (Custom)</option>
+                </select>
+              </div>
+              <div id="other-subject-container" style="display: none; margin-top: 10px;">
+                <input type="text" id="other-subject-input" class="form-input" placeholder="Enter Subject Name (e.g. Operating Systems, Computer Networks, OOP)...">
+                <small class="hint-text" style="display: block; margin-top: 4px; color: var(--text-muted); font-size: 11.5px;">LabGenius will analyze your manual and generate custom solutions tailored for this subject.</small>
+              </div>
+            </div>
+
             <!-- Custom Instructions Section -->
             <div class="instructions-section">
               <div class="section-title-row">

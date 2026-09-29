@@ -44,6 +44,8 @@ class LabManual:
     raw_text: str = ""
     is_docx_template: bool = False
     context: str = ""
+    viva_questions: List[str] = field(default_factory=list)
+    viva_answers: List[Tuple[str, str]] = field(default_factory=list)
 
 
 class ManualParser:
@@ -59,12 +61,16 @@ class ManualParser:
         r"programs\s+to\s+implement[\s:]*$",
     ]
 
+    TASK_KEYWORD_PATTERN = (
+        r"^(?:lab|task|assignment|experiment|exercise|activity|problem|program|part|query|question)"
+        r"\s*#?\s*0*([1-9][0-9]*)\b(?:\s*[\u2013\u2014\-:\.]\s*(.*)|$)"
+    )
+
     END_SECTION_MARKERS = [
         r"^learning\s+outcomes?[\s:]*$",
         r"^conclusion[\s:]*$",
         r"^references?[\s:]*$",
         r"^marking\s+rubric[\s:]*$",
-        r"^viva\s+questions?[\s:]*$",
     ]
 
     LANGUAGE_KEYWORDS = {
@@ -75,10 +81,12 @@ class ManualParser:
         "sql": ["sql", "select ", "insert into", "database", "sqlite", "table"],
     }
 
-    def __init__(self, file_path: str):
+    def __init__(self, file_path: str, subject: Optional[str] = None, subject_name: Optional[str] = None):
         self.path = Path(file_path)
         if not self.path.exists():
             raise FileNotFoundError(f"Manual file not found: {self.path}")
+        self.subject = (subject or "").strip().lower()
+        self.subject_name = (subject_name or "").strip()
 
     def parse(self) -> LabManual:
         """Parse the lab manual based on file extension."""
@@ -93,6 +101,11 @@ class ManualParser:
             raise ValueError(f"Unsupported file format: {suffix}. Supported: .docx, .pdf, .txt, .md")
 
     def _detect_overall_language(self, text: str) -> str:
+        if self.subject == "dbms":
+            return "sql"
+        if self.subject == "dsa":
+            return "python"
+
         text_lower = text.lower()
         # Strict SQL detection to avoid false positives on Data Structure labs
         if any(k in text_lower for k in [
@@ -150,17 +163,23 @@ class ManualParser:
         title = title.rstrip(".:, -").upper()
 
         # Course name detection
-        if overall_lang == "sql" or "dbms" in self.path.stem.lower() or "database" in full_text.lower()[:300]:
+        if self.subject == "dbms":
+            course_name = "Database Management Systems (DBMS)"
+        elif self.subject == "dsa":
+            course_name = "Data Structures and Algorithms"
+        elif self.subject_name:
+            course_name = self.subject_name
+        elif overall_lang == "sql" or "dbms" in self.path.stem.lower() or "database" in full_text.lower()[:300]:
             course_name = "Database Management Systems (DBMS)"
         else:
             course_name = "Programming / Data Science"
             for p in paragraphs_text[:15]:
                 if any(k in p.lower() for k in ["course", "subject", "data science", "computer science"]):
-                    course_name = p.replace("Course:", "").strip()
+                    course_name = p.replace("Course:", "").replace("Subject:", "").strip()
                     break
 
-        # 2. Find and Extract ONLY the Task Section
-        tasks, preamble_context = self._extract_tasks_from_docx_body(doc, overall_lang)
+        # 2. Find and Extract ONLY the Task Section & Viva Questions
+        tasks, preamble_context, viva_questions = self._extract_tasks_from_docx_body(doc, lab_number, overall_lang)
 
         return LabManual(
             file_path=self.path,
@@ -172,16 +191,21 @@ class ManualParser:
             raw_text=full_text,
             is_docx_template=False,
             context=preamble_context,
+            viva_questions=viva_questions,
         )
 
-    def _extract_tasks_from_docx_body(self, doc: Any, default_lang: str) -> Tuple[List[LabTask], str]:
-        """Traverses document body in order to extract tasks and attach any trailing tables."""
+    def _extract_tasks_from_docx_body(self, doc: Any, lab_number: str, default_lang: str) -> Tuple[List[LabTask], str, List[str]]:
+        """Traverses document body in order to extract tasks, viva questions, and attach trailing tables."""
         tasks: List[LabTask] = []
+        viva_questions: List[str] = []
         in_task_section = False
+        in_viva_section = False
         current_task_num = 0
         current_task_title = ""
         current_task_lines: List[str] = []
         preamble_lines: List[str] = []
+
+        task_kw_regex = re.compile(self.TASK_KEYWORD_PATTERN, re.IGNORECASE)
 
         imperatives = [
             "create", "display", "add", "delete", "change", "drop", "write", "implement",
@@ -195,13 +219,22 @@ class ManualParser:
         ]
 
         paragraphs_text = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
-        has_explicit_experiment_headings = False
+        explicit_headings = []
+        doc_lab_num = int(lab_number) if lab_number.isdigit() else 0
+
         for i, p in enumerate(paragraphs_text):
-            if i < 5:  # skip header
+            if "lab manual" in p.lower():
                 continue
-            if re.match(r"^(?:experiment|task|exercise|program|activity)\s*#?\s*[0-9]+[\s\u2013\u2014\-:\.]", p, re.IGNORECASE):
-                has_explicit_experiment_headings = True
-                break
+            if i < 8 and any(k in p.lower() for k in ["course", "duration", "program", "department"]):
+                continue
+            m = task_kw_regex.match(p)
+            if m:
+                num = int(m.group(1))
+                if i < 8 and num == doc_lab_num:
+                    continue
+                explicit_headings.append(num)
+
+        has_explicit_experiment_headings = len(explicit_headings) >= 2 or (len(explicit_headings) >= 1 and explicit_headings[0] == 1)
 
         def save_task():
             nonlocal current_task_num, current_task_title, current_task_lines
@@ -223,7 +256,7 @@ class ManualParser:
             current_task_lines = []
             current_task_title = ""
 
-        header_threshold = min(8, len(paragraphs_text))
+        all_p_elements = [el for el in doc.element.body if el.tag.split("}")[-1] == "p"]
 
         for idx_el, el in enumerate(doc.element.body):
             tag = el.tag.split("}")[-1]
@@ -234,38 +267,58 @@ class ManualParser:
                 if not p_text:
                     continue
 
+                # Check for Viva section start
+                if re.search(r"^viva\s*(?:questions?|voce)?[\s:]*$", p_text, re.IGNORECASE):
+                    save_task()
+                    in_viva_section = True
+                    in_task_section = False
+                    continue
+
+                if in_viva_section:
+                    is_viva_end = any(re.search(end_m, p_text, re.IGNORECASE) for end_m in self.END_SECTION_MARKERS)
+                    if is_viva_end:
+                        in_viva_section = False
+                        break
+                    viva_questions.append(p_text)
+                    continue
+
                 if in_task_section:
                     is_end = any(re.search(end_m, p_text, re.IGNORECASE) for end_m in self.END_SECTION_MARKERS)
                     if is_end:
                         save_task()
-                        return tasks, "\n".join(preamble_lines).strip()
+                        return tasks, "\n".join(preamble_lines).strip(), viva_questions
 
-                m_exp = re.match(
-                    r"^(?:experiment|task|exercise|activity|program|part|problem)\s*#?\s*([0-9]+)\s*[\u2013\u2014\-:\.]\s*(.*)",
-                    p_text,
-                    re.IGNORECASE
-                )
+                # Explicit keyword check (lab, task, assignment, experiment, etc.)
+                m_exp = task_kw_regex.match(p_text)
+                is_manual_header = "lab manual" in p_text.lower() or (idx_el < 8 and m_exp and int(m_exp.group(1)) == doc_lab_num)
+
                 m_named = re.match(
                     r"^(performance\s+visualization|comparative\s+experiment|discussion\s+questions|challenge\s+activity(?:\s*\([^)]*\))?)\b[\s:\.-]*(.*)",
                     p_text,
                     re.IGNORECASE
                 )
 
-                is_header_title = (idx_el < header_threshold)
-
-                if m_exp and not is_header_title:
-                    in_task_section = True
+                if m_exp and not is_manual_header:
                     save_task()
+                    in_task_section = True
                     current_task_num = int(m_exp.group(1))
-                    rest = m_exp.group(2).strip()
-                    current_task_title = p_text.splitlines()[0][:130]
-                    if rest:
-                        current_task_lines = [rest]
+                    rest = m_exp.group(2).strip() if m_exp.group(2) else ""
+
+                    # If rest is empty, check next paragraph for task title
+                    if not rest:
+                        curr_p_idx = all_p_elements.index(el) if el in all_p_elements else -1
+                        if curr_p_idx >= 0 and curr_p_idx + 1 < len(all_p_elements):
+                            next_p_text = docx.text.paragraph.Paragraph(all_p_elements[curr_p_idx + 1], doc).text.strip()
+                            if next_p_text and len(next_p_text) < 120 and not any(next_p_text.lower().startswith(x) for x in ["objective", "theory", "scenario", "dataset", "tasks", "pre-lab"]):
+                                rest = next_p_text
+
+                    current_task_title = f"Task {current_task_num}: {rest}" if rest else f"Task {current_task_num}"
+                    current_task_lines = []
                     continue
 
-                elif m_named and not is_header_title:
-                    in_task_section = True
+                elif m_named and not is_manual_header:
                     save_task()
+                    in_task_section = True
                     current_task_num += 1
                     named_title = m_named.group(1).strip()
                     rest = m_named.group(2).strip()
@@ -285,7 +338,6 @@ class ManualParser:
                         continue
 
                 if any(p_text.lower().startswith(intro) for intro in intro_starters):
-                    # Preamble encountered before the explicit task list
                     if current_task_lines:
                         preamble_lines.extend(current_task_lines)
                         current_task_lines = []
@@ -324,10 +376,14 @@ class ManualParser:
                         current_task_lines = [p_text]
                         continue
 
-                if current_task_num > 0:
-                    current_task_lines.append(p_text)
-                else:
-                    preamble_lines.append(p_text)
+                if in_task_section:
+                    # Skip duplicate subtitle if already adopted into current_task_title
+                    if current_task_title and p_text == current_task_title.split(": ", 1)[-1]:
+                        continue
+                    if current_task_num > 0:
+                        current_task_lines.append(p_text)
+                    else:
+                        preamble_lines.append(p_text)
 
             elif tag == "tbl" and in_task_section:
                 tbl = docx.table.Table(el, doc)
@@ -349,7 +405,7 @@ class ManualParser:
         if not tasks:
             tasks = self._fallback_extract_tasks(doc, default_lang)
 
-        return tasks, "\n".join(preamble_lines).strip()
+        return tasks, "\n".join(preamble_lines).strip(), viva_questions
 
     def _fallback_extract_tasks(self, doc: Any, default_lang: str) -> List[LabTask]:
         """Fallback if no explicit 'LAB TASKS:' heading exists."""
@@ -398,13 +454,31 @@ class ManualParser:
 
         has_explicit = any(re.match(r"^(?:experiment|task|exercise|activity|program|part|problem)\s*#?\s*[0-9]+[\s\-:\.]", line.strip(), re.IGNORECASE) for line in lines[:30])
 
+        viva_questions = []
+        in_viva = False
+
         for line in lines:
             line_str = line.strip()
             if not line_str:
                 continue
 
+            if re.search(r"^viva\s*(?:questions?|voce)?[\s:]*$", line_str, re.IGNORECASE):
+                if current_task_num > 0:
+                    tasks.append(LabTask(task_id=current_task_num, title=f"Task {current_task_num}", description="\n".join(current_lines), language=overall_lang))
+                    current_task_num = 0
+                    current_lines = []
+                in_viva = True
+                in_tasks = False
+                continue
+
+            if in_viva:
+                if any(re.search(end_m, line_str, re.IGNORECASE) for end_m in self.END_SECTION_MARKERS):
+                    break
+                viva_questions.append(line_str)
+                continue
+
             if not in_tasks:
-                if has_explicit and re.match(r"^(?:experiment|task|exercise|activity|program|part|problem)\s*#?\s*[0-9]+[\s\-:\.]", line_str, re.IGNORECASE):
+                if has_explicit and re.match(self.TASK_KEYWORD_PATTERN, line_str, re.IGNORECASE):
                     in_tasks = True
                 else:
                     for marker in self.TASK_SECTION_MARKERS:
@@ -418,16 +492,18 @@ class ManualParser:
                 if re.search(end_marker, line_str, re.IGNORECASE):
                     if current_task_num > 0:
                         tasks.append(LabTask(task_id=current_task_num, title=f"Task {current_task_num}", description="\n".join(current_lines), language=overall_lang))
-                    return LabManual(self.path, title, "Programming Lab", lab_number, [], tasks, full_text)
+                    course_name_pdf = "Database Management Systems (DBMS)" if self.subject == "dbms" else ("Data Structures and Algorithms" if self.subject == "dsa" else (self.subject_name or "Programming Lab"))
+                    return LabManual(self.path, title, course_name_pdf, lab_number, [], tasks, full_text, viva_questions=viva_questions)
 
-            tm = re.match(r"^(?:experiment|task|exercise|activity|program|part|problem)\s*#?\s*([0-9]+)[\s\-:\.]*(.*)", line_str, re.IGNORECASE)
+            tm = re.match(self.TASK_KEYWORD_PATTERN, line_str, re.IGNORECASE)
             m_named = re.match(r"^(performance\s+visualization|comparative\s+experiment|discussion\s+questions|challenge\s+activity(?:\s*\([^)]*\))?)\b[\s:\.-]*(.*)", line_str, re.IGNORECASE)
 
             if tm:
                 if current_task_num > 0:
                     tasks.append(LabTask(task_id=current_task_num, title=f"Task {current_task_num}", description="\n".join(current_lines), language=overall_lang))
                 current_task_num = int(tm.group(1))
-                current_lines = [tm.group(2).strip()]
+                rest = tm.group(2).strip() if tm.group(2) else ""
+                current_lines = [rest] if rest else []
             elif m_named:
                 if current_task_num > 0:
                     tasks.append(LabTask(task_id=current_task_num, title=f"Task {current_task_num}", description="\n".join(current_lines), language=overall_lang))
@@ -446,7 +522,8 @@ class ManualParser:
         if current_task_num > 0:
             tasks.append(LabTask(task_id=current_task_num, title=f"Task {current_task_num}", description="\n".join(current_lines), language=overall_lang))
 
-        return LabManual(self.path, title, "Programming Lab", lab_number, [], tasks, full_text)
+        course_name_pdf = "Database Management Systems (DBMS)" if self.subject == "dbms" else ("Data Structures and Algorithms" if self.subject == "dsa" else (self.subject_name or "Programming Lab"))
+        return LabManual(self.path, title, course_name_pdf, lab_number, [], tasks, full_text, viva_questions=viva_questions)
 
     def _parse_text(self) -> LabManual:
         with open(self.path, "r", encoding="utf-8") as f:

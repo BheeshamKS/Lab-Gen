@@ -193,6 +193,48 @@ class DocumentBuilder:
             if idx < len(manual.tasks) - 1:
                 doc.add_page_break()
 
+        # -------------------------------------------------------------
+        # VIVA QUESTIONS & BRIEF ANSWERS (AT END OF LAB)
+        # -------------------------------------------------------------
+        viva_pairs = getattr(manual, "viva_answers", None)
+        if not viva_pairs and getattr(manual, "viva_questions", None):
+            viva_pairs = [(q, "") for q in manual.viva_questions]
+
+        if viva_pairs:
+            doc.add_page_break()
+            p_viva_hdr = doc.add_paragraph()
+            r_viva_hdr = p_viva_hdr.add_run("VIVA QUESTIONS & BRIEF ANSWERS")
+            r_viva_hdr.font.bold = True
+            r_viva_hdr.font.size = Pt(15.0)
+            r_viva_hdr.font.name = self.doc_conf.font_family or "Calibri"
+            p_viva_hdr.paragraph_format.space_before = Pt(8)
+            p_viva_hdr.paragraph_format.space_after = Pt(12)
+
+            for q_idx, (q_text, a_text) in enumerate(viva_pairs, 1):
+                p_q = doc.add_paragraph()
+                p_q.paragraph_format.space_before = Pt(8)
+                p_q.paragraph_format.space_after = Pt(2)
+                r_q_num = p_q.add_run(f"Q{q_idx}: ")
+                r_q_num.font.bold = True
+                r_q_num.font.size = Pt(11.5)
+                r_q_num.font.name = self.doc_conf.font_family or "Calibri"
+                r_q_txt = p_q.add_run(q_text)
+                r_q_txt.font.bold = True
+                r_q_txt.font.size = Pt(11.0)
+                r_q_txt.font.name = self.doc_conf.font_family or "Calibri"
+
+                if a_text:
+                    p_a = doc.add_paragraph()
+                    p_a.paragraph_format.space_before = Pt(1)
+                    p_a.paragraph_format.space_after = Pt(6)
+                    r_a_lbl = p_a.add_run("Answer: ")
+                    r_a_lbl.font.bold = True
+                    r_a_lbl.font.size = Pt(10.5)
+                    r_a_lbl.font.name = self.doc_conf.font_family or "Calibri"
+                    r_a_txt = p_a.add_run(a_text)
+                    r_a_txt.font.size = Pt(10.5)
+                    r_a_txt.font.name = self.doc_conf.font_family or "Calibri"
+
         doc.save(output_path)
         return output_path
 
@@ -287,6 +329,18 @@ class DocumentBuilder:
                 for q, a in sol.discussion_answers.items():
                     lines.append(f"- **Q: {q}**  \n  **A:** {a}\n")
 
+            lines.append("---\n")
+
+        viva_pairs = getattr(manual, "viva_answers", None)
+        if not viva_pairs and getattr(manual, "viva_questions", None):
+            viva_pairs = [(q, "") for q in manual.viva_questions]
+
+        if viva_pairs:
+            lines.append("## VIVA QUESTIONS & BRIEF ANSWERS\n")
+            for q_idx, (q_text, a_text) in enumerate(viva_pairs, 1):
+                lines.append(f"**Q{q_idx}: {q_text}**\n")
+                if a_text:
+                    lines.append(f"> **Answer:** {a_text}\n")
             lines.append("---\n")
 
         output_path.write_text("\n".join(lines), encoding="utf-8")
@@ -541,6 +595,39 @@ class DocumentBuilder:
     }}
   </style>
 </head>
+"""
+
+        viva_pairs = getattr(manual, "viva_answers", None)
+        if not viva_pairs and getattr(manual, "viva_questions", None):
+            viva_pairs = [(q, "") for q in manual.viva_questions]
+
+        viva_html = ""
+        if viva_pairs:
+            viva_items = []
+            for q_idx, (q_text, a_text) in enumerate(viva_pairs, 1):
+                ans_markup = f'<div style="font-size: 11pt; color: #334155; margin-top: 4px; line-height: 1.5;"><strong>Answer:</strong> {html.escape(a_text)}</div>' if a_text else ""
+                viva_items.append(f"""
+                <div class="viva-item" style="margin-bottom: 12px; padding: 10px 14px; background: #f8fafc; border-left: 3px solid #0f172a; border-radius: 4px;">
+                  <div style="font-weight: 700; font-size: 11.5pt; color: #0f172a;">Q{q_idx}: {html.escape(q_text)}</div>
+                  {ans_markup}
+                </div>
+                """)
+            viva_html = f"""
+            <section class="report-page viva-section" style="margin-top: 28px; padding-top: 18px; border-top: 2px dashed #cbd5e1;">
+              <h2 style="font-size: 14pt; font-weight: 700; color: #0f172a; margin-bottom: 14px;">VIVA QUESTIONS &amp; BRIEF ANSWERS</h2>
+              {''.join(viva_items)}
+            </section>
+            """
+
+        full_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{html.escape(lab_title_val)} - {html.escape(self.student.name)}</title>
+  <style>
+    {css}
+  </style>
+</head>
 <body>
   <div class="document-wrapper">
     <div class="cover-page">
@@ -574,6 +661,7 @@ class DocumentBuilder:
     </div>
 
     {''.join(tasks_html)}
+    {viva_html}
   </div>
 </body>
 </html>

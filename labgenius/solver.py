@@ -7,7 +7,7 @@ import os
 import re
 import json
 from dataclasses import dataclass
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 import requests
 
 from .config import Config
@@ -46,6 +46,21 @@ class AntiAIFilter:
         r"\blanguage model\b": "",
         r"\bharness(?:ing)? the power of\b": "using",
         r"\bseamless(?:ly)?\b": "smoothly",
+        r"\bit is essential to note that\b": "",
+        r"\bit is crucial to (?:understand|note|recognize) that\b": "",
+        r"\bit is important to (?:understand|note|recognize) that\b": "",
+        r"\bplays a pivotal role in\b": "is really important for",
+        r"\bserves as a testament to\b": "shows",
+        r"\bunderlying principles of\b": "basics of",
+        r"\bdemonstrates the efficacy of\b": "shows how well",
+        r"\bfacilitates the seamless\b": "helps smooth",
+        r"\bin the realm of\b": "in",
+        r"\bserves as an indispensable\b": "is a key",
+        r"\bin order to ensure\b": "to make sure",
+        r"\bnoteworthy that\b": "noticeable that",
+        r"\butilizes\b": "uses",
+        r"\butilizing\b": "using",
+        r"\butilize\b": "use",
     }
 
     @classmethod
@@ -56,6 +71,24 @@ class AntiAIFilter:
             cleaned = re.sub(pattern, replacement, cleaned, flags=re.IGNORECASE)
         # Strip excessive multi-paragraph filler
         cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+        return cleaned.strip()
+
+    @classmethod
+    def humanize_answer(cls, text: str) -> str:
+        """Specifically humanize viva student answers, removing stiff robotic preambles and jargon."""
+        cleaned = cls.clean_text(text)
+        # Remove stiff introductory academic phrases at start of sentences
+        cleaned = re.sub(
+            r"^(?:in computer science,?\s*|by definition,?\s*|conceptually speaking,?\s*|strictly speaking,?\s*)",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+        # Remove outer quotes if added by LLM
+        cleaned = cleaned.strip("\"' \t\r\n")
+        # Ensure proper capitalization
+        if cleaned:
+            cleaned = cleaned[0].upper() + cleaned[1:]
         return cleaned.strip()
 
 
@@ -92,6 +125,124 @@ class TaskSolver:
             q: AntiAIFilter.clean_text(ans) for q, ans in solution.discussion_answers.items()
         }
         return solution
+
+    def solve_viva_questions(
+        self,
+        questions: List[str],
+        course_name: str = "",
+        custom_instructions: Optional[str] = None
+    ) -> List[Tuple[str, str]]:
+        """Answers viva voce questions in a natural, humanized student voice for university lab submission."""
+        if not questions:
+            return []
+
+        cleaned_questions = []
+        for q in questions:
+            q_clean = re.sub(r"^[0-9]+[\s:\.\u2013\u2014\-]+", "", q.strip()).strip()
+            if q_clean and len(q_clean) > 3:
+                cleaned_questions.append(q_clean)
+
+        if not cleaned_questions:
+            return []
+
+        # 1. Try LLM with explicit humanizing prompting if configured
+        answers_dict: Dict[str, str] = {}
+        provider = self.ai_conf.provider.lower()
+        if (provider == "gemini" and (self.ai_conf.api_key or os.environ.get("GEMINI_API_KEY"))) or \
+           (provider in ["openai", "openrouter", "groq"]) or (provider == "ollama"):
+            prompt = (
+                f"You are an undergraduate university student writing short viva voce answers for your lab report in {course_name or 'Computer Science'}.\n"
+                "Write a natural, humanized, and concise 1-2 sentence answer for EACH question below as if you are explaining the concept directly in your own words to your lab teacher.\n\n"
+                "STRICT HUMANIZING RULES:\n"
+                "- Write in a natural, friendly, and articulate student voice using plain English.\n"
+                "- Use simple, relatable analogies where appropriate (e.g., ticket lines, cafeteria trays, hospital triage, book index).\n"
+                "- NEVER use robotic AI buzzwords or stiff textbook jargon (DO NOT use words like: 'delve', 'pivotal', 'furthermore', 'it is crucial to note', 'serves as a testament to', 'invariant enforcement', 'comprehensive understanding').\n"
+                "- Keep each answer brief (1 to 2 sentences maximum) and technically accurate.\n"
+                "- No markdown bullet points or extra commentary within the answer string.\n\n"
+                "Questions to answer:\n"
+                + "\n".join(f"- {q}" for q in cleaned_questions)
+                + "\n\nRespond strictly in valid JSON format mapping the question to your humanized answer: {\"Question\": \"Humanized Student Answer\"}"
+            )
+            raw_resp = None
+            if provider == "gemini":
+                raw_resp = self._call_gemini_raw(prompt)
+            elif provider in ["openai", "openrouter", "groq"]:
+                raw_resp = self._call_openai_compatible_raw(prompt)
+            elif provider == "ollama":
+                raw_resp = self._call_ollama_raw(prompt)
+
+            if raw_resp:
+                parsed = self._extract_json(raw_resp)
+                if isinstance(parsed, dict) and parsed:
+                    answers_dict = parsed
+
+        # 2. Build final list using LLM answer or natural student-style fallback
+        viva_pairs: List[Tuple[str, str]] = []
+        humanized_db = {
+            "what is fifo": "FIFO stands for First-In, First-Out. It basically means whatever element gets added first is the first one to be removed, just like people waiting in a normal queue or ticket counter.",
+            "what is a deque": "A deque (double-ended queue) lets you insert and remove items from both the front and the back ends, giving you more flexibility than a standard queue.",
+            "what is priority": "Priority is an assigned value or ranking that decides which item gets served first. Instead of following strict arrival order, urgent items jump to the front and get handled before lower-priority ones.",
+            "why is queue appropriate for admissions": "A queue is the fairest choice for admissions because it ensures first-come, first-served order. Applicants who submit earlier are processed ahead of later applicants without anyone skipping the line.",
+            "why is priority queue appropriate for scholarships": "Scholarships are awarded based on merit rather than who applied first. A priority queue lets us rank applicants by GPA or test scores so top candidates get reviewed first regardless of submission time.",
+            "compare queue and deque": "A regular queue only allows insertions at the rear and deletions from the front (strict FIFO). A deque gives you more freedom by allowing insertions and removals at both ends.",
+            "compare queue and priority queue": "A standard queue always serves items strictly by their arrival time, whereas a priority queue serves items based on how urgent or important they are, even if they arrived later.",
+            "explain how application requirements determine adt selection": "You choose a data structure based on what your program actually needs to do. For example, if you need strict fairness you use a regular queue, if urgency matters more than arrival time you pick a priority queue, and if you need operations at both ends like browser history you pick a deque.",
+            "what is lifo": "LIFO means Last-In, First-Out. Whatever item is added last gets removed first, exactly like taking clean plates off the top of a stack in a cafeteria.",
+            "what is a stack": "A stack is a linear data structure that follows LIFO order, where you can only add (push) or take off (pop) elements from the top, like a stack of books.",
+            "what is a queue": "A queue is a linear data structure based on FIFO order, where elements enter at the rear and get removed from the front, just like customers in a checkout line.",
+            "what is a circular queue": "A circular queue connects the end of the array back to the beginning. This solves the problem of wasted memory in standard array queues by letting you reuse empty spots at the front once items are dequeued.",
+            "what is an adt": "An ADT (Abstract Data Type) is a blueprint defining what operations a data structure can perform and what values it holds, without worrying about the internal implementation details.",
+            "time complexity": "Time complexity tells us how the execution time of an algorithm grows as the input size increases, usually expressed using Big-O notation like O(1) or O(n).",
+            "space complexity": "Space complexity measures how much extra memory or RAM an algorithm needs to run relative to the input size.",
+            "primary key": "A primary key is a column (or set of columns) that uniquely identifies each record in a table. It guarantees that no two rows are duplicates and it never allows NULL values.",
+            "foreign key": "A foreign key is a field in one table that links to the primary key of another table, keeping related records connected and preventing orphaned data.",
+            "candidate key": "A candidate key is any column or set of columns capable of uniquely identifying a record in a table, from which the primary key is chosen.",
+            "super key": "A super key is any combination of columns that uniquely identifies a row in a table, which can include the primary key plus extra columns.",
+            "normalization": "Normalization is organizing database tables properly to eliminate duplicate data and prevent insertion, update, or deletion anomalies.",
+            "delete, truncate": "`DELETE` removes specific rows based on a WHERE clause and can be rolled back, `TRUNCATE` rapidly wipes all rows while keeping the table structure, and `DROP` completely destroys the table and schema.",
+            "difference between drop": "`DELETE` removes specific rows based on a WHERE clause and can be rolled back, `TRUNCATE` rapidly wipes all rows while keeping the table structure, and `DROP` completely destroys the table and schema.",
+            "index": "An index works just like an index at the back of a textbook. It lets the database look up matching rows quickly without scanning through every single record from scratch.",
+            "acid": "ACID stands for Atomicity, Consistency, Isolation, and Durability—four rules that ensure database transactions are processed reliably without partial updates or corrupted data.",
+            "recursion": "Recursion is when a function solves a problem by calling itself with smaller inputs until it reaches a base condition where it can return a result.",
+            "array vs linked list": "Arrays store elements in contiguous memory with fast O(1) index access, while linked lists store nodes connected by pointers, making insertions and deletions easier without shifting memory.",
+        }
+
+        for q in cleaned_questions:
+            ans = ""
+            for k, v in answers_dict.items():
+                if q.lower() in k.lower() or k.lower() in q.lower():
+                    ans = AntiAIFilter.humanize_answer(str(v).strip())
+                    break
+
+            if not ans:
+                q_low = q.lower().strip()
+                for key_term, default_ans in humanized_db.items():
+                    if key_term in q_low:
+                        ans = default_ans
+                        break
+
+            if not ans:
+                ans = self._generate_humanized_fallback(q, course_name)
+
+            ans = AntiAIFilter.humanize_answer(ans)
+            viva_pairs.append((q, ans))
+
+        return viva_pairs
+
+    def _generate_humanized_fallback(self, question: str, course_name: str) -> str:
+        """Generates a contextual, natural student-like answer when a question is unlisted."""
+        q_low = question.lower().strip()
+        if q_low.startswith("why"):
+            return f"This is used because it directly fits the practical requirements of the problem in {course_name or 'the lab'}, keeping the logic clean and easy to maintain."
+        elif q_low.startswith("what is") or q_low.startswith("define") or q_low.startswith("explain"):
+            concept = re.sub(r"^(?:what is|define|explain|describe)\s+(?:a|an|the)?\s*", "", q_low).rstrip("?.").strip()
+            if concept and len(concept) > 2:
+                return f"{concept.title()} is a key concept in {course_name or 'computer science'} that helps us organize and process data efficiently based on how the application needs to behave."
+            return f"In {course_name or 'our lab'}, this concept provides a clean and structured way to handle data operations while keeping memory and runtime efficient."
+        elif any(k in q_low for k in ["compare", "difference", "versus", " vs "]):
+            return "The main difference comes down to how each approach accesses and organizes data, making each one suited for different trade-offs and real-world use cases."
+        else:
+            return f"In practical applications, this provides a reliable way to handle data operations while maintaining good performance and clean structure."
 
     def _clean_code(self, code: str, language: str = "") -> str:
         """Strip student names, roll numbers, author tags, and verbose comments from generated code."""
@@ -1424,8 +1575,445 @@ class TaskSolver:
                 }
                 return TaskSolution(task.task_id, "python", code, exp, ans, f"task_{task.task_id}_linked_list.py")
 
-        # 3c. Stack & Queue
-        elif any(k in desc for k in ["stack", "queue", "lifo", "fifo", "parenthes"]):
+        # 3c. DSA Task Solvers (Queue, Priority Queue, Deque, Stack)
+        # DSA Lab 4 Task 2: University Cafeteria Simulation
+        elif "cafeteria" in desc or ("token" in desc and "queue" in desc):
+            code = (
+                "class CafeteriaQueue:\n"
+                "    def __init__(self):\n"
+                "        self._tokens = []\n\n"
+                "    def enqueue(self, token):\n"
+                "        self._tokens.append(token)\n\n"
+                "    def dequeue(self):\n"
+                "        if not self._tokens:\n"
+                "            raise IndexError('No tokens in queue')\n"
+                "        return self._tokens.pop(0)\n\n"
+                "    def is_empty(self):\n"
+                "        return len(self._tokens) == 0\n\n"
+                "if __name__ == '__main__':\n"
+                "    print('[+] University Cafeteria Simulation (Queue ADT)')\n"
+                "    cq = CafeteriaQueue()\n"
+                "    initial_tokens = [101, 102, 103, 104]\n"
+                "    print('\\nStep 1: Adding initial tokens to queue:')\n"
+                "    for t in initial_tokens:\n"
+                "        cq.enqueue(t)\n"
+                "        print(f'   Student collected token {t} | Queue: {cq._tokens}')\n\n"
+                "    print('\\nStep 2: Serving three students (FIFO):')\n"
+                "    for _ in range(3):\n"
+                "        served = cq.dequeue()\n"
+                "        print(f'   Served token: {served} | Remaining: {cq._tokens}')\n\n"
+                "    print('\\nStep 3: Adding new tokens (106 and 107):')\n"
+                "    for t in [106, 107]:\n"
+                "        cq.enqueue(t)\n"
+                "        print(f'   Student collected token {t} | Queue: {cq._tokens}')\n\n"
+                "    print('\\nStep 4: Continue serving all remaining students:')\n"
+                "    while not cq.is_empty():\n"
+                "        served = cq.dequeue()\n"
+                "        print(f'   Served token: {served} | Remaining: {cq._tokens}')\n\n"
+                "    print('\\nAll students served in fair FIFO order.')\n"
+            )
+            exp = "Simulated a cafeteria token dispensing queue ensuring strict FIFO fairness for meal collection."
+            ans = {
+                "Did any students bypass the line?": "No, because the Queue ADT strictly enforces FIFO ordering where tokens are served in arrival sequence.",
+                "What would happen if a Stack were used?": "Students arriving last would be served first (LIFO), resulting in starvation for earlier waiting students."
+            }
+            return TaskSolution(task.task_id, "python", code, exp, ans, f"task_{task.task_id}_cafeteria_queue.py")
+
+        # DSA Lab 4 Task 1: Exploring Queue Operations (Admission Applicants)
+        elif ("applicant" in desc and "queue" in desc) or ("exploring queue" in desc):
+            code = (
+                "class ArrayQueue:\n"
+                "    def __init__(self):\n"
+                "        self._data = []\n\n"
+                "    def __len__(self):\n"
+                "        return len(self._data)\n\n"
+                "    def is_empty(self):\n"
+                "        return len(self._data) == 0\n\n"
+                "    def enqueue(self, e):\n"
+                "        self._data.append(e)\n\n"
+                "    def dequeue(self):\n"
+                "        if self.is_empty():\n"
+                "            raise IndexError('Queue is empty')\n"
+                "        return self._data.pop(0)\n\n"
+                "    def first(self):\n"
+                "        if self.is_empty():\n"
+                "            raise IndexError('Queue is empty')\n"
+                "        return self._data[0]\n\n"
+                "if __name__ == '__main__':\n"
+                "    q = ArrayQueue()\n"
+                "    print('[+] Exploring Queue Operations (Admission Applicants)')\n"
+                "    applicants = ['A001', 'A002', 'A003', 'A004']\n"
+                "    print('\\n1. Adding applicants in sequence:')\n"
+                "    for app in applicants:\n"
+                "        q.enqueue(app)\n"
+                "        print(f'   Enqueued: {app} | Queue: {q._data}')\n\n"
+                "    print('\\n2. Removing two applicants (FIFO):')\n"
+                "    r1 = q.dequeue()\n"
+                "    print(f'   Dequeued: {r1} | Queue: {q._data}')\n"
+                "    r2 = q.dequeue()\n"
+                "    print(f'   Dequeued: {r2} | Queue: {q._data}')\n\n"
+                "    print('\\n3. Front element:')\n"
+                "    print(f'   Front applicant: {q.first()}')\n\n"
+                "    print('\\n4. Queue size:')\n"
+                "    print(f'   Current size: {len(q)}')\n\n"
+                "    print('\\n5. Adding five more applicants:')\n"
+                "    more = ['A005', 'A006', 'A007', 'A008', 'A009']\n"
+                "    for app in more:\n"
+                "        q.enqueue(app)\n"
+                "        print(f'   Enqueued: {app} | Queue: {q._data}')\n\n"
+                "    print(f'\\nFinal Queue Size: {len(q)}')\n"
+                "    print(f'Final Front Element: {q.first()}')\n"
+            )
+            exp = "Implemented Queue ADT operations demonstrating FIFO insertion, removal, front inspection, and capacity scaling."
+            ans = {
+                "Which applicant was processed first?": "A001 was processed first because it was the earliest applicant enqueued.",
+                "How does Queue ensure fairness?": "By servicing requests in exact chronological order without allowing any late arrivals to jump ahead."
+            }
+            return TaskSolution(task.task_id, "python", code, exp, ans, f"task_{task.task_id}_queue_operations.py")
+
+        # DSA Lab 4 Task 3: Investigating Priority Queue (Scholarship Applications)
+        elif ("scholarship" in desc and "priority" in desc) or ("investigating priority queue" in desc):
+            code = (
+                "class PriorityQueue:\n"
+                "    def __init__(self):\n"
+                "        self._data = []\n\n"
+                "    def add(self, student, merit):\n"
+                "        self._data.append((merit, student))\n"
+                "        self._data.sort(key=lambda x: x[0], reverse=True)\n\n"
+                "    def remove_max(self):\n"
+                "        if not self._data:\n"
+                "            raise IndexError('Priority Queue is empty')\n"
+                "        return self._data.pop(0)\n\n"
+                "    def is_empty(self):\n"
+                "        return len(self._data) == 0\n\n"
+                "if __name__ == '__main__':\n"
+                "    print('[+] Investigating Priority Queue (Scholarship Applications)')\n"
+                "    pq = PriorityQueue()\n"
+                "    records = [('Ahmed', 85), ('Sara', 93), ('Bilal', 77), ('Maria', 97)]\n\n"
+                "    print('\\n1. Enqueueing students with merit scores:')\n"
+                "    for student, merit in records:\n"
+                "        pq.add(student, merit)\n"
+                "        print(f'   Added {student:<8} (Merit: {merit})')\n\n"
+                "    print('\\n2. Processing scholarship allocations in order of merit (Highest First):')\n"
+                "    removal_order = []\n"
+                "    step = 1\n"
+                "    while not pq.is_empty():\n"
+                "        merit, student = pq.remove_max()\n"
+                "        print(f'   Removal #{step}: Student = {student:<8} | Merit = {merit}')\n"
+                "        removal_order.append((step, student, merit))\n"
+                "        step += 1\n\n"
+                "    print('\\nObservation Table:')\n"
+                "    print('---------------------------------------')\n"
+                "    print(f\"{'Removal #':<12} | {'Student Removed':<15} | {'Merit':<6}\")\n"
+                "    print('---------------------------------------')\n"
+                "    for step, student, merit in removal_order:\n"
+                "        print(f'{step:<12} | {student:<15} | {merit:<6}')\n"
+                "    print('---------------------------------------')\n"
+            )
+            exp = "Implemented a Priority Queue sorting candidates by merit score so scholarships are awarded to the highest performers."
+            ans = {
+                "Did insertion order matter?": "No, because removals in a Priority Queue depend entirely on merit priority keys rather than arrival order.",
+                "Compare with Queue behavior": "A standard Queue dequeues by arrival time (FIFO), while a Priority Queue dequeues by priority ranking."
+            }
+            return TaskSolution(task.task_id, "python", code, exp, ans, f"task_{task.task_id}_priority_queue.py")
+
+        # DSA Lab 4 Task 4: Emergency Hospital System
+        elif ("hospital" in desc and "emergency" in desc) or ("patient" in desc and "severity" in desc):
+            code = (
+                "class EmergencyQueue:\n"
+                "    def __init__(self):\n"
+                "        self._patients = []\n\n"
+                "    def add_patient(self, pid, severity):\n"
+                "        self._patients.append((severity, pid))\n"
+                "        self._patients.sort(key=lambda x: x[0], reverse=True)\n\n"
+                "    def treat_next(self):\n"
+                "        if not self._patients:\n"
+                "            raise IndexError('No patients waiting')\n"
+                "        return self._patients.pop(0)\n\n"
+                "    def is_empty(self):\n"
+                "        return len(self._patients) == 0\n\n"
+                "if __name__ == '__main__':\n"
+                "    print('[+] Emergency Hospital Triage System')\n"
+                "    eq = EmergencyQueue()\n"
+                "    patients = [('P1', 4), ('P2', 9), ('P3', 2), ('P4', 7)]\n\n"
+                "    print('\\n1. Patients arriving at Emergency Ward:')\n"
+                "    for pid, sev in patients:\n"
+                "        eq.add_patient(pid, sev)\n"
+                "        print(f'   Patient {pid} admitted (Severity: {sev}/10)')\n\n"
+                "    print('\\n2. Treating patients in order of medical urgency:')\n"
+                "    order = 1\n"
+                "    while not eq.is_empty():\n"
+                "        sev, pid = eq.treat_next()\n"
+                "        print(f'   Treatment #{order}: Treating Patient {pid} (Severity: {sev})')\n"
+                "        order += 1\n\n"
+                "    print('\\nCritical Thinking:')\n"
+                "    print('If FIFO Queue were used, low-severity cases would delay life-threatening emergencies.')\n"
+                "    print('Priority Queue is essential to prioritize treatment by severity score.')\n"
+            )
+            exp = "Implemented an Emergency Room triage system where patients with higher severity scores are treated first."
+            ans = {
+                "Suppose FIFO Queue were used. Would treatment still be fair?": "No, because a patient with a minor headache arriving first would delay a critical cardiac emergency patient."
+            }
+            return TaskSolution(task.task_id, "python", code, exp, ans, f"task_{task.task_id}_hospital_emergency.py")
+
+        # DSA Lab 4 Task 5: Social Media Trending Posts
+        elif ("trending" in desc and "post" in desc) or ("engagement" in desc and "priority" in desc):
+            code = (
+                "class TrendingFeed:\n"
+                "    def __init__(self):\n"
+                "        self._posts = []\n\n"
+                "    def add_post(self, post_id, engagement):\n"
+                "        self._posts.append((engagement, post_id))\n"
+                "        self._posts.sort(key=lambda x: x[0], reverse=True)\n\n"
+                "    def get_top_trending(self):\n"
+                "        if not self._posts:\n"
+                "            raise IndexError('No posts available')\n"
+                "        return self._posts.pop(0)\n\n"
+                "    def is_empty(self):\n"
+                "        return len(self._posts) == 0\n\n"
+                "if __name__ == '__main__':\n"
+                "    print('[+] Social Media Trending Posts Ranking')\n"
+                "    feed = TrendingFeed()\n"
+                "    posts = [('P1', 500), ('P2', 180), ('P3', 900), ('P4', 350)]\n\n"
+                "    print('\\n1. Ingesting posts with engagement counts:')\n"
+                "    for pid, eng in posts:\n"
+                "        feed.add_post(pid, eng)\n"
+                "        print(f'   Post {pid} -> Engagement Score: {eng}')\n\n"
+                "    print('\\n2. Serving highest-priority trending posts repeatedly:')\n"
+                "    rank = 1\n"
+                "    while not feed.is_empty():\n"
+                "        eng, pid = feed.get_top_trending()\n"
+                "        print(f'   Rank #{rank}: Post {pid} (Engagement: {eng})')\n"
+                "        rank += 1\n\n"
+                "    print('\\nAnalysis: Priority Queue dynamically floats viral content to the top.')\n"
+            )
+            exp = "Implemented trending posts ranking using Priority Queue to display viral posts in descending order of engagement."
+            ans = {
+                "Why do platforms prioritize engagement?": "To maximize user attention and interaction by surfacing viral and relevant content immediately."
+            }
+            return TaskSolution(task.task_id, "python", code, exp, ans, f"task_{task.task_id}_trending_posts.py")
+
+        # DSA Lab 4 Task 6: Understanding Deque (Traffic Lane Simulation)
+        elif ("traffic" in desc and "lane" in desc) or ("understanding deque" in desc) or ("insert_first" in desc and "insert_last" in desc):
+            code = (
+                "from collections import deque\n\n"
+                "class TrafficLane:\n"
+                "    def __init__(self):\n"
+                "        self._lane = deque()\n\n"
+                "    def insert_first(self, vehicle):\n"
+                "        self._lane.appendleft(vehicle)\n\n"
+                "    def insert_last(self, vehicle):\n"
+                "        self._lane.append(vehicle)\n\n"
+                "    def delete_first(self):\n"
+                "        if not self._lane:\n"
+                "            raise IndexError('Lane empty')\n"
+                "        return self._lane.popleft()\n\n"
+                "    def delete_last(self):\n"
+                "        if not self._lane:\n"
+                "            raise IndexError('Lane empty')\n"
+                "        return self._lane.pop()\n\n"
+                "    def status(self):\n"
+                "        return list(self._lane)\n\n"
+                "if __name__ == '__main__':\n"
+                "    print('[+] Understanding Deque: Traffic Lane Simulation')\n"
+                "    lane = TrafficLane()\n"
+                "    operations = [\n"
+                "        ('insert_first', 'A'),\n"
+                "        ('insert_last', 'B'),\n"
+                "        ('insert_first', 'C'),\n"
+                "        ('insert_last', 'D'),\n"
+                "        ('delete_first', None),\n"
+                "        ('delete_last', None),\n"
+                "    ]\n\n"
+                "    print('\\nObservation Sheet:')\n"
+                "    print('---------------------------------------------------------')\n"
+                "    print(f\"{'Step':<6} | {'Operation':<22} | {'Deque Status'}\")\n"
+                "    print('---------------------------------------------------------')\n"
+                "    step = 1\n"
+                "    for op, arg in operations:\n"
+                "        if op == 'insert_first':\n"
+                "            lane.insert_first(arg)\n"
+                "            desc_op = f'insert_first({arg})'\n"
+                "        elif op == 'insert_last':\n"
+                "            lane.insert_last(arg)\n"
+                "            desc_op = f'insert_last({arg})'\n"
+                "        elif op == 'delete_first':\n"
+                "            rem = lane.delete_first()\n"
+                "            desc_op = f'delete_first() -> {rem}'\n"
+                "        elif op == 'delete_last':\n"
+                "            rem = lane.delete_last()\n"
+                "            desc_op = f'delete_last() -> {rem}'\n"
+                "        print(f'{step:<6} | {desc_op:<22} | {lane.status()}')\n"
+                "        step += 1\n"
+                "    print('---------------------------------------------------------')\n"
+            )
+            exp = "Implemented a Double-Ended Queue (Deque) simulating a reversible traffic lane allowing entry and exit from both ends."
+            ans = {
+                "What is a Deque?": "A Deque is a generalized queue supporting insertion and deletion from both the front and back ends in O(1) time."
+            }
+            return TaskSolution(task.task_id, "python", code, exp, ans, f"task_{task.task_id}_traffic_deque.py")
+
+        # DSA Lab 4 Task 7: Browser History Navigation
+        elif ("browser" in desc and "history" in desc) or ("visit pages" in desc) or ("google.com" in desc and "deque" in desc):
+            code = (
+                "class BrowserHistory:\n"
+                "    def __init__(self):\n"
+                "        self._history = []\n"
+                "        self._current_idx = -1\n\n"
+                "    def visit(self, url):\n"
+                "        self._history = self._history[:self._current_idx + 1]\n"
+                "        self._history.append(url)\n"
+                "        self._current_idx = len(self._history) - 1\n"
+                "        print(f'   Visited: {url}')\n\n"
+                "    def back(self):\n"
+                "        if self._current_idx > 0:\n"
+                "            self._current_idx -= 1\n"
+                "            print(f'   Back -> Active URL: {self._history[self._current_idx]}')\n"
+                "        else:\n"
+                "            print('   Back -> Cannot go further back')\n\n"
+                "    def forward(self):\n"
+                "        if self._current_idx < len(self._history) - 1:\n"
+                "            self._current_idx += 1\n"
+                "            print(f'   Forward -> Active URL: {self._history[self._current_idx]}')\n"
+                "        else:\n"
+                "            print('   Forward -> Cannot go further forward')\n\n"
+                "    def current_page(self):\n"
+                "        return self._history[self._current_idx] if self._current_idx >= 0 else None\n\n"
+                "if __name__ == '__main__':\n"
+                "    print('[+] Browser History Navigation using Double-Ended Structure')\n"
+                "    browser = BrowserHistory()\n"
+                "    pages = ['google.com', 'duet.edu.pk', 'wiley.com', 'python.org', 'github.com']\n\n"
+                "    print('\\n1. Simulating page visits:')\n"
+                "    for page in pages:\n"
+                "        browser.visit(page)\n\n"
+                "    print(f'\\nCurrent Active Page: {browser.current_page()}')\n\n"
+                "    print('\\n2. Moving backward through history:')\n"
+                "    browser.back()\n"
+                "    browser.back()\n\n"
+                "    print('\\n3. Moving forward in history:')\n"
+                "    browser.forward()\n\n"
+                "    print('\\n4. Visiting new page from middle state:')\n"
+                "    browser.visit('stackoverflow.com')\n"
+                "    print(f'Final Active Page: {browser.current_page()}')\n"
+            )
+            exp = "Implemented browser navigation history with bidirectional traversal (back and forward) using a double-ended ADT."
+            ans = {
+                "Why is normal Queue insufficient?": "A standard Queue only allows one-way FIFO consumption, making backward navigation impossible.",
+                "Why is Deque more suitable?": "Deque allows bidirectional access and position tracking necessary for back and forward page traversal."
+            }
+            return TaskSolution(task.task_id, "python", code, exp, ans, f"task_{task.task_id}_browser_history.py")
+
+        # DSA Lab 4 Task 8: Comparative Study
+        elif "comparative study" in desc or ("queue" in desc and "priority queue" in desc and "deque" in desc and "10, 20" in desc):
+            code = (
+                "if __name__ == '__main__':\n"
+                "    print('[+] Comparative Study: Queue vs Priority Queue vs Deque')\n"
+                "    dataset = [10, 20, 30, 40, 50]\n"
+                "    print(f'Input Dataset: {dataset}\\n')\n\n"
+                "    q = list(dataset)\n"
+                "    q_removal = [q.pop(0) for _ in range(len(dataset))]\n\n"
+                "    pq = sorted(dataset)\n"
+                "    pq_removal = [pq.pop(0) for _ in range(len(dataset))]\n\n"
+                "    deq = list(dataset)\n"
+                "    deq_removal = []\n"
+                "    while deq:\n"
+                "        deq_removal.append(f'Front:{deq.pop(0)}')\n"
+                "        if deq:\n"
+                "            deq_removal.append(f'Rear:{deq.pop(-1)}')\n\n"
+                "    print(f\"{'Structure':<20} | {'Removal Order'}\")\n"
+                "    print('-' * 60)\n"
+                "    print(f\"{'Queue (FIFO)':<20} | {q_removal}\")\n"
+                "    print(f\"{'Priority Queue (Min)':<20} | {pq_removal}\")\n"
+                "    print(f\"{'Deque (Alternating)':<20} | {deq_removal}\")\n"
+                "    print('-' * 60)\n\n"
+                "    print('\\nSummary Table:')\n"
+                "    print('-----------------------------------------------------------------------------')\n"
+                "    print(f\"{'Feature':<16} | {'Queue':<15} | {'Priority Queue':<18} | {'Deque'}\")\n"
+                "    print('-----------------------------------------------------------------------------')\n"
+                "    print(f\"{'Insertion Rule':<16} | {'Rear only':<15} | {'Any (Ordered)':<18} | {'Both ends'}\")\n"
+                "    print(f\"{'Deletion Rule':<16} | {'Front only':<15} | {'By Priority Key':<18} | {'Both ends'}\")\n"
+                "    print(f\"{'Access Principle':<16} | {'FIFO':<15} | {'Highest/Lowest Key':<18} | {'Double-ended'}\")\n"
+                "    print('-----------------------------------------------------------------------------')\n"
+            )
+            exp = "Performed a comparative empirical analysis highlighting structural and ordering differences among Queue, Priority Queue, and Deque."
+            ans = {
+                "Compare Queue and Deque": "Queue is unidirectional FIFO; Deque allows O(1) operations at both endpoints.",
+                "Compare Queue and Priority Queue": "Queue removes by arrival order; Priority Queue removes by assigned priority key."
+            }
+            return TaskSolution(task.task_id, "python", code, exp, ans, f"task_{task.task_id}_comparative_study.py")
+
+        # General Deque
+        elif "deque" in desc:
+            code = (
+                "from collections import deque\n"
+                "if __name__ == '__main__':\n"
+                "    d = deque()\n"
+                "    print('[+] Demonstrating Deque ADT Operations:')\n"
+                "    d.append(10)\n"
+                "    d.append(20)\n"
+                "    d.appendleft(5)\n"
+                "    print(f'  Current Deque: {list(d)}')\n"
+                "    print(f'  Pop front: {d.popleft()}')\n"
+                "    print(f'  Pop back:  {d.pop()}')\n"
+                "    print(f'  Remaining: {list(d)}')\n"
+            )
+            exp = "Implemented a Double-Ended Queue (Deque) supporting insertions and removals at both ends."
+            ans = {"What is the complexity of Deque operations?": "All append and pop operations on both ends execute in O(1) constant time."}
+            return TaskSolution(task.task_id, "python", code, exp, ans, f"task_{task.task_id}_deque.py")
+
+        # General Priority Queue
+        elif "priority queue" in desc or ("priority" in desc and "queue" in desc):
+            code = (
+                "import heapq\n"
+                "if __name__ == '__main__':\n"
+                "    pq = []\n"
+                "    print('[+] Demonstrating Priority Queue Operations (Min-Heap):')\n"
+                "    for priority, task_name in [(3, 'Low Task'), (1, 'Critical Task'), (2, 'Medium Task')]:\n"
+                "        heapq.heappush(pq, (priority, task_name))\n"
+                "        print(f'  Enqueued: {task_name} (Priority {priority})')\n\n"
+                "    print('\\n[+] Servicing tasks in priority order:')\n"
+                "    while pq:\n"
+                "        p, name = heapq.heappop(pq)\n"
+                "        print(f'  Processed: {name} (Priority {p})')\n"
+            )
+            exp = "Implemented a Min-Heap Priority Queue servicing higher priority tasks first."
+            ans = {"What is the time complexity of heap push and pop?": "Both operations execute in O(log n) logarithmic time."}
+            return TaskSolution(task.task_id, "python", code, exp, ans, f"task_{task.task_id}_priority_queue.py")
+
+        # General Queue
+        elif "queue" in desc or "fifo" in desc:
+            code = (
+                "class Queue:\n"
+                "    def __init__(self):\n"
+                "        self.items = []\n\n"
+                "    def enqueue(self, item):\n"
+                "        self.items.append(item)\n\n"
+                "    def dequeue(self):\n"
+                "        if not self.is_empty():\n"
+                "            return self.items.pop(0)\n"
+                "        raise IndexError('dequeue from empty queue')\n\n"
+                "    def front(self):\n"
+                "        return self.items[0] if not self.is_empty() else None\n\n"
+                "    def is_empty(self):\n"
+                "        return len(self.items) == 0\n\n"
+                "    def size(self):\n"
+                "        return len(self.items)\n\n"
+                "if __name__ == '__main__':\n"
+                "    q = Queue()\n"
+                "    print('[+] Demonstrating Queue Operations (FIFO):')\n"
+                "    for x in [10, 20, 30, 40]:\n"
+                "        q.enqueue(x)\n"
+                "        print(f'  Enqueued: {x} | Current Queue: {q.items}')\n"
+                "    print(f'  Dequeued front element: {q.dequeue()}')\n"
+                "    print(f'  Current Front: {q.front()}')\n"
+                "    print(f'  Current Size: {q.size()}')\n"
+            )
+            exp = "Implemented a FIFO Queue ADT supporting enqueue, dequeue, front inspection, and size tracking."
+            ans = {"What is FIFO?": "First-In, First-Out, where the first element enqueued is the first element dequeued."}
+            return TaskSolution(task.task_id, "python", code, exp, ans, f"task_{task.task_id}_queue.py")
+
+        # General Stack & Balanced Parentheses
+        elif any(k in desc for k in ["stack", "lifo", "parenthes"]):
             code = (
                 "class Stack:\n"
                 "    def __init__(self):\n"

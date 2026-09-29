@@ -560,8 +560,66 @@ function setRefinePrompt(text) {
   input.focus();
 }
 
+function handleSubjectSelectChange() {
+  const select = document.getElementById('subject-select');
+  const box = document.getElementById('subject-selection-box');
+  const otherContainer = document.getElementById('other-subject-container');
+  const otherInput = document.getElementById('other-subject-input');
+  const badge = document.getElementById('subject-hint-badge');
+
+  if (box) box.classList.remove('highlight-required');
+
+  const val = select ? select.value : '';
+  if (val === 'other') {
+    if (otherContainer) otherContainer.style.display = 'block';
+    if (otherInput) otherInput.focus();
+    if (badge) {
+      badge.textContent = 'Custom Subject';
+      badge.className = 'hint-badge';
+    }
+  } else if (val === 'dbms') {
+    if (otherContainer) otherContainer.style.display = 'none';
+    if (badge) {
+      badge.textContent = 'DBMS Active';
+      badge.className = 'hint-badge active-badge';
+    }
+  } else if (val === 'dsa') {
+    if (otherContainer) otherContainer.style.display = 'none';
+    if (badge) {
+      badge.textContent = 'DSA Active';
+      badge.className = 'hint-badge active-badge';
+    }
+  }
+}
+
 async function runLabPipeline() {
   if (!currentFile) return;
+
+  // Mandatory Subject / Course Validation
+  const subjectSelect = document.getElementById('subject-select');
+  const selectedSubject = subjectSelect ? subjectSelect.value.trim() : '';
+  const otherInput = document.getElementById('other-subject-input');
+  const customSubjectName = otherInput ? otherInput.value.trim() : '';
+
+  if (!selectedSubject) {
+    const box = document.getElementById('subject-selection-box');
+    if (box) {
+      box.classList.add('highlight-required');
+      box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    if (subjectSelect) subjectSelect.focus();
+    alert('⚠️ Please select a Subject / Course before generating the lab!\nChoose either Database Systems (DBMS), Data Structures & Algorithms (DSA), or Other Subject.');
+    return;
+  }
+
+  if (selectedSubject === 'other' && !customSubjectName) {
+    if (otherInput) {
+      otherInput.focus();
+      otherInput.style.borderColor = '#ef4444';
+    }
+    alert('⚠️ Please enter your custom Subject / Course name.');
+    return;
+  }
 
   document.getElementById('upload-card').style.display = 'none';
   document.getElementById('progress-card').style.display = 'block';
@@ -576,6 +634,11 @@ async function runLabPipeline() {
     formData.append('sample_path', currentFile.sample_path);
   } else {
     formData.append('manual_file', currentFile);
+  }
+
+  formData.append('subject', selectedSubject);
+  if (selectedSubject === 'other') {
+    formData.append('custom_subject', customSubjectName);
   }
 
   formData.append('name', document.getElementById('student-name').value);
@@ -956,7 +1019,7 @@ function renderFullDocument(data) {
     section = rollNo.includes('-') ? rollNo.split('-')[0] + '-' + rollNo.split('-')[1] : 'A';
   }
   const cleanTitle = data.lab_title || (data.filename ? data.filename.replace('.docx', '').replace(/_/g, ' ') : 'Completed Lab Report');
-  const subjectVal = data.course_name || document.getElementById('dept-name')?.value || 'Data Science';
+  const subjectVal = data.course_name || 'Database Systems';
 
   const isInstOn = document.getElementById('toggle-instructor')?.checked || false;
   const instructor = document.getElementById('instructor-name')?.value || '';
@@ -1092,6 +1155,26 @@ function renderFullDocument(data) {
     `;
   });
 
+  if (data.viva_answers && data.viva_answers.length > 0) {
+    let vivaCards = '';
+    data.viva_answers.forEach((v, vIdx) => {
+      vivaCards += `
+        <div class="doc-viva-qa-item" style="margin-bottom: 12px; padding: 10px 14px; background: #f8f9fa; border-left: 3px solid #000; border-radius: 3px;">
+          <div style="font-weight: 700; font-size: 13px; color: #111;">Q${vIdx + 1}: ${escapeHtml(v.question)}</div>
+          <div style="font-size: 12.5px; color: #333; margin-top: 4px; line-height: 1.5;">
+            <strong>Answer:</strong> <span contenteditable="true" spellcheck="true" data-viva-idx="${vIdx}" class="editable-viva-ans" style="padding: 1px 4px; outline: none; border-radius: 2px;">${escapeHtml(v.answer)}</span>
+          </div>
+        </div>
+      `;
+    });
+    html += `
+      <div class="doc-prog-block doc-viva-block" id="doc-viva-section" style="margin-top: 24px; padding-top: 16px; border-top: 2px dashed #ccc;">
+        <h2 class="doc-prog-title" style="color: #000; font-size: 16px; margin-bottom: 14px;">VIVA QUESTIONS &amp; HUMANIZED ANSWERS (EDITABLE)</h2>
+        ${vivaCards}
+      </div>
+    `;
+  }
+
   canvas.innerHTML = html;
 }
 
@@ -1130,12 +1213,17 @@ async function saveDocumentCanvasEdits() {
   const logoChoice = document.getElementById('logo-choice-select')?.value || 'dawood';
   const customLogoPath = localStorage.getItem('lg_custom_logo_path');
 
+  const deptVal = document.getElementById('dept-name')?.value.trim() || localStorage.getItem('lg_dept') || 'Data Science';
+  const subjectVal = subEl ? subEl.innerText.trim() : (currentLabData.course_name || 'Database Systems');
+
   const coverData = {
     name: nameEl ? nameEl.innerText.trim() : (document.getElementById('student-name')?.value || ''),
     roll_number: rollEl ? rollEl.innerText.trim() : (document.getElementById('roll-no')?.value || ''),
     section: secEl ? secEl.innerText.trim() : (document.getElementById('section-name')?.value || ''),
     lab_title: titleEl ? titleEl.innerText.trim() : (currentLabData.lab_title || ''),
-    department: subEl ? subEl.innerText.trim() : (document.getElementById('dept-name')?.value || ''),
+    department: deptVal,
+    subject: subjectVal,
+    course_name: subjectVal,
     instructor: instEl ? instEl.innerText.trim() : (document.getElementById('instructor-name')?.value || ''),
     include_instructor: isInstOn,
     include_logo: isLogoOn,
@@ -1143,17 +1231,21 @@ async function saveDocumentCanvasEdits() {
     custom_logo_path: customLogoPath,
   };
 
+  if (currentLabData) {
+    currentLabData.course_name = subjectVal;
+  }
+
   // Sync back to sidebar inputs and local storage
   if (document.getElementById('student-name') && coverData.name) document.getElementById('student-name').value = coverData.name;
   if (document.getElementById('roll-no') && coverData.roll_number) document.getElementById('roll-no').value = coverData.roll_number;
   if (document.getElementById('section-name') && coverData.section) document.getElementById('section-name').value = coverData.section;
-  if (document.getElementById('dept-name') && coverData.department) document.getElementById('dept-name').value = coverData.department;
+  if (document.getElementById('dept-name') && deptVal) document.getElementById('dept-name').value = deptVal;
   if (document.getElementById('instructor-name') && coverData.instructor) document.getElementById('instructor-name').value = coverData.instructor;
 
   localStorage.setItem('lg_student_name', coverData.name);
   localStorage.setItem('lg_roll_no', coverData.roll_number);
   localStorage.setItem('lg_section', coverData.section);
-  localStorage.setItem('lg_dept', coverData.department);
+  localStorage.setItem('lg_dept', deptVal);
   localStorage.setItem('lg_instructor', coverData.instructor);
 
   // 2. Gather Task Values
@@ -1192,9 +1284,25 @@ async function saveDocumentCanvasEdits() {
     };
   });
 
+  const updatedVivaAnswers = [];
+  if (currentLabData.viva_answers && currentLabData.viva_answers.length > 0) {
+    currentLabData.viva_answers.forEach((origV, vIdx) => {
+      const vNode = document.querySelector(`[data-viva-idx="${vIdx}"]`);
+      let ansText = vNode ? vNode.innerText.trim() : origV.answer;
+      if (ansText.startsWith('Answer:')) {
+        ansText = ansText.replace(/^Answer:\s*/i, '').trim();
+      }
+      updatedVivaAnswers.push({
+        question: origV.question,
+        answer: ansText || origV.answer,
+      });
+    });
+  }
+
   const payload = {
     cover: coverData,
     tasks: updatedTasks,
+    viva_answers: updatedVivaAnswers,
   };
 
   try {
@@ -1692,6 +1800,33 @@ function renderTaskCards(data) {
 
     feed.appendChild(card);
   });
+
+  if (data.viva_answers && data.viva_answers.length > 0) {
+    const vivaCard = document.createElement('div');
+    vivaCard.className = 'card task-card viva-card';
+    let qas = '';
+    data.viva_answers.forEach((item, vIdx) => {
+      qas += `
+        <div style="margin-bottom: 14px; padding: 12px 14px; background: rgba(255,255,255,0.02); border-left: 3px solid #10b981; border-radius: 4px;">
+          <div style="font-weight: 600; color: #fff; font-size: 13.5px;">Q${vIdx + 1}: ${escapeHtml(item.question)}</div>
+          <div style="color: var(--text-muted); font-size: 13px; margin-top: 5px; line-height: 1.5;"><strong>Answer:</strong> ${escapeHtml(item.answer)}</div>
+        </div>
+      `;
+    });
+    vivaCard.innerHTML = `
+      <div class="task-header">
+        <div class="task-title-row">
+          <span class="lang-tag" style="background: rgba(16,185,129,0.15); color: #10b981; border-color: rgba(16,185,129,0.3);">Viva Voce</span>
+          <h3>Viva Questions &amp; Humanized Answers (${data.viva_answers.length} Questions)</h3>
+        </div>
+      </div>
+      <p class="task-desc" style="color: var(--text-muted); margin-bottom: 14px;">Natural, humanized student answers to oral examination questions detected in your lab manual.</p>
+      <div class="viva-questions-list">
+        ${qas}
+      </div>
+    `;
+    feed.appendChild(vivaCard);
+  }
 }
 
 function switchTaskTab(taskIdx, tabName) {
@@ -1827,7 +1962,7 @@ function openCoverEditModal() {
   const studentName = document.getElementById('student-name')?.value || 'Bheesham Kumar Sajnani';
   const rollNo = document.getElementById('roll-no')?.value || '25F-DS-020';
   let section = document.getElementById('section-name')?.value || '25F-DS';
-  const dept = currentLabData?.course_name || document.getElementById('dept-name')?.value || 'Data Science';
+  const subjectVal = currentLabData?.course_name || 'Database Systems';
   const cleanTitle = currentLabData?.lab_title || (currentLabData?.filename ? currentLabData.filename.replace('.docx', '').replace(/_/g, ' ') : 'Completed Lab Report');
 
   const isInstOn = document.getElementById('toggle-instructor')?.checked || false;
@@ -1836,7 +1971,7 @@ function openCoverEditModal() {
   document.getElementById('edit-cover-name').value = studentName;
   document.getElementById('edit-cover-roll').value = rollNo;
   document.getElementById('edit-cover-section').value = section;
-  document.getElementById('edit-cover-subject').value = dept;
+  document.getElementById('edit-cover-subject').value = subjectVal;
   document.getElementById('edit-cover-lab-title').value = cleanTitle;
 
   const toggleInst = document.getElementById('edit-cover-toggle-inst');
@@ -1865,10 +2000,11 @@ async function submitCoverEdit() {
   const isInstOn = document.getElementById('edit-cover-toggle-inst')?.checked || false;
   const instructor = document.getElementById('edit-cover-instructor')?.value || '';
 
+  const deptVal = document.getElementById('dept-name')?.value || localStorage.getItem('lg_dept') || 'Data Science';
+
   if (document.getElementById('student-name')) document.getElementById('student-name').value = name;
   if (document.getElementById('roll-no')) document.getElementById('roll-no').value = rollNo;
   if (document.getElementById('section-name')) document.getElementById('section-name').value = section;
-  if (document.getElementById('dept-name')) document.getElementById('dept-name').value = subject;
   if (document.getElementById('toggle-instructor')) {
     document.getElementById('toggle-instructor').checked = isInstOn;
     const sideInstWrap = document.getElementById('instructor-input-wrapper');
@@ -1876,10 +2012,13 @@ async function submitCoverEdit() {
   }
   if (document.getElementById('instructor-name')) document.getElementById('instructor-name').value = instructor;
 
+  if (currentLabData) {
+    currentLabData.course_name = subject;
+  }
+
   localStorage.setItem('lg_student_name', name);
   localStorage.setItem('lg_roll_no', rollNo);
   localStorage.setItem('lg_section', section);
-  localStorage.setItem('lg_dept', subject);
   localStorage.setItem('lg_include_instructor', isInstOn ? 'true' : 'false');
   localStorage.setItem('lg_instructor', instructor);
 
@@ -1892,7 +2031,8 @@ async function submitCoverEdit() {
   formData.append('name', name);
   formData.append('roll_number', rollNo);
   formData.append('section', section);
-  formData.append('department', subject);
+  formData.append('department', deptVal);
+  formData.append('subject', subject);
   formData.append('lab_title', labTitle);
   formData.append('include_instructor', isInstOn ? 'true' : 'false');
   if (isInstOn && instructor) {
