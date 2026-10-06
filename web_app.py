@@ -164,6 +164,44 @@ def _recompile_all_formats(builder, sanitizer, lab_manual, solutions, exec_resul
     }
 
 
+def _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg, message=None):
+    course_name_val = lab_manual.course_name or cfg.student.department or "Data Science"
+    viva_list = []
+    if getattr(lab_manual, "viva_answers", None):
+        for q, a in lab_manual.viva_answers:
+            viva_list.append({"question": q, "answer": a})
+    elif getattr(lab_manual, "viva_questions", None):
+        for q in lab_manual.viva_questions:
+            viva_list.append({"question": q, "answer": ""})
+
+    analysis_list = []
+    if getattr(lab_manual, "analysis_answers", None):
+        for q, a in lab_manual.analysis_answers:
+            analysis_list.append({"question": q, "answer": a})
+    elif getattr(lab_manual, "analysis_questions", None):
+        for q in lab_manual.analysis_questions:
+            analysis_list.append({"question": q, "answer": ""})
+
+    payload = {
+        "success": True,
+        "filename": compiled_files["docx"],
+        "pdf_filename": compiled_files["pdf"],
+        "md_filename": compiled_files["md"],
+        "html_filename": compiled_files["html"],
+        "lab_title": _format_lab_title(lab_manual),
+        "course_name": course_name_val,
+        "tasks": tasks_response,
+        "viva_answers": viva_list,
+        "analysis_answers": analysis_list,
+        "observation_tables": getattr(lab_manual, "observation_tables", []) or [],
+        "metadata": compiled_files.get("verification"),
+        "has_pdf": bool(compiled_files.get("pdf")),
+    }
+    if message:
+        payload["message"] = message
+    return _set_last_result(payload)
+
+
 @app.post("/api/run")
 async def run_lab(
     manual_file: Optional[UploadFile] = File(None),
@@ -346,6 +384,21 @@ async def run_lab(
             code_img, out_img = studio.capture_task_screenshots(sol, res)
             screenshots.append((code_img, out_img))
 
+        # Populate Observation Tables if present in manual
+        if getattr(lab_manual, "observation_tables", None):
+            lab_manual.observation_tables = solver.populate_observation_tables(
+                lab_manual.observation_tables,
+                exec_results=exec_results
+            )
+
+        # Solve Analysis Questions if present in the manual
+        if getattr(lab_manual, "analysis_questions", None):
+            lab_manual.analysis_answers = solver.solve_analysis_questions(
+                lab_manual.analysis_questions,
+                course_name=course_name_val,
+                custom_instructions=instructions
+            )
+
         # Solve Viva Questions if present in the manual
         if getattr(lab_manual, "viva_questions", None):
             lab_manual.viva_answers = solver.solve_viva_questions(
@@ -358,7 +411,7 @@ async def run_lab(
 
         # 4. Compile all formats (.docx, .pdf, .md, .html)
         compiled_files = _recompile_all_formats(
-            builder, sanitizer, lab_manual, solutions, exec_results, screenshots, clean_lab
+            builder, sanitizer, lab_manual, solutions, exec_results, screenshots, clean_lab, formats=formats or "docx,pdf"
         )
 
         # 5. Store in-memory session for post-generation refinements
@@ -372,29 +425,7 @@ async def run_lab(
 
         tasks_response = _build_tasks_response(lab_manual.tasks, solutions, exec_results, screenshots)
 
-        lab_title_val = _format_lab_title(lab_manual)
-
-        viva_list = []
-        if getattr(lab_manual, "viva_answers", None):
-            for q, a in lab_manual.viva_answers:
-                viva_list.append({"question": q, "answer": a})
-        elif getattr(lab_manual, "viva_questions", None):
-            for q in lab_manual.viva_questions:
-                viva_list.append({"question": q, "answer": ""})
-
-        return _set_last_result({
-            "success": True,
-            "filename": compiled_files["docx"],
-            "pdf_filename": compiled_files["pdf"],
-            "md_filename": compiled_files["md"],
-            "html_filename": compiled_files["html"],
-            "lab_title": lab_title_val,
-            "course_name": course_name_val,
-            "tasks": tasks_response,
-            "viva_answers": viva_list,
-            "metadata": compiled_files["verification"],
-            "has_pdf": bool(compiled_files["pdf"]),
-        })
+        return _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg)
 
     except Exception as e:
         import traceback
@@ -454,22 +485,7 @@ async def refine_lab(
 
         tasks_response = _build_tasks_response(lab_manual.tasks, solutions, exec_results, screenshots)
 
-        lab_title_val = _format_lab_title(lab_manual)
-        course_name_val = lab_manual.course_name or cfg.student.department or "Data Science"
-
-        return _set_last_result({
-            "success": True,
-            "filename": compiled_files["docx"],
-            "pdf_filename": compiled_files["pdf"],
-            "md_filename": compiled_files["md"],
-            "html_filename": compiled_files["html"],
-            "lab_title": lab_title_val,
-            "course_name": course_name_val,
-            "tasks": tasks_response,
-            "metadata": compiled_files["verification"],
-            "has_pdf": bool(compiled_files["pdf"]),
-            "message": f"Successfully updated and re-executed with instructions!",
-        })
+        return _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg, message="Successfully updated and re-executed with instructions!")
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -528,22 +544,7 @@ async def edit_task(
         )
 
         tasks_response = _build_tasks_response(lab_manual.tasks, solutions, exec_results, screenshots)
-
-        lab_title_val = _format_lab_title(lab_manual)
-        course_name_val = lab_manual.course_name or cfg.student.department or "Data Science"
-
-        return _set_last_result({
-            "success": True,
-            "filename": compiled_files["docx"],
-            "pdf_filename": compiled_files["pdf"],
-            "md_filename": compiled_files["md"],
-            "html_filename": compiled_files["html"],
-            "lab_title": lab_title_val,
-            "course_name": course_name_val,
-            "tasks": tasks_response,
-            "metadata": compiled_files["verification"],
-            "has_pdf": bool(compiled_files["pdf"]),
-        })
+        return _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg)
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -624,23 +625,7 @@ async def edit_cover(
         )
 
         tasks_response = _build_tasks_response(lab_manual.tasks, solutions, exec_results, screenshots)
-
-        lab_title_val = _format_lab_title(lab_manual)
-        course_name_val = lab_manual.course_name or cfg.student.department or "Data Science"
-
-        return _set_last_result({
-            "success": True,
-            "filename": compiled_files["docx"],
-            "pdf_filename": compiled_files["pdf"],
-            "md_filename": compiled_files["md"],
-            "html_filename": compiled_files["html"],
-            "lab_title": lab_title_val,
-            "course_name": course_name_val,
-            "tasks": tasks_response,
-            "metadata": compiled_files["verification"],
-            "has_pdf": bool(compiled_files["pdf"]),
-            "message": "Cover page updated and report recompiled successfully!",
-        })
+        return _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg, message="Cover page updated and report recompiled successfully!")
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -782,7 +767,20 @@ async def save_document_canvas(payload: dict = Body(...)):
                             screenshots[idx] = (c_img, o_img)
                     break
 
-        # 3. Update Viva Answers if present
+        # 3. Update Analysis Answers & Observation Tables if present
+        analysis_payload = payload.get("analysis_answers", [])
+        if analysis_payload and isinstance(analysis_payload, list):
+            lab_manual.analysis_answers = [
+                (v.get("question", "").strip(), AntiAIFilter.humanize_answer(v.get("answer", "").strip()))
+                for v in analysis_payload
+                if isinstance(v, dict) and v.get("question")
+            ]
+
+        obs_payload = payload.get("observation_tables", [])
+        if obs_payload and isinstance(obs_payload, list):
+            lab_manual.observation_tables = obs_payload
+
+        # 4. Update Viva Answers if present
         viva_payload = payload.get("viva_answers", [])
         if viva_payload and isinstance(viva_payload, list):
             lab_manual.viva_answers = [
@@ -799,23 +797,7 @@ async def save_document_canvas(payload: dict = Body(...)):
         )
 
         tasks_response = _build_tasks_response(lab_manual.tasks, solutions, exec_results, screenshots)
-        lab_title_val = _format_lab_title(lab_manual)
-        course_name_val = lab_manual.course_name or cfg.student.department or "Data Science"
-
-        return _set_last_result({
-            "success": True,
-            "filename": compiled_files["docx"],
-            "pdf_filename": compiled_files["pdf"],
-            "md_filename": compiled_files["md"],
-            "html_filename": compiled_files["html"],
-            "lab_title": lab_title_val,
-            "course_name": course_name_val,
-            "tasks": tasks_response,
-            "viva_answers": [{"question": q, "answer": a} for q, a in getattr(lab_manual, "viva_answers", [])],
-            "metadata": compiled_files["verification"],
-            "has_pdf": bool(compiled_files["pdf"]),
-            "message": "All document edits saved and recompiled across all formats!",
-        })
+        return _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg, message="All document edits saved and recompiled across all formats!")
     except Exception as e:
         import traceback
         traceback.print_exc()

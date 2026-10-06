@@ -6,7 +6,7 @@ Isolates assigned lab tasks from theory notes, extracts table patterns, and dete
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional, Any, Tuple
+from typing import List, Optional, Any, Tuple, Dict
 
 try:
     import docx
@@ -46,6 +46,9 @@ class LabManual:
     context: str = ""
     viva_questions: List[str] = field(default_factory=list)
     viva_answers: List[Tuple[str, str]] = field(default_factory=list)
+    analysis_questions: List[str] = field(default_factory=list)
+    analysis_answers: List[Tuple[str, str]] = field(default_factory=list)
+    observation_tables: List[Dict[str, Any]] = field(default_factory=list)
 
 
 class ManualParser:
@@ -178,8 +181,8 @@ class ManualParser:
                     course_name = p.replace("Course:", "").replace("Subject:", "").strip()
                     break
 
-        # 2. Find and Extract ONLY the Task Section & Viva Questions
-        tasks, preamble_context, viva_questions = self._extract_tasks_from_docx_body(doc, lab_number, overall_lang)
+        # 2. Find and Extract ONLY the Task Section, Viva Questions, Analysis Questions, and Tables
+        tasks, preamble_context, viva_questions, analysis_questions, observation_tables = self._extract_tasks_from_docx_body(doc, lab_number, overall_lang)
 
         return LabManual(
             file_path=self.path,
@@ -192,14 +195,31 @@ class ManualParser:
             is_docx_template=False,
             context=preamble_context,
             viva_questions=viva_questions,
+            analysis_questions=analysis_questions,
+            observation_tables=observation_tables,
         )
 
-    def _extract_tasks_from_docx_body(self, doc: Any, lab_number: str, default_lang: str) -> Tuple[List[LabTask], str, List[str]]:
-        """Traverses document body in order to extract tasks, viva questions, and attach trailing tables."""
+    def _extract_tasks_from_docx_body(
+        self, doc: Any, lab_number: str, default_lang: str
+    ) -> Tuple[List[LabTask], str, List[str], List[str], List[Dict[str, Any]]]:
+        """Traverses document body to extract tasks, viva questions, analysis questions, and observation tables."""
         tasks: List[LabTask] = []
         viva_questions: List[str] = []
+        analysis_questions: List[str] = []
+        observation_tables: List[Dict[str, Any]] = []
+
         in_task_section = False
         in_viva_section = False
+        in_analysis_section = False
+        in_algos_section = False
+        in_input_section = False
+        in_proc_section = False
+
+        algo_items: List[str] = []
+        input_data_lines: List[str] = []
+        procedure_lines: List[str] = []
+        latest_tbl_title = ""
+
         current_task_num = 0
         current_task_title = ""
         current_task_lines: List[str] = []
@@ -267,12 +287,55 @@ class ManualParser:
                 if not p_text:
                     continue
 
-                # Check for Viva section start
+                # Section: Viva Questions
                 if re.search(r"^viva\s*(?:questions?|voce)?[\s:]*$", p_text, re.IGNORECASE):
                     save_task()
                     in_viva_section = True
+                    in_analysis_section = False
                     in_task_section = False
+                    in_algos_section = False
+                    in_input_section = False
+                    in_proc_section = False
                     continue
+
+                # Section: Analysis Questions
+                if re.search(r"^analysis\s*questions?[\s:]*$", p_text, re.IGNORECASE):
+                    save_task()
+                    in_analysis_section = True
+                    in_viva_section = False
+                    in_task_section = False
+                    in_algos_section = False
+                    in_input_section = False
+                    in_proc_section = False
+                    continue
+
+                # Section: Algorithms / Programs to be Tested
+                if re.search(r"^(?:(?:sorting\s+)?algorithms?|operations?|methods?|techniques?|programs?)\s+(?:to\s+be\s+tested|to\s+implement|tested|implemented)[\s:]*$", p_text, re.IGNORECASE):
+                    save_task()
+                    in_algos_section = True
+                    in_input_section = False
+                    in_proc_section = False
+                    in_analysis_section = False
+                    in_viva_section = False
+                    continue
+
+                # Section: Input Data
+                if re.search(r"^input\s+data[\s:]*$", p_text, re.IGNORECASE):
+                    in_input_section = True
+                    in_algos_section = False
+                    in_proc_section = False
+                    continue
+
+                # Section: Procedure
+                if re.search(r"^procedure[\s:]*$", p_text, re.IGNORECASE):
+                    in_proc_section = True
+                    in_algos_section = False
+                    in_input_section = False
+                    continue
+
+                # Track Table Titles
+                if re.search(r"^(?:table\s+[0-9]+|observation\s+table)[\s:]*.*$", p_text, re.IGNORECASE):
+                    latest_tbl_title = p_text
 
                 if in_viva_section:
                     is_viva_end = any(re.search(end_m, p_text, re.IGNORECASE) for end_m in self.END_SECTION_MARKERS)
@@ -282,13 +345,6 @@ class ManualParser:
                     viva_questions.append(p_text)
                     continue
 
-                if in_task_section:
-                    is_end = any(re.search(end_m, p_text, re.IGNORECASE) for end_m in self.END_SECTION_MARKERS)
-                    if is_end:
-                        save_task()
-                        return tasks, "\n".join(preamble_lines).strip(), viva_questions
-
-                # Explicit keyword check (lab, task, assignment, experiment, etc.)
                 m_exp = task_kw_regex.match(p_text)
                 is_manual_header = "lab manual" in p_text.lower() or (idx_el < 8 and m_exp and int(m_exp.group(1)) == doc_lab_num)
 
@@ -297,6 +353,46 @@ class ManualParser:
                     p_text,
                     re.IGNORECASE
                 )
+
+                if in_analysis_section:
+                    if (m_exp and not is_manual_header) or m_named:
+                        in_analysis_section = False
+                    else:
+                        is_analysis_end = any(re.search(end_m, p_text, re.IGNORECASE) for end_m in self.END_SECTION_MARKERS) or \
+                                          re.search(r"^viva\s*(?:questions?|voce)?[\s:]*$", p_text, re.IGNORECASE)
+                        if is_analysis_end:
+                            in_analysis_section = False
+                            if re.search(r"^viva\s*(?:questions?|voce)?[\s:]*$", p_text, re.IGNORECASE):
+                                in_viva_section = True
+                                continue
+                            break
+                        analysis_questions.append(p_text)
+                        continue
+
+                if in_algos_section:
+                    if any(p_text.lower().startswith(x) for x in ["input data", "procedure", "objective", "observation", "analysis", "viva"]):
+                        in_algos_section = False
+                    else:
+                        algo_items.append(p_text)
+                        continue
+
+                if in_input_section:
+                    if any(p_text.lower().startswith(x) for x in ["procedure", "objective", "observation", "analysis", "viva", "attach codes"]):
+                        in_input_section = False
+                    else:
+                        input_data_lines.append(p_text)
+
+                if in_proc_section:
+                    if any(p_text.lower().startswith(x) for x in ["observation", "analysis", "viva", "attach codes", "table"]):
+                        in_proc_section = False
+                    else:
+                        procedure_lines.append(p_text)
+
+                if in_task_section:
+                    is_end = any(re.search(end_m, p_text, re.IGNORECASE) for end_m in self.END_SECTION_MARKERS)
+                    if is_end:
+                        save_task()
+                        return tasks, "\n".join(preamble_lines).strip(), viva_questions, analysis_questions, observation_tables
 
                 if m_exp and not is_manual_header:
                     save_task()
@@ -385,15 +481,34 @@ class ManualParser:
                     else:
                         preamble_lines.append(p_text)
 
-            elif tag == "tbl" and in_task_section:
+            elif tag == "tbl":
                 tbl = docx.table.Table(el, doc)
                 table_lines = []
+                rows_data = []
                 for row in tbl.rows:
-                    row_cells = [cell.text.strip() for cell in row.cells]
+                    row_cells = [cell.text.strip().replace('\n', ' ') for cell in row.cells]
+                    rows_data.append(row_cells)
                     row_str = " | ".join(c for c in row_cells if c)
                     if row_str:
                         table_lines.append(row_str)
-                if table_lines:
+
+                # Check if it's the cover metadata table
+                is_cover = any(
+                    any(k in c.lower() for k in ["roll number", "student name", "enrollment", "section"])
+                    for r in rows_data for c in r
+                )
+                if not is_cover and rows_data and len(rows_data) > 1:
+                    headers = rows_data[0]
+                    data_rows = rows_data[1:]
+                    t_title = latest_tbl_title or f"Observation Table {len(observation_tables) + 1}"
+                    observation_tables.append({
+                        "title": t_title,
+                        "headers": headers,
+                        "rows": data_rows,
+                    })
+                    latest_tbl_title = ""
+
+                if in_task_section and table_lines:
                     tbl_block = "\n[Observation / Data Table]:\n" + "\n".join(table_lines)
                     if current_task_num > 0:
                         current_task_lines.append(tbl_block)
@@ -402,10 +517,41 @@ class ManualParser:
 
         save_task()
 
+        # If no explicit tasks were found, but algorithms to test were listed, construct tasks from them
+        if not tasks and algo_items:
+            sizes_str = "sizes 500, 5000, and 10000"
+            rev_str = "reverse ordered arrays"
+            for idx_algo, algo_name in enumerate(algo_items, 1):
+                clean_name = algo_name.strip()
+                tasks.append(
+                    LabTask(
+                        task_id=idx_algo,
+                        title=f"Task {idx_algo:02d}: {clean_name} Implementation & Reverse Array Analysis",
+                        description=(
+                            f"Implement {clean_name} in Python and execute on {rev_str} of {sizes_str} "
+                            f"elements to analyze execution time in milliseconds under worst-case input scenario."
+                        ),
+                        language=default_lang,
+                    )
+                )
+            bench_id = len(tasks) + 1
+            tasks.append(
+                LabTask(
+                    task_id=bench_id,
+                    title=f"Task {bench_id:02d}: Performance Benchmark & Observation Table Generation",
+                    description=(
+                        f"Execute comparative performance benchmark across all six sorting algorithms on "
+                        f"{rev_str} of {sizes_str} elements, recording execution times and ranking algorithms "
+                        f"from fastest to slowest."
+                    ),
+                    language=default_lang,
+                )
+            )
+
         if not tasks:
             tasks = self._fallback_extract_tasks(doc, default_lang)
 
-        return tasks, "\n".join(preamble_lines).strip(), viva_questions
+        return tasks, "\n".join(preamble_lines).strip(), viva_questions, analysis_questions, observation_tables
 
     def _fallback_extract_tasks(self, doc: Any, default_lang: str) -> List[LabTask]:
         """Fallback if no explicit 'LAB TASKS:' heading exists."""

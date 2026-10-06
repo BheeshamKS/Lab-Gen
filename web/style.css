@@ -2851,3 +2851,29 @@ input:checked + .slider:before {
     padding: 0 !important;
   }
 }
+
+/* Observation & Analysis Cards */
+.obs-card, .analysis-card {
+  border: 1px solid var(--border-color);
+  background: var(--card-bg, #121212);
+}
+
+.doc-obs-table th {
+  background: #f1f5f9;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.doc-obs-table td {
+  background: #ffffff;
+  color: #1e293b;
+}
+
+.doc-analysis-qa-item, .doc-viva-qa-item {
+  transition: all 0.2s ease;
+}
+
+.doc-analysis-qa-item:hover, .doc-viva-qa-item:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+

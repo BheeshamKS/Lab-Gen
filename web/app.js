@@ -1155,6 +1155,55 @@ function renderFullDocument(data) {
     `;
   });
 
+  if (data.observation_tables && data.observation_tables.length > 0) {
+    let obsTablesHtml = '';
+    data.observation_tables.forEach((tbl, tIdx) => {
+      const headers = tbl.headers || [];
+      const rows = tbl.rows || [];
+      const headerThs = headers.map(h => `<th style="border: 1px solid #cbd5e1; padding: 8px 12px; background: #f1f5f9; text-align: left; font-weight: 600; font-size: 12px; color: #0f172a;">${escapeHtml(h)}</th>`).join('');
+      let rowTrs = '';
+      rows.forEach((r, rIdx) => {
+        const cells = r.map((c, cIdx) => `<td contenteditable="true" spellcheck="false" data-tbl-idx="${tIdx}" data-row-idx="${rIdx}" data-col-idx="${cIdx}" style="border: 1px solid #e2e8f0; padding: 8px 12px; font-size: 12px; color: #1e293b; outline: none;">${escapeHtml(String(c))}</td>`).join('');
+        rowTrs += `<tr>${cells}</tr>`;
+      });
+      obsTablesHtml += `
+        <div class="doc-obs-table-wrapper" style="margin-bottom: 22px;">
+          <h3 style="font-size: 13.5px; font-weight: 700; color: #0f172a; margin-bottom: 8px;">${escapeHtml(tbl.title || `Table ${tIdx + 1}`)}</h3>
+          <table class="doc-obs-table" style="width: 100%; border-collapse: collapse; margin-bottom: 8px;">
+            <thead><tr>${headerThs}</tr></thead>
+            <tbody>${rowTrs}</tbody>
+          </table>
+        </div>
+      `;
+    });
+    html += `
+      <div class="doc-prog-block doc-obs-block" id="doc-obs-section" style="margin-top: 24px; padding-top: 16px; border-top: 2px dashed #ccc;">
+        <h2 class="doc-prog-title" style="color: #000; font-size: 16px; margin-bottom: 14px;">OBSERVATION &amp; BENCHMARK TABLES (EDITABLE)</h2>
+        ${obsTablesHtml}
+      </div>
+    `;
+  }
+
+  if (data.analysis_answers && data.analysis_answers.length > 0) {
+    let analysisCards = '';
+    data.analysis_answers.forEach((item, aIdx) => {
+      analysisCards += `
+        <div class="doc-analysis-qa-item" style="margin-bottom: 12px; padding: 10px 14px; background: #f8fafc; border-left: 3px solid #2563eb; border-radius: 3px;">
+          <div style="font-weight: 700; font-size: 13px; color: #111;">Q${aIdx + 1}: ${escapeHtml(item.question)}</div>
+          <div style="font-size: 12.5px; color: #333; margin-top: 4px; line-height: 1.5;">
+            <strong>Answer / Finding:</strong> <span contenteditable="true" spellcheck="true" data-analysis-idx="${aIdx}" class="editable-analysis-ans" style="padding: 1px 4px; outline: none; border-radius: 2px;">${escapeHtml(item.answer)}</span>
+          </div>
+        </div>
+      `;
+    });
+    html += `
+      <div class="doc-prog-block doc-analysis-block" id="doc-analysis-section" style="margin-top: 24px; padding-top: 16px; border-top: 2px dashed #ccc;">
+        <h2 class="doc-prog-title" style="color: #000; font-size: 16px; margin-bottom: 14px;">PERFORMANCE ANALYSIS QUESTIONS &amp; FINDINGS (EDITABLE)</h2>
+        ${analysisCards}
+      </div>
+    `;
+  }
+
   if (data.viva_answers && data.viva_answers.length > 0) {
     let vivaCards = '';
     data.viva_answers.forEach((v, vIdx) => {
@@ -1284,6 +1333,40 @@ async function saveDocumentCanvasEdits() {
     };
   });
 
+  const updatedObservationTables = [];
+  if (currentLabData.observation_tables && currentLabData.observation_tables.length > 0) {
+    currentLabData.observation_tables.forEach((origTbl, tIdx) => {
+      const updatedRows = (origTbl.rows || []).map((row, rIdx) => {
+        return row.map((cellVal, cIdx) => {
+          const cellEl = document.querySelector(`[data-tbl-idx="${tIdx}"][data-row-idx="${rIdx}"][data-col-idx="${cIdx}"]`);
+          return cellEl ? cellEl.innerText.trim() : cellVal;
+        });
+      });
+      updatedObservationTables.push({
+        title: origTbl.title,
+        headers: origTbl.headers,
+        rows: updatedRows,
+      });
+    });
+  }
+
+  const updatedAnalysisAnswers = [];
+  if (currentLabData.analysis_answers && currentLabData.analysis_answers.length > 0) {
+    currentLabData.analysis_answers.forEach((origA, aIdx) => {
+      const aNode = document.querySelector(`[data-analysis-idx="${aIdx}"]`);
+      let ansText = aNode ? aNode.innerText.trim() : origA.answer;
+      if (ansText.startsWith('Answer / Finding:')) {
+        ansText = ansText.replace(/^Answer\s*\/\s*Finding:\s*/i, '').trim();
+      } else if (ansText.startsWith('Answer:')) {
+        ansText = ansText.replace(/^Answer:\s*/i, '').trim();
+      }
+      updatedAnalysisAnswers.push({
+        question: origA.question,
+        answer: ansText || origA.answer,
+      });
+    });
+  }
+
   const updatedVivaAnswers = [];
   if (currentLabData.viva_answers && currentLabData.viva_answers.length > 0) {
     currentLabData.viva_answers.forEach((origV, vIdx) => {
@@ -1302,6 +1385,8 @@ async function saveDocumentCanvasEdits() {
   const payload = {
     cover: coverData,
     tasks: updatedTasks,
+    observation_tables: updatedObservationTables,
+    analysis_answers: updatedAnalysisAnswers,
     viva_answers: updatedVivaAnswers,
   };
 
@@ -1800,6 +1885,71 @@ function renderTaskCards(data) {
 
     feed.appendChild(card);
   });
+
+  if (data.observation_tables && data.observation_tables.length > 0) {
+    const obsCard = document.createElement('div');
+    obsCard.className = 'card task-card obs-card';
+    let obsTablesHtml = '';
+    data.observation_tables.forEach((tbl, tIdx) => {
+      const headers = tbl.headers || [];
+      const rows = tbl.rows || [];
+      const ths = headers.map(h => `<th style="padding: 10px 14px; background: rgba(255,255,255,0.04); color: #fff; font-size: 12.5px; border: 1px solid var(--border-color); text-align: left;">${escapeHtml(h)}</th>`).join('');
+      let trs = '';
+      rows.forEach(r => {
+        const tds = r.map(c => `<td style="padding: 10px 14px; color: var(--text-color); font-size: 12.5px; border: 1px solid var(--border-color);">${escapeHtml(String(c))}</td>`).join('');
+        trs += `<tr>${tds}</tr>`;
+      });
+      obsTablesHtml += `
+        <div style="margin-bottom: 20px;">
+          <h4 style="color: #fff; font-size: 14px; font-weight: 600; margin-bottom: 10px;">${escapeHtml(tbl.title || `Table ${tIdx + 1}`)}</h4>
+          <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; border: 1px solid var(--border-color); border-radius: 6px;">
+              <thead><tr>${ths}</tr></thead>
+              <tbody>${trs}</tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    });
+    obsCard.innerHTML = `
+      <div class="task-header">
+        <div class="task-title-row">
+          <span class="lang-tag" style="background: rgba(59,130,246,0.15); color: #3b82f6; border-color: rgba(59,130,246,0.3);">Benchmarks</span>
+          <h3>Observation &amp; Performance Comparison Tables</h3>
+        </div>
+      </div>
+      <p class="task-desc" style="color: var(--text-muted); margin-bottom: 16px;">Authentic experimental execution times and comparative rankings across tested array sizes.</p>
+      ${obsTablesHtml}
+    `;
+    feed.appendChild(obsCard);
+  }
+
+  if (data.analysis_answers && data.analysis_answers.length > 0) {
+    const analysisCard = document.createElement('div');
+    analysisCard.className = 'card task-card analysis-card';
+    let analysisQas = '';
+    data.analysis_answers.forEach((item, aIdx) => {
+      analysisQas += `
+        <div style="margin-bottom: 14px; padding: 12px 14px; background: rgba(255,255,255,0.02); border-left: 3px solid #3b82f6; border-radius: 4px;">
+          <div style="font-weight: 600; color: #fff; font-size: 13.5px;">Q${aIdx + 1}: ${escapeHtml(item.question)}</div>
+          <div style="color: var(--text-muted); font-size: 13px; margin-top: 5px; line-height: 1.5;"><strong>Answer / Finding:</strong> ${escapeHtml(item.answer)}</div>
+        </div>
+      `;
+    });
+    analysisCard.innerHTML = `
+      <div class="task-header">
+        <div class="task-title-row">
+          <span class="lang-tag" style="background: rgba(99,102,241,0.15); color: #818cf8; border-color: rgba(99,102,241,0.3);">Analysis</span>
+          <h3>Performance Analysis &amp; Findings (${data.analysis_answers.length} Questions)</h3>
+        </div>
+      </div>
+      <p class="task-desc" style="color: var(--text-muted); margin-bottom: 14px;">Detailed technical analysis explaining benchmark observations and theoretical complexity alignment.</p>
+      <div class="viva-questions-list">
+        ${analysisQas}
+      </div>
+    `;
+    feed.appendChild(analysisCard);
+  }
 
   if (data.viva_answers && data.viva_answers.length > 0) {
     const vivaCard = document.createElement('div');

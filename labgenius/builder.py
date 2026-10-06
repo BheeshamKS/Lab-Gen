@@ -194,6 +194,114 @@ class DocumentBuilder:
                 doc.add_page_break()
 
         # -------------------------------------------------------------
+        # OBSERVATION & BENCHMARK TABLES (IF PRESENT IN MANUAL)
+        # -------------------------------------------------------------
+        observation_tables = getattr(manual, "observation_tables", None) or []
+        if observation_tables:
+            doc.add_page_break()
+            p_obs_hdr = doc.add_paragraph()
+            r_obs_hdr = p_obs_hdr.add_run("OBSERVATION & BENCHMARK TABLES")
+            r_obs_hdr.font.bold = True
+            r_obs_hdr.font.size = Pt(15.0)
+            r_obs_hdr.font.name = self.doc_conf.font_family or "Calibri"
+            p_obs_hdr.paragraph_format.space_before = Pt(8)
+            p_obs_hdr.paragraph_format.space_after = Pt(12)
+
+            for tbl_idx, tbl_data in enumerate(observation_tables, 1):
+                tbl_title = tbl_data.get("title", f"Table {tbl_idx}: Observation Data")
+                headers = tbl_data.get("headers", [])
+                rows = tbl_data.get("rows", [])
+
+                p_tbl_title = doc.add_paragraph()
+                r_tbl_title = p_tbl_title.add_run(tbl_title)
+                r_tbl_title.font.bold = True
+                r_tbl_title.font.size = Pt(12.0)
+                r_tbl_title.font.name = self.doc_conf.font_family or "Calibri"
+                p_tbl_title.paragraph_format.space_before = Pt(10)
+                p_tbl_title.paragraph_format.space_after = Pt(4)
+
+                all_rows = []
+                if headers:
+                    all_rows.append(headers)
+                all_rows.extend(rows)
+
+                if all_rows:
+                    num_cols = max(len(r) for r in all_rows)
+                    doc_tbl = doc.add_table(rows=len(all_rows), cols=num_cols)
+                    doc_tbl.style = 'Table Grid'
+                    doc_tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+
+                    # Assign clean proportional column widths
+                    if num_cols == 3:
+                        widths = [Inches(1.2), Inches(1.8), Inches(3.4)]
+                    elif num_cols == 4:
+                        widths = [Inches(1.8), Inches(1.5), Inches(1.5), Inches(1.6)]
+                    else:
+                        widths = [Inches(6.4 / num_cols)] * num_cols
+
+                    for r_i, row_content in enumerate(all_rows):
+                        row_cells = doc_tbl.rows[r_i].cells
+                        is_header = (r_i == 0 and bool(headers))
+                        for c_i in range(num_cols):
+                            cell_val = row_content[c_i] if c_i < len(row_content) else ""
+                            cell = row_cells[c_i]
+                            cell.width = widths[c_i]
+                            cp = cell.paragraphs[0]
+                            cp.paragraph_format.space_before = Pt(4)
+                            cp.paragraph_format.space_after = Pt(4)
+                            c_run = cp.add_run(str(cell_val))
+                            c_run.font.name = self.doc_conf.font_family or "Calibri"
+                            c_run.font.size = Pt(10.0)
+                            if is_header:
+                                c_run.font.bold = True
+
+                p_spacer = doc.add_paragraph()
+                p_spacer.paragraph_format.space_before = Pt(0)
+                p_spacer.paragraph_format.space_after = Pt(6)
+
+        # -------------------------------------------------------------
+        # PERFORMANCE ANALYSIS QUESTIONS (IF PRESENT IN MANUAL)
+        # -------------------------------------------------------------
+        analysis_pairs = getattr(manual, "analysis_answers", None)
+        if not analysis_pairs and getattr(manual, "analysis_questions", None):
+            analysis_pairs = [(q, "") for q in manual.analysis_questions]
+
+        if analysis_pairs:
+            doc.add_page_break()
+            p_an_hdr = doc.add_paragraph()
+            r_an_hdr = p_an_hdr.add_run("PERFORMANCE ANALYSIS QUESTIONS & FINDINGS")
+            r_an_hdr.font.bold = True
+            r_an_hdr.font.size = Pt(15.0)
+            r_an_hdr.font.name = self.doc_conf.font_family or "Calibri"
+            p_an_hdr.paragraph_format.space_before = Pt(8)
+            p_an_hdr.paragraph_format.space_after = Pt(12)
+
+            for q_idx, (q_text, a_text) in enumerate(analysis_pairs, 1):
+                p_q = doc.add_paragraph()
+                p_q.paragraph_format.space_before = Pt(8)
+                p_q.paragraph_format.space_after = Pt(2)
+                r_q_num = p_q.add_run(f"Q{q_idx}: ")
+                r_q_num.font.bold = True
+                r_q_num.font.size = Pt(11.5)
+                r_q_num.font.name = self.doc_conf.font_family or "Calibri"
+                r_q_txt = p_q.add_run(q_text)
+                r_q_txt.font.bold = True
+                r_q_txt.font.size = Pt(11.0)
+                r_q_txt.font.name = self.doc_conf.font_family or "Calibri"
+
+                if a_text:
+                    p_a = doc.add_paragraph()
+                    p_a.paragraph_format.space_before = Pt(1)
+                    p_a.paragraph_format.space_after = Pt(6)
+                    r_a_lbl = p_a.add_run("Answer / Finding: ")
+                    r_a_lbl.font.bold = True
+                    r_a_lbl.font.size = Pt(10.5)
+                    r_a_lbl.font.name = self.doc_conf.font_family or "Calibri"
+                    r_a_txt = p_a.add_run(a_text)
+                    r_a_txt.font.size = Pt(10.5)
+                    r_a_txt.font.name = self.doc_conf.font_family or "Calibri"
+
+        # -------------------------------------------------------------
         # VIVA QUESTIONS & BRIEF ANSWERS (AT END OF LAB)
         # -------------------------------------------------------------
         viva_pairs = getattr(manual, "viva_answers", None)
@@ -331,6 +439,33 @@ class DocumentBuilder:
 
             lines.append("---\n")
 
+        observation_tables = getattr(manual, "observation_tables", None) or []
+        if observation_tables:
+            lines.append("## OBSERVATION & BENCHMARK TABLES\n")
+            for tbl_idx, tbl_data in enumerate(observation_tables, 1):
+                tbl_title = tbl_data.get("title", f"Table {tbl_idx}: Observation Data")
+                headers = tbl_data.get("headers", [])
+                rows = tbl_data.get("rows", [])
+                lines.append(f"### {tbl_title}\n")
+                if headers:
+                    lines.append("| " + " | ".join(headers) + " |")
+                    lines.append("| " + " | ".join([":---"] * len(headers)) + " |")
+                for r in rows:
+                    lines.append("| " + " | ".join(str(c) for c in r) + " |")
+                lines.append("\n---\n")
+
+        analysis_pairs = getattr(manual, "analysis_answers", None)
+        if not analysis_pairs and getattr(manual, "analysis_questions", None):
+            analysis_pairs = [(q, "") for q in manual.analysis_questions]
+
+        if analysis_pairs:
+            lines.append("## PERFORMANCE ANALYSIS QUESTIONS & FINDINGS\n")
+            for q_idx, (q_text, a_text) in enumerate(analysis_pairs, 1):
+                lines.append(f"**Q{q_idx}: {q_text}**\n")
+                if a_text:
+                    lines.append(f"> **Answer:** {a_text}\n")
+            lines.append("---\n")
+
         viva_pairs = getattr(manual, "viva_answers", None)
         if not viva_pairs and getattr(manual, "viva_questions", None):
             viva_pairs = [(q, "") for q in manual.viva_questions]
@@ -431,11 +566,84 @@ class DocumentBuilder:
         lab_title_val = self._format_lab_title(manual)
         include_inst = getattr(self.student, "include_instructor", False)
 
+        obs_html = ""
+        observation_tables = getattr(manual, "observation_tables", None) or []
+        if observation_tables:
+            obs_sections = []
+            for tbl_idx, tbl_data in enumerate(observation_tables, 1):
+                tbl_title = tbl_data.get("title", f"Table {tbl_idx}: Observation Data")
+                headers = tbl_data.get("headers", [])
+                rows = tbl_data.get("rows", [])
+                header_tr = "".join(f"<th style='border: 1px solid #cbd5e1; padding: 8px 12px; background: #f1f5f9; text-align: left; font-weight: 600;'>{html.escape(str(h))}</th>" for h in headers)
+                body_trs = ""
+                for r in rows:
+                    cells = "".join(f"<td style='border: 1px solid #e2e8f0; padding: 8px 12px;'>{html.escape(str(c))}</td>" for c in r)
+                    body_trs += f"<tr>{cells}</tr>"
+                obs_sections.append(f"""
+                <div style="margin-bottom: 24px;">
+                  <h3 style="font-size: 12pt; font-weight: 700; color: #0f172a; margin-bottom: 8px;">{html.escape(tbl_title)}</h3>
+                  <table style="width: 100%; border-collapse: collapse; font-size: 10pt; margin-bottom: 12px;">
+                    <thead><tr>{header_tr}</tr></thead>
+                    <tbody>{body_trs}</tbody>
+                  </table>
+                </div>
+                """)
+            obs_html = f"""
+            <section class="report-page" style="margin-top: 28px; padding-top: 18px; border-top: 2px dashed #cbd5e1;">
+              <h2 style="font-size: 14pt; font-weight: 700; color: #0f172a; margin-bottom: 14px;">OBSERVATION &amp; BENCHMARK TABLES</h2>
+              {''.join(obs_sections)}
+            </section>
+            """
+
+        analysis_pairs = getattr(manual, "analysis_answers", None)
+        if not analysis_pairs and getattr(manual, "analysis_questions", None):
+            analysis_pairs = [(q, "") for q in manual.analysis_questions]
+
+        analysis_html = ""
+        if analysis_pairs:
+            an_items = []
+            for q_idx, (q_text, a_text) in enumerate(analysis_pairs, 1):
+                ans_markup = f'<div style="font-size: 11pt; color: #334155; margin-top: 4px; line-height: 1.5;"><strong>Answer:</strong> {html.escape(a_text)}</div>' if a_text else ""
+                an_items.append(f"""
+                <div class="viva-item" style="margin-bottom: 12px; padding: 10px 14px; background: #f8fafc; border-left: 3px solid #2563eb; border-radius: 4px;">
+                  <div style="font-weight: 700; font-size: 11.5pt; color: #0f172a;">Q{q_idx}: {html.escape(q_text)}</div>
+                  {ans_markup}
+                </div>
+                """)
+            analysis_html = f"""
+            <section class="report-page viva-section" style="margin-top: 28px; padding-top: 18px; border-top: 2px dashed #cbd5e1;">
+              <h2 style="font-size: 14pt; font-weight: 700; color: #0f172a; margin-bottom: 14px;">PERFORMANCE ANALYSIS QUESTIONS &amp; FINDINGS</h2>
+              {''.join(an_items)}
+            </section>
+            """
+
+        viva_pairs = getattr(manual, "viva_answers", None)
+        if not viva_pairs and getattr(manual, "viva_questions", None):
+            viva_pairs = [(q, "") for q in manual.viva_questions]
+
+        viva_html = ""
+        if viva_pairs:
+            viva_items = []
+            for q_idx, (q_text, a_text) in enumerate(viva_pairs, 1):
+                ans_markup = f'<div style="font-size: 11pt; color: #334155; margin-top: 4px; line-height: 1.5;"><strong>Answer:</strong> {html.escape(a_text)}</div>' if a_text else ""
+                viva_items.append(f"""
+                <div class="viva-item" style="margin-bottom: 12px; padding: 10px 14px; background: #f8fafc; border-left: 3px solid #0f172a; border-radius: 4px;">
+                  <div style="font-weight: 700; font-size: 11.5pt; color: #0f172a;">Q{q_idx}: {html.escape(q_text)}</div>
+                  {ans_markup}
+                </div>
+                """)
+            viva_html = f"""
+            <section class="report-page viva-section" style="margin-top: 28px; padding-top: 18px; border-top: 2px dashed #cbd5e1;">
+              <h2 style="font-size: 14pt; font-weight: 700; color: #0f172a; margin-bottom: 14px;">VIVA QUESTIONS &amp; BRIEF ANSWERS</h2>
+              {''.join(viva_items)}
+            </section>
+            """
+
         full_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>LAB #{manual.lab_number} — {html.escape(manual.title)}</title>
+  <title>{html.escape(lab_title_val)} - {html.escape(self.student.name)}</title>
   <style>
     @page {{
       size: letter;
@@ -595,39 +803,6 @@ class DocumentBuilder:
     }}
   </style>
 </head>
-"""
-
-        viva_pairs = getattr(manual, "viva_answers", None)
-        if not viva_pairs and getattr(manual, "viva_questions", None):
-            viva_pairs = [(q, "") for q in manual.viva_questions]
-
-        viva_html = ""
-        if viva_pairs:
-            viva_items = []
-            for q_idx, (q_text, a_text) in enumerate(viva_pairs, 1):
-                ans_markup = f'<div style="font-size: 11pt; color: #334155; margin-top: 4px; line-height: 1.5;"><strong>Answer:</strong> {html.escape(a_text)}</div>' if a_text else ""
-                viva_items.append(f"""
-                <div class="viva-item" style="margin-bottom: 12px; padding: 10px 14px; background: #f8fafc; border-left: 3px solid #0f172a; border-radius: 4px;">
-                  <div style="font-weight: 700; font-size: 11.5pt; color: #0f172a;">Q{q_idx}: {html.escape(q_text)}</div>
-                  {ans_markup}
-                </div>
-                """)
-            viva_html = f"""
-            <section class="report-page viva-section" style="margin-top: 28px; padding-top: 18px; border-top: 2px dashed #cbd5e1;">
-              <h2 style="font-size: 14pt; font-weight: 700; color: #0f172a; margin-bottom: 14px;">VIVA QUESTIONS &amp; BRIEF ANSWERS</h2>
-              {''.join(viva_items)}
-            </section>
-            """
-
-        full_html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>{html.escape(lab_title_val)} - {html.escape(self.student.name)}</title>
-  <style>
-    {css}
-  </style>
-</head>
 <body>
   <div class="document-wrapper">
     <div class="cover-page">
@@ -661,6 +836,8 @@ class DocumentBuilder:
     </div>
 
     {''.join(tasks_html)}
+    {obs_html}
+    {analysis_html}
     {viva_html}
   </div>
 </body>
