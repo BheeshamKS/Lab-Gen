@@ -272,8 +272,70 @@
               </div>
             </div>
 
-            <button class="btn btn-primary btn-large btn-glow" id="btn-run-all" disabled>
-              Solve Lab Tasks &amp; Capture Screenshots
+            <div class="launch-btn-group" style="display: flex; gap: 12px; margin-top: 18px; flex-wrap: wrap;">
+              <button class="btn btn-primary btn-large btn-glow" id="btn-review-tasks" disabled style="flex: 1.2; min-width: 260px;">
+                <span>✨ Inspect &amp; Review Extracted Tasks</span>
+                <small style="display: block; font-size: 0.75rem; opacity: 0.85; font-weight: normal; margin-top: 2px;">Review tasks &amp; analysis questions before generation</small>
+              </button>
+              <button class="btn btn-secondary btn-large" id="btn-run-all" disabled style="flex: 1; min-width: 220px;">
+                <span>⚡ Direct 1-Click Solve</span>
+                <small style="display: block; font-size: 0.75rem; opacity: 0.85; font-weight: normal; margin-top: 2px;">Generate directly with smart defaults</small>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Wizard Step 2: Review & Modify Extracted Tasks -->
+        <div class="card wizard-review-card" id="wizard-review-card" style="display: none;">
+          <div class="review-header">
+            <div class="review-title-group">
+              <span class="step-indicator-pill">Step 2 of 4</span>
+              <h2>Review Extracted Manual Requirements</h2>
+              <p class="review-subtitle">
+                Verify and edit the detected tasks, requirements, and analysis questions before code generation begins.
+              </p>
+            </div>
+            <div class="review-meta-badges" id="review-meta-badges">
+              <span class="badge-tag" id="badge-detected-course">Data Science</span>
+              <span class="badge-tag" id="badge-task-count">1 Task</span>
+              <span class="badge-tag" id="badge-analysis-count">6 Questions</span>
+            </div>
+          </div>
+
+          <div class="manual-overview-banner" id="manual-overview-banner">
+            <div class="overview-title" id="overview-lab-title">Lab Title</div>
+            <div class="overview-objectives" id="overview-lab-objectives"></div>
+          </div>
+
+          <!-- Section: Extracted Coding Tasks -->
+          <div class="review-section">
+            <div class="review-section-header">
+              <h3>Lab Problem Tasks (<span id="review-tasks-count-num">1</span>)</h3>
+              <button type="button" class="btn btn-outline btn-sm" onclick="addNewReviewTask()">+ Add Missing Task</button>
+            </div>
+            <div class="review-tasks-list" id="review-tasks-list">
+              <!-- Dynamically populated task review cards -->
+            </div>
+          </div>
+
+          <!-- Section: Analysis Questions -->
+          <div class="review-section" id="review-analysis-section">
+            <div class="review-section-header">
+              <h3>Questions for Analysis (<span id="review-questions-count-num">6</span>)</h3>
+              <button type="button" class="btn btn-outline btn-sm" onclick="addNewReviewQuestion()">+ Add Question</button>
+            </div>
+            <p class="section-hint" style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;">Answers will be generated following undergraduate academic tone without AI clichés.</p>
+            <div class="review-questions-list" id="review-questions-list">
+              <!-- Dynamically populated question cards -->
+            </div>
+          </div>
+
+          <div class="review-footer-actions">
+            <button type="button" class="btn btn-outline btn-large" onclick="backToUploadStep()">
+              ← Back to Upload
+            </button>
+            <button type="button" class="btn btn-primary btn-large btn-glow" id="btn-confirm-generate" onclick="generateFromConfirmedSession()">
+              Confirm Requirements &amp; Start Generation →
             </button>
           </div>
         </div>
@@ -301,6 +363,25 @@
 
         <!-- Results Showcase (Hidden until run finishes) -->
         <div id="results-container" style="display: none;">
+          <!-- Quality Gate Validation Banner -->
+          <div class="card quality-gate-card" id="quality-gate-banner">
+            <div class="gate-status-row">
+              <div class="gate-badge-wrap">
+                <span class="gate-icon" id="gate-icon">✓</span>
+                <div>
+                  <h3 id="gate-title">Quality Gate Passed</h3>
+                  <p id="gate-desc">0 Execution errors • Strict undergraduate anti-AI tone • Verified output screenshots</p>
+                </div>
+              </div>
+              <div class="gate-metrics" id="gate-metrics">
+                <span class="meta-pill meta-safe" id="gate-pill-status">Verified Valid</span>
+              </div>
+            </div>
+            <div id="gate-warnings-box" style="display: none; margin-top: 12px; padding: 10px; background: rgba(234, 179, 8, 0.1); border: 1px solid rgba(234, 179, 8, 0.3); border-radius: 6px;">
+              <ul id="gate-warnings-list" style="margin: 0; padding-left: 20px; font-size: 0.85rem; color: #eab308;"></ul>
+            </div>
+          </div>
+
           <!-- Completion Header / Download Card -->
           <div class="card download-card">
             <div class="download-left">

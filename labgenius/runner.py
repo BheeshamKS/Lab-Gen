@@ -1,6 +1,7 @@
 """
 Multi-Language Code Runner for LabGenius.
-Executes code directly on the student's laptop, captures genuine output, and handles auto-healing.
+Executes code directly in an isolated workspace, captures genuine stdout/stderr,
+and prevents hangs by providing interactive stdin fallbacks and execution timeouts.
 """
 
 import os
@@ -29,7 +30,10 @@ class ExecutionResult:
 
 
 class CodeRunner:
-    """Runs student code locally and captures authentic stdout/stderr."""
+    """Runs student code locally with interactive stdin simulation and crash protection."""
+
+    # Default interactive inputs for prompts like "Enter number:", "Choice:", etc.
+    DEFAULT_INTERACTIVE_INPUTS = "42\n10\n1\n0\n5\nyes\n\n"
 
     def __init__(self, config: Config):
         self.config = config
@@ -53,6 +57,10 @@ class CodeRunner:
         repo_root = str(Path(__file__).resolve().parent.parent)
         existing_pp = env.get("PYTHONPATH", "")
         env["PYTHONPATH"] = f"{repo_root}:{existing_pp}" if existing_pp else repo_root
+        env["PYTHONUNBUFFERED"] = "1"
+
+        # Prepare stdin input: use provided sample_input or sensible interactive stream to prevent hangs
+        stdin_data = sample_input if sample_input is not None else self.DEFAULT_INTERACTIVE_INPUTS
 
         try:
             res = subprocess.run(
@@ -60,19 +68,19 @@ class CodeRunner:
                 shell=True,
                 cwd=str(task_dir),
                 env=env,
-                input=sample_input.encode("utf-8") if sample_input else None,
+                input=stdin_data.encode("utf-8"),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                timeout=20,
+                timeout=25,
             )
             duration = time.time() - start_time
             stdout = res.stdout.decode("utf-8", errors="replace")
             stderr = res.stderr.decode("utf-8", errors="replace")
             exit_code = res.returncode
         except subprocess.TimeoutExpired:
-            duration = 20.0
+            duration = 25.0
             stdout = ""
-            stderr = "Execution timed out after 20 seconds."
+            stderr = "Execution timed out after 25 seconds."
             exit_code = 124
         except Exception as e:
             duration = time.time() - start_time
@@ -80,7 +88,7 @@ class CodeRunner:
             stderr = str(e)
             exit_code = 1
 
-        # Check for output files (e.g. plot images)
+        # Check for output files (e.g. plot images, generated datasets)
         output_files = {}
         for item in task_dir.iterdir():
             if item.is_file() and item.suffix.lower() in [".png", ".jpg", ".jpeg", ".csv", ".txt"]:
@@ -104,7 +112,6 @@ class CodeRunner:
         lang = solution.language.lower()
 
         if lang == "python":
-            # Use current virtualenv python if available, else python3
             py_bin = sys.executable if "venv" in sys.executable else "python3"
             full_cmd = f'"{py_bin}" "{fname}"'
             display_cmd = f"python3 {fname}"

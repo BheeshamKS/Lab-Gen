@@ -232,6 +232,12 @@ function setupEventListeners() {
     btnRunAll.addEventListener('click', runLabPipeline);
   }
 
+  // Review tasks wizard button
+  const btnReviewTasks = document.getElementById('btn-review-tasks');
+  if (btnReviewTasks) {
+    btnReviewTasks.addEventListener('click', startWizardExtraction);
+  }
+
   // Refine button & enter key
   const btnRefine = document.getElementById('btn-apply-refine');
   if (btnRefine) {
@@ -516,14 +522,20 @@ function handleFileSelected(file) {
   currentFile = file;
   document.getElementById('selected-filename').textContent = file.name;
   document.getElementById('selected-file-info').style.display = 'flex';
-  document.getElementById('btn-run-all').removeAttribute('disabled');
+  const btnRun = document.getElementById('btn-run-all');
+  if (btnRun) btnRun.removeAttribute('disabled');
+  const btnReview = document.getElementById('btn-review-tasks');
+  if (btnReview) btnReview.removeAttribute('disabled');
 }
 
 function clearSelectedFile() {
   currentFile = null;
   document.getElementById('file-input').value = '';
   document.getElementById('selected-file-info').style.display = 'none';
-  document.getElementById('btn-run-all').setAttribute('disabled', 'true');
+  const btnRun = document.getElementById('btn-run-all');
+  if (btnRun) btnRun.setAttribute('disabled', 'true');
+  const btnReview = document.getElementById('btn-review-tasks');
+  if (btnReview) btnReview.setAttribute('disabled', 'true');
 }
 
 async function loadSampleManual() {
@@ -534,7 +546,10 @@ async function loadSampleManual() {
       currentFile = { name: data.filename, is_sample: true, sample_path: data.path };
       document.getElementById('selected-filename').textContent = data.filename;
       document.getElementById('selected-file-info').style.display = 'flex';
-      document.getElementById('btn-run-all').removeAttribute('disabled');
+      const btnRun = document.getElementById('btn-run-all');
+      if (btnRun) btnRun.removeAttribute('disabled');
+      const btnReview = document.getElementById('btn-review-tasks');
+      if (btnReview) btnReview.removeAttribute('disabled');
     }
   } catch (err) {
     alert('Failed to load sample lab manual: ' + err);
@@ -917,6 +932,8 @@ async function closeAndStartNewLab() {
   // Show upload card
   document.getElementById('results-container').style.display = 'none';
   document.getElementById('progress-card').style.display = 'none';
+  const wizardReview = document.getElementById('wizard-review-card');
+  if (wizardReview) wizardReview.style.display = 'none';
   const uploadCard = document.getElementById('upload-card');
   if (uploadCard) {
     uploadCard.style.display = 'block';
@@ -956,7 +973,59 @@ function renderResults(data, preferredView = null) {
 
   document.getElementById('upload-card').style.display = 'none';
   document.getElementById('progress-card').style.display = 'none';
+  const wizardReview = document.getElementById('wizard-review-card');
+  if (wizardReview) wizardReview.style.display = 'none';
   document.getElementById('results-container').style.display = 'block';
+
+  // Quality Gate Validation Banner
+  const gateBanner = document.getElementById('quality-gate-banner');
+  if (gateBanner && data.validation_report) {
+    const vr = data.validation_report;
+    const gateTitle = document.getElementById('gate-title');
+    const gateDesc = document.getElementById('gate-desc');
+    const gateIcon = document.getElementById('gate-icon');
+    const gatePill = document.getElementById('gate-pill-status');
+    const warningsBox = document.getElementById('gate-warnings-box');
+    const warningsList = document.getElementById('gate-warnings-list');
+
+    if (vr.is_valid && (!vr.warnings || vr.warnings.length === 0)) {
+      gateBanner.className = 'card quality-gate-card';
+      if (gateTitle) gateTitle.textContent = 'Quality Gate Passed';
+      if (gateDesc) gateDesc.textContent = '0 Execution errors • Strict undergraduate anti-AI tone • Verified output screenshots';
+      if (gateIcon) gateIcon.textContent = '✓';
+      if (gatePill) {
+        gatePill.textContent = 'Verified Valid';
+        gatePill.className = 'meta-pill meta-safe';
+      }
+      if (warningsBox) warningsBox.style.display = 'none';
+    } else if (vr.is_valid && vr.warnings && vr.warnings.length > 0) {
+      gateBanner.className = 'card quality-gate-card has-warnings';
+      if (gateTitle) gateTitle.textContent = `Quality Gate Passed (${vr.warnings.length} Advisory Note${vr.warnings.length > 1 ? 's' : ''})`;
+      if (gateDesc) gateDesc.textContent = 'Report generated successfully with minor observations.';
+      if (gateIcon) gateIcon.textContent = '⚠';
+      if (gatePill) {
+        gatePill.textContent = `${vr.warnings.length} Warning${vr.warnings.length > 1 ? 's' : ''}`;
+        gatePill.className = 'meta-pill';
+      }
+      if (warningsBox && warningsList) {
+        warningsList.innerHTML = vr.warnings.map(w => `<li><strong>${w.component}:</strong> ${w.message}</li>`).join('');
+        warningsBox.style.display = 'block';
+      }
+    } else {
+      gateBanner.className = 'card quality-gate-card has-errors';
+      if (gateTitle) gateTitle.textContent = `Quality Gate Check Failed (${vr.errors.length} Error${vr.errors.length > 1 ? 's' : ''})`;
+      if (gateDesc) gateDesc.textContent = 'One or more tasks encountered execution or quality issues.';
+      if (gateIcon) gateIcon.textContent = '✕';
+      if (gatePill) {
+        gatePill.textContent = 'Errors Detected';
+        gatePill.className = 'meta-pill meta-danger';
+      }
+      if (warningsBox && warningsList) {
+        warningsList.innerHTML = vr.errors.map(e => `<li><strong>${e.component}:</strong> ${e.message}</li>`).join('');
+        warningsBox.style.display = 'block';
+      }
+    }
+  }
 
   // Metadata Card
   document.getElementById('doc-title-text').textContent = data.filename;
@@ -3025,3 +3094,337 @@ function copyInspectedText() {
     showToast('Copied extracted text!');
   }
 }
+
+// ==========================================================================
+// Wizard Step 2: Extraction & Interactive Review
+// ==========================================================================
+
+let wizardSessionData = null;
+
+async function startWizardExtraction() {
+  if (!currentFile) return;
+
+  const subjectSelect = document.getElementById('subject-select');
+  const selectedSubject = subjectSelect && subjectSelect.value ? subjectSelect.value.trim() : 'auto';
+  const otherInput = document.getElementById('other-subject-input');
+  const customSubjectName = otherInput ? otherInput.value.trim() : '';
+
+  if (selectedSubject === 'other' && !customSubjectName) {
+    if (otherInput) {
+      otherInput.focus();
+      otherInput.style.borderColor = '#ef4444';
+    }
+    alert('⚠️ Please enter your custom Subject / Course name.');
+    return;
+  }
+
+  const btnReview = document.getElementById('btn-review-tasks');
+  const originalBtnText = btnReview ? btnReview.innerHTML : '';
+  if (btnReview) {
+    btnReview.setAttribute('disabled', 'true');
+    btnReview.innerHTML = '<span>⏳ Analyzing Manual &amp; Extracting...</span>';
+  }
+
+  const formData = new FormData();
+  if (currentFile.is_sample) {
+    formData.append('is_sample', 'true');
+    formData.append('sample_path', currentFile.sample_path);
+  } else {
+    formData.append('manual_file', currentFile);
+  }
+
+  formData.append('subject', selectedSubject);
+  if (selectedSubject === 'other') formData.append('custom_subject', customSubjectName);
+  formData.append('name', document.getElementById('student-name').value);
+  formData.append('roll_number', document.getElementById('roll-no').value);
+  const secVal = document.getElementById('section-name') ? document.getElementById('section-name').value : '';
+  if (secVal) formData.append('section', secVal);
+  formData.append('department', document.getElementById('dept-name').value);
+
+  const isInstOn = document.getElementById('toggle-instructor')?.checked || false;
+  formData.append('include_instructor', isInstOn ? 'true' : 'false');
+  if (isInstOn) {
+    const instVal = document.getElementById('instructor-name') ? document.getElementById('instructor-name').value : '';
+    if (instVal) formData.append('instructor', instVal);
+  }
+
+  const isLogoOn = document.getElementById('toggle-uni-logo')?.checked ?? true;
+  formData.append('include_logo', isLogoOn ? 'true' : 'false');
+  const logoChoice = document.getElementById('logo-choice-select')?.value || 'dawood';
+  formData.append('logo_choice', logoChoice);
+  const customLogoFile = document.getElementById('custom-logo-file')?.files?.[0];
+  if (customLogoFile) formData.append('custom_logo', customLogoFile);
+
+  try {
+    const res = await fetch('/api/extract-manual', {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await res.json();
+
+    if (!data.success) {
+      alert('Error extracting manual: ' + (data.error || 'Failed to parse manual.'));
+      if (btnReview) {
+        btnReview.removeAttribute('disabled');
+        btnReview.innerHTML = originalBtnText;
+      }
+      return;
+    }
+
+    wizardSessionData = data;
+    renderWizardReview(data);
+
+    document.getElementById('upload-card').style.display = 'none';
+    document.getElementById('wizard-review-card').style.display = 'block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  } catch (err) {
+    alert('Extraction request failed: ' + err);
+  } finally {
+    if (btnReview) {
+      btnReview.removeAttribute('disabled');
+      btnReview.innerHTML = originalBtnText;
+    }
+  }
+}
+
+function renderWizardReview(data) {
+  const manual = data.manual || {};
+  const tasks = data.tasks || [];
+  const analysisQuestions = data.analysis_questions || [];
+
+  const courseBadge = document.getElementById('badge-detected-course');
+  if (courseBadge) courseBadge.textContent = manual.course_name || 'Computer Science';
+  const taskCountBadge = document.getElementById('badge-task-count');
+  if (taskCountBadge) taskCountBadge.textContent = `${tasks.length} Task${tasks.length === 1 ? '' : 's'}`;
+  const analysisCountBadge = document.getElementById('badge-analysis-count');
+  if (analysisCountBadge) analysisCountBadge.textContent = `${analysisQuestions.length} Question${analysisQuestions.length === 1 ? '' : 's'}`;
+
+  const titleEl = document.getElementById('overview-lab-title');
+  if (titleEl) titleEl.textContent = manual.title || 'Laboratory Report';
+  const objEl = document.getElementById('overview-lab-objectives');
+  if (objEl) {
+    const objText = (manual.objectives && manual.objectives.length > 0)
+      ? manual.objectives.slice(0, 3).join(' • ')
+      : 'Follow standard experimental and implementation procedure.';
+    objEl.textContent = `Objectives: ${objText}`;
+  }
+
+  const tasksCountNum = document.getElementById('review-tasks-count-num');
+  if (tasksCountNum) tasksCountNum.textContent = tasks.length;
+  const qCountNum = document.getElementById('review-questions-count-num');
+  if (qCountNum) qCountNum.textContent = analysisQuestions.length;
+
+  // Render tasks
+  const tasksList = document.getElementById('review-tasks-list');
+  if (tasksList) {
+    tasksList.innerHTML = '';
+    tasks.forEach((t, idx) => {
+      tasksList.appendChild(createTaskReviewElement(t, idx + 1));
+    });
+  }
+
+  // Render questions
+  const qSection = document.getElementById('review-analysis-section');
+  const qList = document.getElementById('review-questions-list');
+  if (qList) {
+    qList.innerHTML = '';
+    if (analysisQuestions.length > 0) {
+      if (qSection) qSection.style.display = 'block';
+      analysisQuestions.forEach((q, idx) => {
+        const qText = typeof q === 'string' ? q : (q.question || '');
+        qList.appendChild(createQuestionReviewElement(qText, idx + 1));
+      });
+    } else {
+      if (qSection) qSection.style.display = 'none';
+    }
+  }
+}
+
+function createTaskReviewElement(task, num) {
+  const card = document.createElement('div');
+  card.className = 'review-task-card';
+  card.dataset.taskId = task.task_id || num;
+
+  const lang = (task.language || 'c').toLowerCase();
+  card.innerHTML = `
+    <div class="review-task-top-row">
+      <span class="task-num-badge">Task ${num}</span>
+      <input type="text" class="review-task-title-input" value="${escapeHtml(task.title || `Task ${num}`)}" placeholder="Task Title" />
+      <select class="review-task-lang-select">
+        <option value="c" ${lang === 'c' ? 'selected' : ''}>C (gcc)</option>
+        <option value="python" ${lang === 'python' ? 'selected' : ''}>Python 3</option>
+        <option value="sql" ${lang === 'sql' ? 'selected' : ''}>SQL</option>
+        <option value="cpp" ${lang === 'cpp' ? 'selected' : ''}>C++</option>
+        <option value="java" ${lang === 'java' ? 'selected' : ''}>Java</option>
+      </select>
+      <button type="button" class="btn btn-outline btn-xs" onclick="removeReviewTask(this)" title="Remove this task">✕</button>
+    </div>
+    <textarea class="review-task-desc-input" rows="2" placeholder="Task description and requirements...">${escapeHtml(task.description || '')}</textarea>
+  `;
+  return card;
+}
+
+function createQuestionReviewElement(qText, num) {
+  const card = document.createElement('div');
+  card.className = 'review-question-card';
+  card.innerHTML = `
+    <span class="question-num-badge">Q${num}</span>
+    <input type="text" class="review-question-input" value="${escapeHtml(qText)}" placeholder="Analysis question text..." />
+    <button type="button" class="btn btn-outline btn-xs" onclick="removeReviewQuestion(this)" title="Remove question">✕</button>
+  `;
+  return card;
+}
+
+function addNewReviewTask() {
+  const tasksList = document.getElementById('review-tasks-list');
+  if (!tasksList) return;
+  const count = tasksList.querySelectorAll('.review-task-card').length + 1;
+  const newTask = {
+    task_id: count,
+    title: `Task ${count}: Implementation`,
+    description: '',
+    language: 'c',
+  };
+  tasksList.appendChild(createTaskReviewElement(newTask, count));
+  const countEl = document.getElementById('review-tasks-count-num');
+  if (countEl) countEl.textContent = count;
+}
+
+function removeReviewTask(btn) {
+  const card = btn.closest('.review-task-card');
+  if (card) card.remove();
+  const tasksList = document.getElementById('review-tasks-list');
+  const count = tasksList ? tasksList.querySelectorAll('.review-task-card').length : 0;
+  const countEl = document.getElementById('review-tasks-count-num');
+  if (countEl) countEl.textContent = count;
+}
+
+function addNewReviewQuestion() {
+  const qList = document.getElementById('review-questions-list');
+  if (!qList) return;
+  const count = qList.querySelectorAll('.review-question-card').length + 1;
+  qList.appendChild(createQuestionReviewElement('', count));
+  const qSection = document.getElementById('review-analysis-section');
+  if (qSection) qSection.style.display = 'block';
+  const countEl = document.getElementById('review-questions-count-num');
+  if (countEl) countEl.textContent = count;
+}
+
+function removeReviewQuestion(btn) {
+  const card = btn.closest('.review-question-card');
+  if (card) card.remove();
+  const qList = document.getElementById('review-questions-list');
+  const count = qList ? qList.querySelectorAll('.review-question-card').length : 0;
+  const countEl = document.getElementById('review-questions-count-num');
+  if (countEl) countEl.textContent = count;
+}
+
+function backToUploadStep() {
+  document.getElementById('wizard-review-card').style.display = 'none';
+  document.getElementById('upload-card').style.display = 'block';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+async function generateFromConfirmedSession() {
+  if (!wizardSessionData || !wizardSessionData.session_id) {
+    alert('Session expired. Please re-upload your manual.');
+    backToUploadStep();
+    return;
+  }
+
+  // Collect tasks
+  const taskCards = document.querySelectorAll('#review-tasks-list .review-task-card');
+  const tasks = [];
+  taskCards.forEach((c, idx) => {
+    const titleInput = c.querySelector('.review-task-title-input');
+    const langSelect = c.querySelector('.review-task-lang-select');
+    const descInput = c.querySelector('.review-task-desc-input');
+    tasks.push({
+      task_id: idx + 1,
+      title: titleInput ? titleInput.value.trim() : `Task ${idx + 1}`,
+      language: langSelect ? langSelect.value : 'c',
+      description: descInput ? descInput.value.trim() : '',
+    });
+  });
+
+  if (tasks.length === 0) {
+    alert('⚠️ Please add at least one lab task before starting generation.');
+    return;
+  }
+
+  // Collect analysis questions
+  const qCards = document.querySelectorAll('#review-questions-list .review-question-card');
+  const analysisQuestions = [];
+  qCards.forEach(c => {
+    const input = c.querySelector('.review-question-input');
+    if (input && input.value.trim()) {
+      analysisQuestions.push(input.value.trim());
+    }
+  });
+
+  const selectedProvider = document.getElementById('ai-provider').value;
+  const enteredApiKey = document.getElementById('api-key')?.value.trim() || '';
+  const customInst = document.getElementById('custom-instructions') ? document.getElementById('custom-instructions').value.trim() : '';
+
+  const formats = [];
+  if (document.getElementById('fmt-pdf')?.checked) formats.push('pdf');
+  if (document.getElementById('fmt-docx')?.checked) formats.push('docx');
+
+  // Transition UI to Progress bar
+  document.getElementById('wizard-review-card').style.display = 'none';
+  document.getElementById('progress-card').style.display = 'block';
+  document.getElementById('results-container').style.display = 'none';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  startTimer();
+  updateStep(1, 15, 'Validating Requirements...', 'Requirements confirmed by student. Initializing orchestrator...');
+
+  let isPipelineRunning = true;
+  const stepTimers = [];
+  stepTimers.push(setTimeout(() => { if (isPipelineRunning) updateStep(2, 30, 'Synthesizing Student Solutions...', 'Orchestrating code generation with undergraduate persona...'); }, 1200));
+  stepTimers.push(setTimeout(() => { if (isPipelineRunning) updateStep(3, 50, 'Sandboxed Execution & Healing...', 'Executing code solutions locally with timeout protection...'); }, 3500));
+  stepTimers.push(setTimeout(() => { if (isPipelineRunning) updateStep(4, 75, 'Terminal Capture & Quality Gate...', 'Capturing Linux terminal windows and running Quality Gate checks...'); }, 6000));
+
+  try {
+    const payload = {
+      session_id: wizardSessionData.session_id,
+      provider: selectedProvider,
+      api_key: enteredApiKey,
+      theme: document.getElementById('terminal-theme').value,
+      instructions: customInst,
+      formats: formats.join(','),
+      tasks: tasks,
+      analysis_questions: analysisQuestions,
+    };
+
+    const res = await fetch('/api/generate-from-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    isPipelineRunning = false;
+    stepTimers.forEach(t => clearTimeout(t));
+    stopTimer();
+
+    const result = await res.json();
+    if (!result.success) {
+      alert('Error during generation: ' + (result.error || 'Unknown generation failure'));
+      document.getElementById('wizard-review-card').style.display = 'block';
+      document.getElementById('progress-card').style.display = 'none';
+      return;
+    }
+
+    renderResults(result);
+
+  } catch (err) {
+    isPipelineRunning = false;
+    stepTimers.forEach(t => clearTimeout(t));
+    stopTimer();
+    alert('Pipeline network error: ' + err);
+    document.getElementById('wizard-review-card').style.display = 'block';
+    document.getElementById('progress-card').style.display = 'none';
+  }
+}
+

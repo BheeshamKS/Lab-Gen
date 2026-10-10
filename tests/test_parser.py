@@ -81,6 +81,15 @@ class TestManualParser(unittest.TestCase):
         self.assertIn("Data Structure", m.course_name)
         self.assertEqual(m.tasks[0].language, "python")
 
+    def test_dsa_lab_06(self):
+        """Verifies DSA Lab 06 extraction: 1 comprehensive comparison task and all 6 analysis questions."""
+        p = ManualParser(REPO_ROOT / "uploads" / "Data Structure Laboratory Manual L6.docx", subject="dsa")
+        m = p.parse()
+        self.assertEqual(len(m.tasks), 1)
+        self.assertEqual(m.tasks[0].language, "python")
+        self.assertEqual(len(m.analysis_questions), 6)
+        self.assertIn("time complexity of Binary Search", m.analysis_questions[0])
+
 
 if __name__ == "__main__":
     unittest.main()

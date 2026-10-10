@@ -9,6 +9,7 @@ import shutil
 import json
 import re
 import tempfile
+import uuid
 from pathlib import Path
 from typing import Optional, List
 import uvicorn
@@ -17,12 +18,25 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from labgenius.config import Config
-from labgenius.parser import ManualParser
+from labgenius.parser import ManualParser, LabTask
 from labgenius.solver import TaskSolver, AntiAIFilter
 from labgenius.runner import CodeRunner
 from labgenius.capture import ScreenshotStudio
 from labgenius.builder import DocumentBuilder
 from labgenius.sanitizer import DocumentSanitizer
+from labgenius.validator import QualityValidator, ValidationReport
+from labgenius.ingestion import IngestionEngine
+from labgenius.orchestrator import TaskOrchestrator
+from labgenius.state import (
+    default_session_manager,
+    LabSession,
+    Requirement,
+    RequirementType,
+    RequirementStatus,
+    StudentInfo,
+    ManualInfo,
+    SessionArtifacts,
+)
 import labgenius.doc_tools as doc_tools
 
 app = FastAPI(title="LabGenius Web App", version="1.0.0")
@@ -61,14 +75,118 @@ async def add_no_cache_headers(request, call_next):
     return response
 
 
+session_manager = default_session_manager
+
+
+def _get_active_session_data(session_id: Optional[str] = None) -> Optional[dict]:
+    """Retrieve runtime state dictionary for a specific or the active session."""
+    return session_manager.get_live_data(session_id, "session_data")
+
+
+def _set_session_data(session_id: str, data: dict) -> None:
+    """Store runtime state dictionary for a specific session."""
+    session_manager.set_live_data(session_id, "session_data", data)
+
+
+def _get_last_result(session_id: Optional[str] = None) -> Optional[dict]:
+    """Retrieve cached result payload for a specific or the active session."""
+    return session_manager.get_live_data(session_id, "last_result")
+
+
+def _set_last_result(res: dict, session_id: Optional[str] = None) -> dict:
+    """Cache result payload for a specific session or active session."""
+    if res and res.get("success"):
+        sid = session_id or res.get("session_id") or session_manager.get_active_session_id()
+        if sid:
+            session_manager.set_live_data(sid, "last_result", res)
+            sess = session_manager.get_session(sid)
+            if sess:
+                sess.artifacts.docx_filename = res.get("filename")
+                sess.artifacts.docx_url = res.get("docx_url")
+                sess.artifacts.pdf_filename = res.get("pdf_filename")
+                sess.artifacts.pdf_url = res.get("pdf_url")
+                sess.artifacts.md_filename = res.get("md_filename")
+                sess.artifacts.html_filename = res.get("html_filename")
+                sess.provider_used = res.get("provider_used", "offline")
+                sess.status = "completed"
+                session_manager.save_session(sess)
+    return res
+
+
+class _CurrentLabProxy(dict):
+    """Backwards-compatible proxy mapping legacy CURRENT_LAB accesses to isolated active session state."""
+    def _data(self):
+        return _get_active_session_data() or {}
+
+    def __getitem__(self, item):
+        d = self._data()
+        if item not in d:
+            raise KeyError(item)
+        return d[item]
+
+    def __setitem__(self, key, value):
+        sid = session_manager.get_active_session_id()
+        if not sid:
+            sid = "default"
+            session_manager.set_active_session_id(sid)
+        data = _get_active_session_data(sid) or {}
+        data[key] = value
+        _set_session_data(sid, data)
+
+    def get(self, key, default=None):
+        return self._data().get(key, default)
+
+    def __contains__(self, item):
+        return item in self._data()
+
+    def __bool__(self):
+        return bool(self._data())
+
+    def clear(self):
+        sid = session_manager.get_active_session_id()
+        if sid:
+            _set_session_data(sid, {})
+
+
+class _LastResultProxy(dict):
+    """Backwards-compatible proxy mapping legacy LAST_RESULT accesses to isolated active session state."""
+    def _data(self):
+        return _get_last_result() or {}
+
+    def __getitem__(self, item):
+        d = self._data()
+        if item not in d:
+            raise KeyError(item)
+        return d[item]
+
+    def get(self, key, default=None):
+        return self._data().get(key, default)
+
+    def __contains__(self, item):
+        return item in self._data()
+
+    def __bool__(self):
+        return bool(self._data())
+
+    def clear(self):
+        sid = session_manager.get_active_session_id()
+        if sid:
+            session_manager.set_live_data(sid, "last_result", {})
+
+
+CURRENT_LAB = _CurrentLabProxy()
+LAST_RESULT = _LastResultProxy()
+
+
 @app.get("/", response_class=HTMLResponse)
 async def serve_index():
     index_path = WEB_DIR / "index.html"
     if not index_path.exists():
         raise HTTPException(status_code=404, detail="Index file not found")
     content = index_path.read_text(encoding="utf-8")
-    if LAST_RESULT and LAST_RESULT.get("success"):
-        hydration_script = f"<script>window.__INITIAL_LAB__ = {json.dumps(LAST_RESULT)};</script>"
+    last_res = _get_last_result()
+    if last_res and last_res.get("success"):
+        hydration_script = f"<script>window.__INITIAL_LAB__ = {json.dumps(last_res)};</script>"
         content = content.replace("</head>", f"  {hydration_script}\n</head>")
     response = HTMLResponse(content=content)
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
@@ -90,17 +208,6 @@ async def get_sample_manual():
         "filename": sample_file.name,
         "path": str(sample_file.resolve()),
     }
-
-
-# Active lab state for fast interactive edits and refinements
-CURRENT_LAB = {}
-LAST_RESULT = {}
-
-def _set_last_result(res: dict) -> dict:
-    global LAST_RESULT
-    if res and res.get("success"):
-        LAST_RESULT = res
-    return res
 
 
 def _build_tasks_response(tasks, solutions, exec_results, screenshots):
@@ -164,7 +271,7 @@ def _recompile_all_formats(builder, sanitizer, lab_manual, solutions, exec_resul
     }
 
 
-def _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg, message=None):
+def _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg, session_id=None, message=None, validation_report=None):
     course_name_val = lab_manual.course_name or cfg.student.department or "Data Science"
     viva_list = []
     if getattr(lab_manual, "viva_answers", None):
@@ -182,8 +289,10 @@ def _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg, m
         for q in lab_manual.analysis_questions:
             analysis_list.append({"question": q, "answer": ""})
 
+    sid = session_id or session_manager.get_active_session_id()
     payload = {
         "success": True,
+        "session_id": sid,
         "filename": compiled_files["docx"],
         "pdf_filename": compiled_files["pdf"],
         "docx_url": f"/api/download/{compiled_files['docx']}" if compiled_files.get("docx") else None,
@@ -201,10 +310,11 @@ def _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg, m
         "provider_used": getattr(lab_manual, "_provider_used", "offline"),
         "custom_instructions": getattr(lab_manual, "_custom_instructions", "") or "",
         "custom_instructions_applied": bool(getattr(lab_manual, "_custom_instructions", "")),
+        "validation_report": validation_report or {"is_valid": True, "errors": [], "warnings": []},
     }
     if message:
         payload["message"] = message
-    return _set_last_result(payload)
+    return _set_last_result(payload, session_id=sid)
 
 
 @app.post("/api/run")
@@ -231,17 +341,16 @@ async def run_lab(
     include_logo: Optional[str] = Form("true"),
     logo_choice: Optional[str] = Form("dawood"),
     custom_logo: Optional[UploadFile] = File(None),
+    session_id: Optional[str] = Form(None),
 ):
-    global LAST_RESULT, CURRENT_LAB
-    # Clear previous lab state so UI doesn't pull old data if user refreshes mid-generation
-    LAST_RESULT.clear()
-    CURRENT_LAB.clear()
-    
-    # Clean workspace directory to avoid leftover screenshots
-    if WORKSPACE_DIR.exists():
-        import shutil
-        shutil.rmtree(WORKSPACE_DIR)
-    WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
+    sid = session_id or uuid.uuid4().hex[:12]
+    session_dir = session_manager.get_session_dir(sid)
+    session_manager.set_active_session_id(sid)
+
+    # Clean only this session's isolated workspace directory
+    if session_dir.exists():
+        shutil.rmtree(session_dir, ignore_errors=True)
+    session_dir.mkdir(parents=True, exist_ok=True)
 
     try:
         sub_raw = (subject or "auto").strip().lower()
@@ -266,6 +375,7 @@ async def run_lab(
 
         # Load and configure
         cfg = Config.load()
+        cfg.system.workspace_dir = str(session_dir)
         if department and department.strip():
             cfg.student.department = department.strip()
         elif not cfg.student.department:
@@ -388,53 +498,94 @@ async def run_lab(
         lab_manual._provider_used = provider_mode
         lab_manual._custom_instructions = instructions.strip() if instructions else ""
 
-        solver = TaskSolver(cfg)
-        runner = CodeRunner(cfg)
+        # Create persistent LabSession early
+        sess = session_manager.create_session(
+            student_info=StudentInfo(
+                name=cfg.student.name,
+                roll_number=cfg.student.roll_number,
+                section=cfg.student.section,
+                department=cfg.student.department,
+                university=cfg.student.university,
+                semester=cfg.student.semester,
+                instructor=cfg.student.instructor,
+                include_instructor=cfg.student.include_instructor,
+                include_logo=cfg.student.include_logo,
+                logo_choice=cfg.student.logo_choice,
+                custom_logo_path=cfg.student.custom_logo_path,
+            ),
+            manual_info=ManualInfo(
+                file_path=str(target_manual_path) if "target_manual_path" in locals() and target_manual_path else "",
+                file_name=target_manual_path.name if "target_manual_path" in locals() and target_manual_path else "",
+                title=lab_manual.title or "",
+                course_name=lab_manual.course_name or "",
+                lab_number=str(lab_manual.lab_number or ""),
+                objectives=getattr(lab_manual, "objectives", []) or [],
+                raw_text=getattr(lab_manual, "raw_text", "") or "",
+                context=getattr(lab_manual, "context", "") or "",
+                viva_questions=getattr(lab_manual, "viva_questions", []) or [],
+                analysis_questions=getattr(lab_manual, "analysis_questions", []) or [],
+                observation_tables=getattr(lab_manual, "observation_tables", []) or [],
+            ),
+            session_id=sid,
+        )
+
+        reqs = []
+        for t in lab_manual.tasks:
+            reqs.append(Requirement(
+                id=f"task_{t.task_id}",
+                task_id=t.task_id,
+                type=RequirementType.TASK,
+                title=t.title or f"Task {t.task_id}",
+                description=t.description or "",
+                language=t.language or "c",
+                status=RequirementStatus.PENDING,
+                sample_input=t.sample_input,
+                expected_output=t.expected_output,
+            ))
+        for idx, q in enumerate(getattr(lab_manual, "analysis_questions", []) or [], 1):
+            reqs.append(Requirement(
+                id=f"analysis_{idx}",
+                task_id=idx,
+                type=RequirementType.ANALYSIS_QUESTION,
+                title=f"Analysis Question {idx}",
+                description=q,
+                status=RequirementStatus.PENDING,
+            ))
+        for idx, q in enumerate(getattr(lab_manual, "viva_questions", []) or [], 1):
+            reqs.append(Requirement(
+                id=f"viva_{idx}",
+                task_id=idx,
+                type=RequirementType.VIVA_QUESTION,
+                title=f"Viva Question {idx}",
+                description=q,
+                status=RequirementStatus.PENDING,
+            ))
+        sess.requirements = reqs
+        session_manager.save_session(sess)
+
+        # 3. Solve & Execute using TaskOrchestrator
+        orchestrator = TaskOrchestrator(cfg)
+        solutions, exec_results, validation_report = orchestrator.process_session(
+            session=sess,
+            manual=lab_manual,
+            custom_instructions=instructions or "",
+        )
+
         studio = ScreenshotStudio(cfg)
         builder = DocumentBuilder(cfg)
         sanitizer = DocumentSanitizer(cfg)
 
-        solutions = []
-        exec_results = []
         screenshots = []
-
-        # 3. Solve & Execute (respecting custom instructions and lab context)
-        lab_context_str = getattr(lab_manual, "context", "") or ""
-        for task in lab_manual.tasks:
-            sol = solver.solve_task(task, custom_instructions=instructions, lab_context=lab_context_str)
-            solutions.append(sol)
-
-            res = runner.execute(sol, sample_input=task.sample_input)
-            if not res.success and cfg.ai.provider != "mock":
-                fixed = solver.auto_heal(task, sol.code, res.stderr)
-                sol.code = fixed
-                res = runner.execute(sol, sample_input=task.sample_input)
-
-            exec_results.append(res)
+        for sol, res in zip(solutions, exec_results):
             code_img, out_img = studio.capture_task_screenshots(sol, res)
             screenshots.append((code_img, out_img))
 
         # Populate Observation Tables if present in manual
         if getattr(lab_manual, "observation_tables", None):
-            lab_manual.observation_tables = solver.populate_observation_tables(
+            solver_tmp = TaskSolver(cfg)
+            lab_manual.observation_tables = solver_tmp.populate_observation_tables(
                 lab_manual.observation_tables,
                 exec_results=exec_results
-            )
-
-        # Solve Analysis Questions if present in the manual
-        if getattr(lab_manual, "analysis_questions", None):
-            lab_manual.analysis_answers = solver.solve_analysis_questions(
-                lab_manual.analysis_questions,
-                course_name=course_name_val,
-                custom_instructions=instructions
-            )
-
-        # Solve Viva Questions if present in the manual
-        if getattr(lab_manual, "viva_questions", None):
-            lab_manual.viva_answers = solver.solve_viva_questions(
-                lab_manual.viva_questions,
-                course_name=course_name_val,
-                custom_instructions=instructions
             )
 
         clean_lab = f"LAB{lab_manual.lab_number}_completed" if lab_manual.lab_number else "Completed_Lab_Report"
@@ -444,18 +595,425 @@ async def run_lab(
             builder, sanitizer, lab_manual, solutions, exec_results, screenshots, clean_lab, formats=formats or "docx,pdf"
         )
 
-        # 5. Store in-memory session for post-generation refinements
-        CURRENT_LAB["manual"] = lab_manual
-        CURRENT_LAB["solutions"] = solutions
-        CURRENT_LAB["exec_results"] = exec_results
-        CURRENT_LAB["screenshots"] = screenshots
-        CURRENT_LAB["cfg"] = cfg
-        CURRENT_LAB["clean_lab"] = clean_lab
-        CURRENT_LAB["instructions"] = instructions
+        # 5. Store isolated session data for post-generation refinements
+        session_data = {
+            "manual": lab_manual,
+            "solutions": solutions,
+            "exec_results": exec_results,
+            "screenshots": screenshots,
+            "cfg": cfg,
+            "clean_lab": clean_lab,
+            "instructions": instructions,
+        }
+        _set_session_data(sid, session_data)
+
+        sess.artifacts = SessionArtifacts(
+            docx_path=str(OUTPUT_DIR / compiled_files["docx"]) if compiled_files.get("docx") else None,
+            pdf_path=str(OUTPUT_DIR / compiled_files["pdf"]) if compiled_files.get("pdf") else None,
+        )
+        session_manager.save_session(sess)
 
         tasks_response = _build_tasks_response(lab_manual.tasks, solutions, exec_results, screenshots)
 
-        return _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg)
+        return _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg, session_id=sid, validation_report=validation_report.model_dump() if validation_report else None)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/extract-manual")
+async def extract_manual(
+    manual_file: Optional[UploadFile] = File(None),
+    is_sample: Optional[str] = Form(None),
+    sample_path: Optional[str] = Form(None),
+    name: Optional[str] = Form(None),
+    roll_number: Optional[str] = Form(None),
+    section: Optional[str] = Form(None),
+    department: Optional[str] = Form(None),
+    instructor: Optional[str] = Form(None),
+    include_instructor: Optional[str] = Form("false"),
+    subject: Optional[str] = Form(None),
+    custom_subject: Optional[str] = Form(None),
+    include_logo: Optional[str] = Form("true"),
+    logo_choice: Optional[str] = Form("dawood"),
+    custom_logo: Optional[UploadFile] = File(None),
+    session_id: Optional[str] = Form(None),
+):
+    """
+    Step 1 -> Step 2 of Wizard:
+    Extracts tasks, requirements, analysis questions, and viva questions from the manual
+    WITHOUT executing them, returning structured data for student inspection and review.
+    """
+    sid = session_id or uuid.uuid4().hex[:12]
+    session_dir = session_manager.get_session_dir(sid)
+    session_manager.set_active_session_id(sid)
+
+    try:
+        sub_raw = (subject or "auto").strip().lower()
+        if sub_raw == "other" and (not custom_subject or not custom_subject.strip()):
+            return {
+                "success": False,
+                "error": "Please enter your custom Subject / Course name."
+            }
+
+        if sub_raw == "dbms":
+            sub_clean = "dbms"
+            course_name_val = "Database Management Systems (DBMS)"
+        elif sub_raw == "dsa":
+            sub_clean = "dsa"
+            course_name_val = "Data Structures and Algorithms"
+        elif sub_raw == "other":
+            sub_clean = "other"
+            course_name_val = custom_subject.strip()
+        else:
+            sub_clean = "auto"
+            course_name_val = "Auto-Detect"
+
+        cfg = Config.load()
+        cfg.system.workspace_dir = str(session_dir)
+        if department and department.strip():
+            cfg.student.department = department.strip()
+        elif not cfg.student.department:
+            cfg.student.department = "Data Science"
+        if name:
+            cfg.student.name = name
+        if roll_number:
+            cfg.student.roll_number = roll_number
+        if section:
+            cfg.student.section = section
+
+        is_logo_enabled = bool(include_logo and include_logo.lower() in ["true", "1", "yes", "on"])
+        cfg.student.include_logo = is_logo_enabled
+        cfg.student.logo_choice = logo_choice or "dawood"
+
+        is_inst_enabled = bool(include_instructor and include_instructor.lower() in ["true", "1", "yes", "on"])
+        cfg.student.include_instructor = is_inst_enabled
+        if is_inst_enabled and instructor:
+            cfg.student.instructor = instructor.strip()
+        else:
+            cfg.student.instructor = ""
+
+        # Handle manual file saving
+        if is_sample and is_sample.lower() == "true":
+            target_manual_path = Path(sample_path) if sample_path else (EXAMPLES_DIR / "Lab 03 manual.docx")
+            if not target_manual_path.exists():
+                target_manual_path = EXAMPLES_DIR / "sample_lab_manual.docx"
+            if not target_manual_path.exists():
+                from examples.generate_sample_manual import create_sample_manual
+                create_sample_manual(target_manual_path)
+        elif manual_file and manual_file.filename:
+            target_manual_path = session_dir / manual_file.filename
+            with open(target_manual_path, "wb") as buffer:
+                shutil.copyfileobj(manual_file.file, buffer)
+        else:
+            raise HTTPException(status_code=400, detail="No manual file uploaded or selected.")
+
+        # Parse Manual
+        parser_subject = None if sub_clean == "auto" else sub_clean
+        parser_course = None if course_name_val == "Auto-Detect" else course_name_val
+        parser_obj = ManualParser(str(target_manual_path), subject=parser_subject, subject_name=parser_course)
+        lab_manual = parser_obj.parse()
+        if sub_clean == "auto":
+            if lab_manual.course_name and any(k in lab_manual.course_name.lower() for k in ["database", "dbms", "sql"]):
+                course_name_val = "Database Management Systems (DBMS)"
+            elif lab_manual.course_name and any(k in lab_manual.course_name.lower() for k in ["data structure", "algorithm", "dsa"]):
+                course_name_val = "Data Structures and Algorithms"
+            else:
+                course_name_val = lab_manual.course_name or "Computer Science Lab"
+        lab_manual.course_name = course_name_val
+
+        # Create session and requirements
+        sess = session_manager.create_session(
+            student_info=StudentInfo(
+                name=cfg.student.name,
+                roll_number=cfg.student.roll_number,
+                section=cfg.student.section,
+                department=cfg.student.department,
+                university=cfg.student.university,
+                semester=cfg.student.semester,
+                instructor=cfg.student.instructor,
+                include_instructor=cfg.student.include_instructor,
+                include_logo=cfg.student.include_logo,
+                logo_choice=cfg.student.logo_choice,
+                custom_logo_path=cfg.student.custom_logo_path,
+            ),
+            manual_info=ManualInfo(
+                file_path=str(target_manual_path),
+                file_name=target_manual_path.name,
+                title=lab_manual.title or "",
+                course_name=lab_manual.course_name or "",
+                lab_number=str(lab_manual.lab_number or ""),
+                objectives=getattr(lab_manual, "objectives", []) or [],
+                raw_text=getattr(lab_manual, "raw_text", "") or "",
+                context=getattr(lab_manual, "context", "") or "",
+                viva_questions=getattr(lab_manual, "viva_questions", []) or [],
+                analysis_questions=getattr(lab_manual, "analysis_questions", []) or [],
+                observation_tables=getattr(lab_manual, "observation_tables", []) or [],
+            ),
+            session_id=sid,
+        )
+
+        reqs = []
+        for t in lab_manual.tasks:
+            reqs.append(Requirement(
+                id=f"task_{t.task_id}",
+                task_id=t.task_id,
+                type=RequirementType.TASK,
+                title=t.title or f"Task {t.task_id}",
+                description=t.description or "",
+                language=t.language or "c",
+                status=RequirementStatus.PENDING,
+                sample_input=t.sample_input,
+                expected_output=t.expected_output,
+            ))
+        for idx, q in enumerate(getattr(lab_manual, "analysis_questions", []) or [], 1):
+            reqs.append(Requirement(
+                id=f"analysis_{idx}",
+                task_id=idx,
+                type=RequirementType.ANALYSIS_QUESTION,
+                title=f"Analysis Question {idx}",
+                description=q,
+                status=RequirementStatus.PENDING,
+            ))
+        for idx, q in enumerate(getattr(lab_manual, "viva_questions", []) or [], 1):
+            reqs.append(Requirement(
+                id=f"viva_{idx}",
+                task_id=idx,
+                type=RequirementType.VIVA_QUESTION,
+                title=f"Viva Question {idx}",
+                description=q,
+                status=RequirementStatus.PENDING,
+            ))
+        sess.requirements = reqs
+        session_manager.save_session(sess)
+
+        # Store in live cache
+        _set_session_data(sid, {
+            "manual": lab_manual,
+            "cfg": cfg,
+            "target_manual_path": target_manual_path,
+        })
+
+        return {
+            "success": True,
+            "session_id": sid,
+            "manual": {
+                "title": _format_lab_title(lab_manual),
+                "lab_number": lab_manual.lab_number,
+                "course_name": lab_manual.course_name,
+                "objectives": getattr(lab_manual, "objectives", []) or [],
+                "tools": getattr(lab_manual, "tools", []) or [],
+                "task_count": len(lab_manual.tasks),
+                "analysis_count": len(getattr(lab_manual, "analysis_questions", []) or []),
+                "viva_count": len(getattr(lab_manual, "viva_questions", []) or []),
+            },
+            "tasks": [
+                {
+                    "task_id": t.task_id,
+                    "title": t.title,
+                    "description": t.description,
+                    "language": t.language,
+                    "sample_input": t.sample_input,
+                    "expected_output": t.expected_output,
+                }
+                for t in lab_manual.tasks
+            ],
+            "analysis_questions": [
+                {"id": idx, "question": q}
+                for idx, q in enumerate(getattr(lab_manual, "analysis_questions", []) or [], 1)
+            ],
+            "viva_questions": [
+                {"id": idx, "question": q}
+                for idx, q in enumerate(getattr(lab_manual, "viva_questions", []) or [], 1)
+            ],
+            "requirements": [r.model_dump() for r in sess.requirements],
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/generate-from-session")
+async def generate_from_session(payload: dict = Body(...)):
+    """
+    Step 3 of Wizard:
+    Takes confirmed or edited requirements from a previously extracted session,
+    executes orchestration, captures screenshots, and builds reports.
+    """
+    try:
+        sid = payload.get("session_id")
+        if not sid:
+            raise HTTPException(status_code=400, detail="session_id is required")
+
+        sess = session_manager.get_session(sid)
+        if not sess:
+            raise HTTPException(status_code=404, detail=f"Session {sid} not found")
+
+        session_dir = session_manager.get_session_dir(sid)
+        session_data = _get_active_session_data(sid) or {}
+        lab_manual = session_data.get("manual")
+        cfg = session_data.get("cfg") or Config.load()
+        cfg.system.workspace_dir = str(session_dir)
+
+        provider = payload.get("provider")
+        api_key = payload.get("api_key")
+        theme = payload.get("theme")
+        instructions = payload.get("instructions") or ""
+        formats = payload.get("formats") or "docx,pdf"
+
+        if provider:
+            if provider == "gemini-pro":
+                cfg.ai.provider = "gemini"
+                cfg.ai.model = "gemini-2.5-pro"
+            elif provider == "gemini-flash":
+                cfg.ai.provider = "gemini"
+                cfg.ai.model = "gemini-2.5-flash"
+            elif provider == "gemini-1.5-pro":
+                cfg.ai.provider = "gemini"
+                cfg.ai.model = "gemini-1.5-pro"
+            elif provider in ["groq", "groq-llama-70b"]:
+                cfg.ai.provider = "groq"
+                cfg.ai.model = "llama-3.3-70b-versatile"
+            elif provider == "groq-8b":
+                cfg.ai.provider = "groq"
+                cfg.ai.model = "llama-3.1-8b-instant"
+            else:
+                cfg.ai.provider = provider
+        if api_key:
+            cfg.ai.api_key = api_key
+        if theme:
+            cfg.terminal.theme = theme
+
+        if not lab_manual:
+            file_path = sess.manual_info.file_path
+            if file_path and Path(file_path).exists():
+                parser_obj = ManualParser(file_path, subject_name=sess.manual_info.course_name)
+                lab_manual = parser_obj.parse()
+            else:
+                raise HTTPException(status_code=400, detail="Lab manual data not found for session.")
+
+        # Apply any task edits from review step
+        if "tasks" in payload and isinstance(payload["tasks"], list):
+            updated_tasks = []
+            for t in payload["tasks"]:
+                updated_tasks.append(LabTask(
+                    task_id=int(t.get("task_id", len(updated_tasks) + 1)),
+                    title=t.get("title", f"Task {len(updated_tasks) + 1}"),
+                    description=t.get("description", ""),
+                    language=t.get("language", "c"),
+                    sample_input=t.get("sample_input"),
+                    expected_output=t.get("expected_output"),
+                ))
+            lab_manual.tasks = updated_tasks
+
+        # Apply any analysis question edits
+        if "analysis_questions" in payload and isinstance(payload["analysis_questions"], list):
+            lab_manual.analysis_questions = [
+                q if isinstance(q, str) else q.get("question", "")
+                for q in payload["analysis_questions"]
+            ]
+
+        # Update session requirements
+        reqs = []
+        for t in lab_manual.tasks:
+            reqs.append(Requirement(
+                id=f"task_{t.task_id}",
+                task_id=t.task_id,
+                type=RequirementType.TASK,
+                title=t.title or f"Task {t.task_id}",
+                description=t.description or "",
+                language=t.language or "c",
+                status=RequirementStatus.PENDING,
+                sample_input=t.sample_input,
+                expected_output=t.expected_output,
+            ))
+        for idx, q in enumerate(getattr(lab_manual, "analysis_questions", []) or [], 1):
+            reqs.append(Requirement(
+                id=f"analysis_{idx}",
+                task_id=idx,
+                type=RequirementType.ANALYSIS_QUESTION,
+                title=f"Analysis Question {idx}",
+                description=q,
+                status=RequirementStatus.PENDING,
+            ))
+        for idx, q in enumerate(getattr(lab_manual, "viva_questions", []) or [], 1):
+            reqs.append(Requirement(
+                id=f"viva_{idx}",
+                task_id=idx,
+                type=RequirementType.VIVA_QUESTION,
+                title=f"Viva Question {idx}",
+                description=q,
+                status=RequirementStatus.PENDING,
+            ))
+        sess.requirements = reqs
+        session_manager.save_session(sess)
+
+        # Modules
+        provider_mode = "Smart Offline (Deterministic Rules)"
+        if cfg.ai.provider == "gemini" and (cfg.ai.api_key or os.environ.get("GEMINI_API_KEY")):
+            provider_mode = f"Google Gemini ({cfg.ai.model or '2.5-pro'})"
+        elif cfg.ai.provider == "groq" and (cfg.ai.api_key or os.environ.get("GROQ_API_KEY")):
+            provider_mode = f"Groq Cloud ({cfg.ai.model or 'llama-3.3-70b'})"
+        elif cfg.ai.provider in ["openai", "openrouter"] and (cfg.ai.api_key or os.environ.get("OPENAI_API_KEY")):
+            provider_mode = f"OpenAI ({cfg.ai.model or 'gpt-4o-mini'})"
+        elif cfg.ai.provider == "ollama":
+            provider_mode = f"Ollama ({cfg.ai.ollama_model})"
+        lab_manual._provider_used = provider_mode
+        lab_manual._custom_instructions = instructions.strip() if instructions else ""
+
+        orchestrator = TaskOrchestrator(cfg)
+        solutions, exec_results, validation_report = orchestrator.process_session(
+            session=sess,
+            manual=lab_manual,
+            custom_instructions=instructions or "",
+        )
+
+        studio = ScreenshotStudio(cfg)
+        builder = DocumentBuilder(cfg)
+        sanitizer = DocumentSanitizer(cfg)
+
+        screenshots = []
+        for sol, res in zip(solutions, exec_results):
+            code_img, out_img = studio.capture_task_screenshots(sol, res)
+            screenshots.append((code_img, out_img))
+
+        if getattr(lab_manual, "observation_tables", None):
+            solver_tmp = TaskSolver(cfg)
+            lab_manual.observation_tables = solver_tmp.populate_observation_tables(
+                lab_manual.observation_tables,
+                exec_results=exec_results
+            )
+
+        clean_lab = f"LAB{lab_manual.lab_number}_completed" if lab_manual.lab_number else "Completed_Lab_Report"
+
+        compiled_files = _recompile_all_formats(
+            builder, sanitizer, lab_manual, solutions, exec_results, screenshots, clean_lab, formats=formats or "docx,pdf"
+        )
+
+        session_data = {
+            "manual": lab_manual,
+            "solutions": solutions,
+            "exec_results": exec_results,
+            "screenshots": screenshots,
+            "cfg": cfg,
+            "clean_lab": clean_lab,
+            "instructions": instructions,
+        }
+        _set_session_data(sid, session_data)
+
+        sess.artifacts = SessionArtifacts(
+            docx_path=str(OUTPUT_DIR / compiled_files["docx"]) if compiled_files.get("docx") else None,
+            pdf_path=str(OUTPUT_DIR / compiled_files["pdf"]) if compiled_files.get("pdf") else None,
+        )
+        session_manager.save_session(sess)
+
+        tasks_response = _build_tasks_response(lab_manual.tasks, solutions, exec_results, screenshots)
+
+        return _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg, session_id=sid, validation_report=validation_report.model_dump() if validation_report else None)
 
     except Exception as e:
         import traceback
@@ -467,18 +1025,21 @@ async def run_lab(
 async def refine_lab(
     instruction: str = Form(...),
     task_id: Optional[str] = Form(None),
+    session_id: Optional[str] = Form(None),
 ):
     """Refines existing solutions using user natural language instructions."""
     try:
-        if not CURRENT_LAB or "manual" not in CURRENT_LAB:
+        session_data = _get_active_session_data(session_id)
+        if not session_data or "manual" not in session_data:
             raise HTTPException(status_code=400, detail="No active lab to refine. Please solve a lab first.")
 
-        cfg = CURRENT_LAB["cfg"]
-        lab_manual = CURRENT_LAB["manual"]
-        solutions = CURRENT_LAB["solutions"]
-        exec_results = CURRENT_LAB["exec_results"]
-        screenshots = CURRENT_LAB["screenshots"]
-        clean_lab = CURRENT_LAB["clean_lab"]
+        cfg = session_data["cfg"]
+        lab_manual = session_data["manual"]
+        solutions = session_data["solutions"]
+        exec_results = session_data["exec_results"]
+        screenshots = session_data["screenshots"]
+        clean_lab = session_data["clean_lab"]
+        sid = session_id or session_manager.get_active_session_id()
 
         solver = TaskSolver(cfg)
         runner = CodeRunner(cfg)
@@ -515,7 +1076,7 @@ async def refine_lab(
 
         tasks_response = _build_tasks_response(lab_manual.tasks, solutions, exec_results, screenshots)
 
-        return _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg, message="Successfully updated and re-executed with instructions!")
+        return _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg, session_id=sid, message="Successfully updated and re-executed with instructions!")
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -527,18 +1088,21 @@ async def edit_task(
     task_id: int = Form(...),
     code: str = Form(...),
     explanation: Optional[str] = Form(None),
+    session_id: Optional[str] = Form(None),
 ):
     """Directly updates task source code / explanation, re-executes locally, and regenerates all formats."""
     try:
-        if not CURRENT_LAB or "manual" not in CURRENT_LAB:
+        session_data = _get_active_session_data(session_id)
+        if not session_data or "manual" not in session_data:
             raise HTTPException(status_code=400, detail="No active lab found. Please solve a lab first.")
 
-        cfg = CURRENT_LAB["cfg"]
-        lab_manual = CURRENT_LAB["manual"]
-        solutions = CURRENT_LAB["solutions"]
-        exec_results = CURRENT_LAB["exec_results"]
-        screenshots = CURRENT_LAB["screenshots"]
-        clean_lab = CURRENT_LAB["clean_lab"]
+        cfg = session_data["cfg"]
+        lab_manual = session_data["manual"]
+        solutions = session_data["solutions"]
+        exec_results = session_data["exec_results"]
+        screenshots = session_data["screenshots"]
+        clean_lab = session_data["clean_lab"]
+        sid = session_id or session_manager.get_active_session_id()
 
         runner = CodeRunner(cfg)
         studio = ScreenshotStudio(cfg)
@@ -574,7 +1138,7 @@ async def edit_task(
         )
 
         tasks_response = _build_tasks_response(lab_manual.tasks, solutions, exec_results, screenshots)
-        return _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg)
+        return _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg, session_id=sid)
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -594,18 +1158,21 @@ async def edit_cover(
     include_logo: Optional[str] = Form(None),
     logo_choice: Optional[str] = Form(None),
     custom_logo: Optional[UploadFile] = File(None),
+    session_id: Optional[str] = Form(None),
 ):
     """Directly updates cover page details and regenerates all document formats."""
     try:
-        if not CURRENT_LAB or "manual" not in CURRENT_LAB:
+        session_data = _get_active_session_data(session_id)
+        if not session_data or "manual" not in session_data:
             raise HTTPException(status_code=400, detail="No active lab found. Please solve a lab first.")
 
-        cfg = CURRENT_LAB["cfg"]
-        lab_manual = CURRENT_LAB["manual"]
-        solutions = CURRENT_LAB["solutions"]
-        exec_results = CURRENT_LAB["exec_results"]
-        screenshots = CURRENT_LAB["screenshots"]
-        clean_lab = CURRENT_LAB["clean_lab"]
+        cfg = session_data["cfg"]
+        lab_manual = session_data["manual"]
+        solutions = session_data["solutions"]
+        exec_results = session_data["exec_results"]
+        screenshots = session_data["screenshots"]
+        clean_lab = session_data["clean_lab"]
+        sid = session_id or session_manager.get_active_session_id()
 
         if name:
             cfg.student.name = name.strip()
@@ -655,7 +1222,7 @@ async def edit_cover(
         )
 
         tasks_response = _build_tasks_response(lab_manual.tasks, solutions, exec_results, screenshots)
-        return _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg, message="Cover page updated and report recompiled successfully!")
+        return _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg, session_id=sid, message="Cover page updated and report recompiled successfully!")
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -706,44 +1273,74 @@ async def preview_html(filename: str):
 
 
 @app.get("/api/current-lab")
-async def get_current_lab():
+async def get_current_lab(session_id: Optional[str] = None):
     """Returns currently loaded or completed lab report data for instant UI session recovery."""
-    if LAST_RESULT and LAST_RESULT.get("success"):
-        return LAST_RESULT
+    res = _get_last_result(session_id)
+    if res and res.get("success"):
+        return res
     return {"success": False, "message": "No active lab report found."}
 
 
 @app.post("/api/close-lab")
-async def close_lab():
+async def close_lab(session_id: Optional[str] = Form(None)):
     """Closes the current active lab session, clearing state so the student can upload/create a new lab."""
-    global CURRENT_LAB, LAST_RESULT
-    CURRENT_LAB.clear()
-    LAST_RESULT.clear()
-    if WORKSPACE_DIR.exists():
-        for p in WORKSPACE_DIR.iterdir():
-            try:
-                if p.is_dir():
-                    shutil.rmtree(p)
-                else:
-                    p.unlink()
-            except Exception:
-                pass
+    target_id = session_id or session_manager.get_active_session_id()
+    if target_id:
+        session_manager.delete_session(target_id)
     return {"success": True, "message": "Active lab session closed. Ready for new lab manual."}
+
+
+@app.get("/api/sessions")
+async def list_sessions():
+    """Lists all active and recent lab sessions."""
+    sessions = session_manager.list_sessions()
+    return {"success": True, "sessions": sessions, "active_session_id": session_manager.get_active_session_id()}
+
+
+@app.get("/api/sessions/{session_id}")
+async def get_session_details(session_id: str):
+    """Retrieves full serialized state for a given session."""
+    sess = session_manager.get_session(session_id)
+    if not sess:
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+    last_res = session_manager.get_live_data(session_id, "last_result")
+    return {"success": True, "session": sess.model_dump(), "last_result": last_res}
+
+
+@app.post("/api/sessions/{session_id}/activate")
+async def activate_session(session_id: str):
+    """Sets a specific session as active."""
+    sess = session_manager.get_session(session_id)
+    if not sess:
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+    session_manager.set_active_session_id(session_id)
+    last_res = session_manager.get_live_data(session_id, "last_result")
+    return {"success": True, "session_id": session_id, "last_result": last_res}
+
+
+@app.delete("/api/sessions/{session_id}")
+async def delete_session_endpoint(session_id: str):
+    """Deletes a session and removes its workspace directory."""
+    success = session_manager.delete_session(session_id)
+    return {"success": success}
 
 
 @app.post("/api/save-document-canvas")
 async def save_document_canvas(payload: dict = Body(...)):
     """Receives inline edits made on the document canvas (like a text editor) and recompiles all formats."""
     try:
-        if not CURRENT_LAB or "manual" not in CURRENT_LAB:
+        session_id = payload.get("session_id")
+        session_data = _get_active_session_data(session_id)
+        if not session_data or "manual" not in session_data:
             raise HTTPException(status_code=400, detail="No active lab to update. Please solve a lab first.")
 
-        cfg = CURRENT_LAB["cfg"]
-        lab_manual = CURRENT_LAB["manual"]
-        solutions = CURRENT_LAB["solutions"]
-        exec_results = CURRENT_LAB["exec_results"]
-        screenshots = CURRENT_LAB["screenshots"]
-        clean_lab = CURRENT_LAB["clean_lab"]
+        cfg = session_data["cfg"]
+        lab_manual = session_data["manual"]
+        solutions = session_data["solutions"]
+        exec_results = session_data["exec_results"]
+        screenshots = session_data["screenshots"]
+        clean_lab = session_data["clean_lab"]
+        sid = session_id or session_manager.get_active_session_id()
 
         # 1. Update Cover metadata if present
         cover = payload.get("cover", {})
@@ -836,7 +1433,7 @@ async def save_document_canvas(payload: dict = Body(...)):
         )
 
         tasks_response = _build_tasks_response(lab_manual.tasks, solutions, exec_results, screenshots)
-        return _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg, message="All document edits saved and recompiled across all formats!")
+        return _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg, session_id=sid, message="All document edits saved and recompiled across all formats!")
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -851,10 +1448,15 @@ async def execute_scratchpad(payload: dict = Body(...)):
         code = payload.get("code") or ""
         stdin_input = payload.get("stdin") or ""
 
-        scratch_dir = WORKSPACE_DIR / "scratchpad"
+        session_id = payload.get("session_id") or session_manager.get_active_session_id()
+        if session_id:
+            scratch_dir = session_manager.get_session_dir(session_id) / "scratchpad"
+        else:
+            scratch_dir = WORKSPACE_DIR / "scratchpad"
         scratch_dir.mkdir(parents=True, exist_ok=True)
 
-        cfg = CURRENT_LAB.get("cfg") if CURRENT_LAB else Config.load()
+        session_data = _get_active_session_data(session_id)
+        cfg = session_data["cfg"] if session_data and "cfg" in session_data else Config.load()
         import time, subprocess, sys
 
         start_time = time.time()
@@ -954,17 +1556,18 @@ async def execute_scratchpad(payload: dict = Body(...)):
 
 
 @app.get("/api/download-bundle")
-async def download_submission_bundle():
+async def download_submission_bundle(session_id: Optional[str] = None):
     """Packages reports, source code files, and authentic screenshots into a 1-click submission ZIP."""
     import zipfile, io
-    if not CURRENT_LAB or "clean_lab" not in CURRENT_LAB:
+    session_data = _get_active_session_data(session_id)
+    if not session_data or "clean_lab" not in session_data:
         raise HTTPException(status_code=400, detail="No active lab to bundle. Please solve a lab first.")
 
-    clean_lab = CURRENT_LAB["clean_lab"]
-    cfg = CURRENT_LAB["cfg"]
-    lab_manual = CURRENT_LAB["manual"]
-    solutions = CURRENT_LAB["solutions"]
-    screenshots = CURRENT_LAB["screenshots"]
+    clean_lab = session_data["clean_lab"]
+    cfg = session_data["cfg"]
+    lab_manual = session_data["manual"]
+    solutions = session_data["solutions"]
+    screenshots = session_data["screenshots"]
 
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:

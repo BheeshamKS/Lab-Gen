@@ -2877,3 +2877,281 @@ input:checked + .slider:before {
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 
+/* ==========================================================================
+   Wizard Step 2: Requirements Review & Quality Gate Styling
+   ========================================================================== */
+.wizard-review-card {
+  padding: 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  margin-bottom: 24px;
+}
+
+.step-indicator-pill {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: #ffffff;
+  color: #000000;
+  padding: 2px 8px;
+  border-radius: var(--radius-xs);
+  margin-bottom: 8px;
+}
+
+.review-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.review-title-group h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.review-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.review-meta-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.manual-overview-banner {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 14px 18px;
+  margin-bottom: 24px;
+}
+
+.overview-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.overview-objectives {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.review-section {
+  margin-bottom: 24px;
+}
+
+.review-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.review-section-header h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.review-tasks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.review-task-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  transition: var(--transition);
+}
+
+.review-task-card:hover {
+  border-color: var(--border-hover);
+}
+
+.review-task-top-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.task-num-badge {
+  background: #262626;
+  color: #ededed;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  white-space: nowrap;
+}
+
+.review-task-title-input {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  color: #ffffff;
+  padding: 6px 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.review-task-title-input:focus {
+  border-color: #ffffff;
+  outline: none;
+}
+
+.review-task-lang-select {
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  color: #ededed;
+  padding: 6px 8px;
+  font-size: 0.8rem;
+}
+
+.review-task-desc-input {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  color: var(--text-main);
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  resize: vertical;
+}
+
+.review-task-desc-input:focus {
+  border-color: #ffffff;
+  outline: none;
+}
+
+.review-questions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.review-question-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+}
+
+.question-num-badge {
+  background: #262626;
+  color: #ededed;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--radius-xs);
+}
+
+.review-question-input {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  color: var(--text-main);
+  padding: 6px 10px;
+  font-size: 0.85rem;
+}
+
+.review-question-input:focus {
+  border-color: #ffffff;
+  outline: none;
+}
+
+.review-footer-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+/* Quality Gate Validation Banner */
+.quality-gate-card {
+  background: #0a0a0a;
+  border: 1px solid #238636;
+  border-radius: var(--radius-sm);
+  padding: 16px 20px;
+  margin-bottom: 20px;
+}
+
+.quality-gate-card.has-warnings {
+  border-color: #d29922;
+}
+
+.quality-gate-card.has-errors {
+  border-color: #f85149;
+}
+
+.gate-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.gate-badge-wrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.gate-icon {
+  width: 32px;
+  height: 32px;
+  background: #238636;
+  color: #ffffff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 16px;
+}
+
+.quality-gate-card.has-warnings .gate-icon {
+  background: #d29922;
+}
+
+.quality-gate-card.has-errors .gate-icon {
+  background: #f85149;
+}
+
+.gate-badge-wrap h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 2px;
+}
+
+.gate-badge-wrap p {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+

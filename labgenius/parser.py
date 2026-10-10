@@ -64,6 +64,9 @@ class ManualParser:
         r"^(?:\d+[\.\)]\s*)?(?:practice\s+)?problems?[\s:]*$",
         r"programs\s+to\s+implement[\s:]*$",
         r"^(?:\d+[\.\)]\s*)?assignment\s+tasks?[\s:]*$",
+        r"^(?:\d+[\.\)]\s*)?task\s+requirements?[\s:]*$",
+        r"^(?:\d+[\.\)]\s*)?requirements?[\s:]*$",
+        r"^(?:\d+[\.\)]\s*)?problem\s+statements?[\s:]*$",
     ]
 
     TASK_KEYWORD_PATTERN = (
@@ -187,7 +190,7 @@ class ManualParser:
                     break
 
         # 2. Find and Extract ONLY the Task Section, Viva Questions, Analysis Questions, and Tables
-        tasks, preamble_context, viva_questions, analysis_questions, observation_tables = self._extract_tasks_from_docx_body(doc, lab_number, overall_lang)
+        tasks, preamble_context, viva_questions, analysis_questions, observation_tables = self._extract_tasks_from_docx_body(doc, lab_number, overall_lang, title=title)
 
         return LabManual(
             file_path=self.path,
@@ -205,7 +208,7 @@ class ManualParser:
         )
 
     def _extract_tasks_from_docx_body(
-        self, doc: Any, lab_number: str, default_lang: str
+        self, doc: Any, lab_number: str, default_lang: str, title: str = ""
     ) -> Tuple[List[LabTask], str, List[str], List[str], List[Dict[str, Any]]]:
         """Traverses document body to extract tasks, viva questions, analysis questions, and observation tables."""
         tasks: List[LabTask] = []
@@ -219,6 +222,7 @@ class ManualParser:
         in_algos_section = False
         in_input_section = False
         in_proc_section = False
+        in_algorithm_block = False
 
         algo_items: List[str] = []
         input_data_lines: List[str] = []
@@ -262,7 +266,8 @@ class ManualParser:
         has_explicit_experiment_headings = len(explicit_headings) >= 2 or (len(explicit_headings) >= 1 and explicit_headings[0] == 1)
 
         def save_task():
-            nonlocal current_task_num, current_task_title, current_task_lines
+            nonlocal current_task_num, current_task_title, current_task_lines, in_algorithm_block
+            in_algorithm_block = False
             if current_task_num > 0 and (current_task_lines or current_task_title):
                 desc = "\n".join(current_task_lines).strip()
                 first_line = current_task_lines[0].strip() if current_task_lines else ""
@@ -270,6 +275,15 @@ class ManualParser:
                     first_line_clean = first_line.splitlines()[0].strip()
                     t_snippet = first_line_clean[:130].strip() if len(first_line_clean) > 130 else first_line_clean
                     current_task_title = f"Task {current_task_num}: {t_snippet}"
+
+                clean_sub = re.sub(r"^task\s*\d+[\s:\-]*", "", current_task_title, flags=re.IGNORECASE).strip().rstrip(":")
+                if clean_sub.lower().endswith("that") or clean_sub.lower() in ["create a python program", "write a python program", "implement a python program"]:
+                    if title and len(title) > 5 and "lab" not in title.lower():
+                        clean_sub = f"Implementation & Performance Comparison of {title.title()}"
+                    else:
+                        clean_sub = re.sub(r"\s+that$", "", clean_sub, flags=re.IGNORECASE).strip()
+                    current_task_title = f"Task {current_task_num}: {clean_sub}"
+
                 tasks.append(
                     LabTask(
                         task_id=current_task_num,
@@ -293,7 +307,7 @@ class ManualParser:
                     continue
 
                 # Section: Viva Questions
-                if re.search(r"^(?:\d+[\.\)]\s*)?viva\s*(?:questions?|voce)?[\s:]*$", p_text, re.IGNORECASE):
+                if re.search(r"^(?:\d+[\.\)]\s*)?(?:viva\s*(?:questions?|voce)?|interview\s*questions?)[\s:]*$", p_text, re.IGNORECASE):
                     save_task()
                     in_viva_section = True
                     in_analysis_section = False
@@ -304,7 +318,7 @@ class ManualParser:
                     continue
 
                 # Section: Analysis Questions
-                if re.search(r"^(?:\d+[\.\)]\s*)?analysis\s*questions?[\s:]*$", p_text, re.IGNORECASE):
+                if re.search(r"^(?:\d+[\.\)]\s*)?(?:analysis\s*questions?|questions?\s+(?:for\s+)?analysis)[\s:]*$", p_text, re.IGNORECASE):
                     save_task()
                     in_analysis_section = True
                     in_viva_section = False
@@ -438,6 +452,20 @@ class ManualParser:
                     if not in_task_section or not p_text:
                         continue
 
+                if re.search(r"^(?:algorithm|pseudocode)[\s:]", p_text, re.IGNORECASE):
+                    in_algorithm_block = True
+                    if current_task_num > 0:
+                        current_task_lines.append(p_text)
+                    else:
+                        preamble_lines.append(p_text)
+                    continue
+
+                if re.search(r"^code\s*(?:\([^)]*\))?[\s:]*$", p_text, re.IGNORECASE) or (p_text.lower().startswith("code") and "attach" in p_text.lower()):
+                    save_task()
+                    in_task_section = False
+                    in_algorithm_block = False
+                    continue
+
                 if any(p_text.lower().startswith(intro) for intro in intro_starters):
                     if current_task_lines:
                         preamble_lines.extend(current_task_lines)
@@ -480,13 +508,14 @@ class ManualParser:
                         current_task_lines = [b_text]
                         continue
 
-                    first_word = p_text.split()[0].lower().rstrip(":,.-") if p_text.split() else ""
-                    if first_word in imperatives and len(p_text) > 10:
-                        save_task()
-                        current_task_num += 1
-                        current_task_title = f"Task {current_task_num}: {p_text[:130]}"
-                        current_task_lines = [p_text]
-                        continue
+                    if not in_algorithm_block:
+                        first_word = p_text.split()[0].lower().rstrip(":,.-") if p_text.split() else ""
+                        if first_word in imperatives and len(p_text) > 10:
+                            save_task()
+                            current_task_num += 1
+                            current_task_title = f"Task {current_task_num}: {p_text[:130]}"
+                            current_task_lines = [p_text]
+                            continue
 
                 if in_task_section:
                     # Skip duplicate subtitle if already adopted into current_task_title
