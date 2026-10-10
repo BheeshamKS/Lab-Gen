@@ -569,7 +569,7 @@ function handleSubjectSelectChange() {
 
   if (box) box.classList.remove('highlight-required');
 
-  const val = select ? select.value : '';
+  const val = select ? select.value : 'auto';
   if (val === 'other') {
     if (otherContainer) otherContainer.style.display = 'block';
     if (otherInput) otherInput.focus();
@@ -589,28 +589,22 @@ function handleSubjectSelectChange() {
       badge.textContent = 'DSA Active';
       badge.className = 'hint-badge active-badge';
     }
+  } else {
+    if (otherContainer) otherContainer.style.display = 'none';
+    if (badge) {
+      badge.textContent = 'Auto-Detect';
+      badge.className = 'hint-badge active-badge';
+    }
   }
 }
 
 async function runLabPipeline() {
   if (!currentFile) return;
 
-  // Mandatory Subject / Course Validation
   const subjectSelect = document.getElementById('subject-select');
-  const selectedSubject = subjectSelect ? subjectSelect.value.trim() : '';
+  const selectedSubject = subjectSelect && subjectSelect.value ? subjectSelect.value.trim() : 'auto';
   const otherInput = document.getElementById('other-subject-input');
   const customSubjectName = otherInput ? otherInput.value.trim() : '';
-
-  if (!selectedSubject) {
-    const box = document.getElementById('subject-selection-box');
-    if (box) {
-      box.classList.add('highlight-required');
-      box.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-    if (subjectSelect) subjectSelect.focus();
-    alert('⚠️ Please select a Subject / Course before generating the lab!\nChoose either Database Systems (DBMS), Data Structures & Algorithms (DSA), or Other Subject.');
-    return;
-  }
 
   if (selectedSubject === 'other' && !customSubjectName) {
     if (otherInput) {
@@ -666,10 +660,25 @@ async function runLabPipeline() {
 
   const selectedProvider = document.getElementById('ai-provider').value;
   const enteredApiKey = document.getElementById('api-key')?.value.trim() || '';
+  const customInst = document.getElementById('custom-instructions') ? document.getElementById('custom-instructions').value.trim() : '';
+
   if ((selectedProvider === 'groq' || selectedProvider === 'groq-8b') && !enteredApiKey) {
     alert("Groq Cloud requires an API Key. Please paste your free Groq API key (starts with 'gsk_...') in the API Key input box, or choose 'Smart Offline Demo Mode'.");
     document.getElementById('api-key')?.focus();
     return;
+  }
+
+  if ((selectedProvider.startsWith('gemini') || selectedProvider === 'openai') && !enteredApiKey && customInst) {
+    const proceed = confirm(
+      `Notice: You specified Custom Instructions, but no API Key was entered for ${selectedProvider}.\n\n` +
+      `Without an API Key, LabGenius will run in Smart Offline Mode using rule-based heuristics.\n\n` +
+      `• Click OK to continue in Smart Offline Mode.\n` +
+      `• Click Cancel to paste your API Key in the left sidebar.`
+    );
+    if (!proceed) {
+      document.getElementById('api-key')?.focus();
+      return;
+    }
   }
 
   formData.append('provider', selectedProvider);
@@ -681,7 +690,6 @@ async function runLabPipeline() {
   if (termUser) formData.append('username', termUser);
   if (termHost) formData.append('hostname', termHost);
 
-  const customInst = document.getElementById('custom-instructions') ? document.getElementById('custom-instructions').value : '';
   if (customInst) formData.append('instructions', customInst);
 
   // Formats to generate (PDF and Word DOCX only)
@@ -896,6 +904,10 @@ async function closeAndStartNewLab() {
   const customInst = document.getElementById('custom-instructions');
   if (customInst) customInst.value = '';
 
+  const subjectSelect = document.getElementById('subject-select');
+  if (subjectSelect) subjectSelect.value = 'auto';
+  handleSubjectSelectChange();
+
   const docNavBtn = document.getElementById('btn-doc-nav');
   if (docNavBtn) docNavBtn.style.display = 'none';
 
@@ -952,6 +964,24 @@ function renderResults(data, preferredView = null) {
     document.getElementById('meta-author').textContent = `Author: ${data.metadata.creator || 'Student'}`;
     document.getElementById('meta-time').textContent = `Active Edit Time: ${data.metadata.total_time_mins || '78'} mins`;
     document.getElementById('meta-rev').textContent = `Revision: ${data.metadata.revision || '6'}`;
+  }
+
+  const enginePill = document.getElementById('meta-engine');
+  if (enginePill && data.provider_used) {
+    enginePill.textContent = `Engine: ${data.provider_used}`;
+    enginePill.style.display = 'inline-block';
+  }
+
+  const instPill = document.getElementById('meta-custom-inst');
+  if (instPill) {
+    if (data.custom_instructions) {
+      const truncated = data.custom_instructions.length > 35 ? data.custom_instructions.slice(0, 32) + '...' : data.custom_instructions;
+      instPill.textContent = `Applied Instructions: "${truncated}"`;
+      instPill.title = data.custom_instructions;
+      instPill.style.display = 'inline-block';
+    } else {
+      instPill.style.display = 'none';
+    }
   }
 
   // Multi-format download buttons (PDF and Word DOCX only)

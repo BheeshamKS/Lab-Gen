@@ -119,6 +119,12 @@ python3 -m labgenius.cli \
 ```
 Demonstrates parsing, code execution, Linux terminal capture, Word compilation, metadata cloaking, and anti-AI verification.
 
+### 4. Run Automated Test Suite
+```bash
+.venv/bin/python3 -m unittest discover -s tests
+```
+Executes all 26 automated unit, parser, leave-one-lab-out held-out generalization, and multi-lab end-to-end integration tests.
+
 ---
 
 ## 🛠️ Supported Languages & Runtimes
@@ -233,15 +239,24 @@ Lab-Gen/
 │   └── app.js               # Reactive client-side logic & canvas sync
 ├── labgenius/               # Core Python engine
 │   ├── __init__.py
+│   ├── assets/              # Reusable reference corpus data & assets
+│   │   └── reference_corpus.json
 │   ├── config.py            # YAML configuration loader & validation
-│   ├── parser.py            # DOCX / PDF / TXT task extraction & table parser
-│   ├── solver.py            # AI solver, clean code post-processor & buzzword scrubber
+│   ├── corpus.py            # Persistent reference corpus & held-out pattern selector
+│   ├── parser.py            # DOCX / PDF / TXT task extraction & subject auto-detector
+│   ├── solver.py            # AI solver, AST syntax validator & bounded auto-heal
 │   ├── runner.py            # Native multi-language code runner (Python, C, C++, Bash)
-│   ├── sql_runner.py        # SQLite query executor & ASCII table formatter
+│   ├── sql_runner.py        # T-SQL & SQLite executor with SSMS ASCII table formatting
 │   ├── capture.py           # Authentic Linux terminal & graph screenshot studio
 │   ├── builder.py           # Academic document compiler & cover page builder
 │   ├── sanitizer.py         # Word XML unpacker, metadata cloaker & anti-AI scrubber
 │   └── cli.py               # Rich terminal CLI runner
+├── tests/                   # Automated test suite (26 passing tests)
+│   ├── test_corpus.py       # Corpus loading, subject filtering & held-out isolation
+│   ├── test_parser.py       # Auto-detect subject, lettered/numbered task extraction
+│   ├── test_held_out_generalization.py # Leave-one-lab-out tests & synthetic unseen labs
+│   └── test_workflow_e2e.py # End-to-end multi-lab consecutive session isolation
+├── uploads/                 # Original 10 unsolved reference lab manuals (DSA 1–5, DBMS 1–5)
 ├── examples/                # Sample lab manuals & university templates
 │   ├── sample_lab_manual.docx
 │   └── first-page.doc       # Official Dawood University reference cover page

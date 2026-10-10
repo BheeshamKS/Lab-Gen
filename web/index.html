@@ -221,13 +221,13 @@
             <div class="subject-selection-box" id="subject-selection-box">
               <div class="section-title-row">
                 <label for="subject-select" class="section-label">
-                  Subject / Course <span class="required-badge">* Mandatory</span>
+                  Subject / Course <span class="required-badge">Auto or Select</span>
                 </label>
-                <span class="hint-badge" id="subject-hint-badge">Choose Subject</span>
+                <span class="hint-badge active-badge" id="subject-hint-badge">Auto-Detect</span>
               </div>
               <div class="subject-select-wrapper">
                 <select id="subject-select" class="subject-select-dropdown" onchange="handleSubjectSelectChange()">
-                  <option value="" disabled selected>-- Select Subject / Course (Required) --</option>
+                  <option value="auto" selected>✨ Auto-Detect from Manual (Recommended)</option>
                   <option value="dbms">Database Systems (DBMS)</option>
                   <option value="dsa">Data Structures &amp; Algorithms (DSA)</option>
                   <option value="other">Other Subject? (Custom)</option>
@@ -313,6 +313,8 @@
                   <span class="meta-pill" id="meta-time">Edit Time: 78 mins</span>
                   <span class="meta-pill" id="meta-rev">Revision: 6</span>
                   <span class="meta-pill meta-safe" id="meta-clean">Zero AI Fingerprints</span>
+                  <span class="meta-pill" id="meta-engine" style="display: none;">Engine: Smart Offline</span>
+                  <span class="meta-pill" id="meta-custom-inst" style="display: none; border-color: #ffffff; color: #ffffff;">Instructions Active</span>
                 </div>
               </div>
             </div>

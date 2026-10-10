@@ -61,15 +61,34 @@ def execute_sql_file(sql_path: Path, db_path: Path, student_name: str, roll_no: 
     for stmt in raw_statements:
         stmt_upper = stmt.upper()
 
-        # Ignore GO or database creation/use statements gracefully in SQLite
-        if stmt_upper.startswith(("CREATE DATABASE", "USE ")) or stmt_upper == "GO":
+        # Ignore GO or database creation/alter/drop/use statements gracefully in SQLite
+        if stmt_upper.startswith(("CREATE DATABASE", "ALTER DATABASE", "DROP DATABASE", "USE ")) or stmt_upper == "GO":
             executed_count += 1
-            if not had_output:
-                output_lines.append("Commands completed successfully.")
+            output_lines.append("Commands completed successfully.")
+            had_output = True
+            continue
+
+        # 1. System Metadata & Server Properties
+        if "@@VERSION" in stmt_upper or "@@SERVERNAME" in stmt_upper or "SERVERPROPERTY" in stmt_upper:
+            executed_count += 1
+            if "@@VERSION" in stmt_upper:
+                headers = ["Microsoft SQL Server Version"]
+                rows = [("Microsoft SQL Server 2022 (RTM) - 16.0.1000.6 (X64) \n\tOct  8 2022 05:58:25 \n\tCopyright (C) 2022 Microsoft Corporation\n\tExpress Edition (64-bit) on Windows 11 Enterprise",)]
+                output_lines.append(format_table(headers, rows))
+                had_output = True
+            elif "@@SERVERNAME" in stmt_upper:
+                headers = ["Server Instance"]
+                rows = [("DESKTOP-4K7B2Q1\\SQLEXPRESS",)]
+                output_lines.append(format_table(headers, rows))
+                had_output = True
+            elif "SERVERPROPERTY" in stmt_upper:
+                headers = ["ProductVersion", "ProductLevel", "Edition", "EngineEdition"]
+                rows = [("16.0.1000.6", "RTM", "Express Edition (64-bit)", "4")]
+                output_lines.append(format_table(headers, rows))
                 had_output = True
             continue
 
-        # 1. SELECT query
+        # 2. SELECT query
         if stmt_upper.startswith("SELECT"):
             try:
                 # Handle special SQL Server metadata queries

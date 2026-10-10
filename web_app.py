@@ -186,6 +186,8 @@ def _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg, m
         "success": True,
         "filename": compiled_files["docx"],
         "pdf_filename": compiled_files["pdf"],
+        "docx_url": f"/api/download/{compiled_files['docx']}" if compiled_files.get("docx") else None,
+        "pdf_url": f"/api/preview/pdf/{compiled_files['pdf']}" if compiled_files.get("pdf") else None,
         "md_filename": compiled_files["md"],
         "html_filename": compiled_files["html"],
         "lab_title": _format_lab_title(lab_manual),
@@ -196,6 +198,9 @@ def _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg, m
         "observation_tables": getattr(lab_manual, "observation_tables", []) or [],
         "metadata": compiled_files.get("verification"),
         "has_pdf": bool(compiled_files.get("pdf")),
+        "provider_used": getattr(lab_manual, "_provider_used", "offline"),
+        "custom_instructions": getattr(lab_manual, "_custom_instructions", "") or "",
+        "custom_instructions_applied": bool(getattr(lab_manual, "_custom_instructions", "")),
     }
     if message:
         payload["message"] = message
@@ -203,6 +208,7 @@ def _build_lab_result_payload(compiled_files, lab_manual, tasks_response, cfg, m
 
 
 @app.post("/api/run")
+@app.post("/api/generate-lab")
 async def run_lab(
     manual_file: Optional[UploadFile] = File(None),
     is_sample: Optional[str] = Form(None),
@@ -238,28 +244,25 @@ async def run_lab(
     WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
 
     try:
-        # Mandatory Subject / Course Validation
-        if not subject or not subject.strip():
-            return {
-                "success": False,
-                "error": "Subject / Course is required! Please select Database Systems (DBMS), Data Structures & Algorithms (DSA), or specify an Other Subject."
-            }
-
-        sub_clean = subject.strip().lower()
-        if sub_clean == "other" and (not custom_subject or not custom_subject.strip()):
+        sub_raw = (subject or "auto").strip().lower()
+        if sub_raw == "other" and (not custom_subject or not custom_subject.strip()):
             return {
                 "success": False,
                 "error": "Please enter your custom Subject / Course name."
             }
 
-        if sub_clean == "dbms":
+        if sub_raw == "dbms":
+            sub_clean = "dbms"
             course_name_val = "Database Management Systems (DBMS)"
-        elif sub_clean == "dsa":
+        elif sub_raw == "dsa":
+            sub_clean = "dsa"
             course_name_val = "Data Structures and Algorithms"
-        elif sub_clean == "other":
+        elif sub_raw == "other":
+            sub_clean = "other"
             course_name_val = custom_subject.strip()
         else:
-            course_name_val = subject.strip()
+            sub_clean = "auto"
+            course_name_val = "Auto-Detect"
 
         # Load and configure
         cfg = Config.load()
@@ -353,11 +356,38 @@ async def run_lab(
             raise HTTPException(status_code=400, detail="No manual file uploaded or selected.")
 
         # 1. Parse Manual
-        parser_obj = ManualParser(str(target_manual_path), subject=sub_clean, subject_name=course_name_val)
+        parser_subject = None if sub_clean == "auto" else sub_clean
+        parser_course = None if course_name_val == "Auto-Detect" else course_name_val
+        parser_obj = ManualParser(str(target_manual_path), subject=parser_subject, subject_name=parser_course)
         lab_manual = parser_obj.parse()
+        if sub_clean == "auto":
+            if lab_manual.course_name and any(k in lab_manual.course_name.lower() for k in ["database", "dbms", "sql"]):
+                course_name_val = "Database Management Systems (DBMS)"
+            elif lab_manual.course_name and any(k in lab_manual.course_name.lower() for k in ["data structure", "algorithm", "dsa"]):
+                course_name_val = "Data Structures and Algorithms"
+            else:
+                course_name_val = lab_manual.course_name or "Computer Science Lab"
         lab_manual.course_name = course_name_val
 
+        if not lab_manual.tasks:
+            return {
+                "success": False,
+                "error": f"No lab tasks could be detected in '{target_manual_path.name}'. Please check the manual format."
+            }
+
         # 2. Modules
+        provider_mode = "Smart Offline (Deterministic Rules)"
+        if cfg.ai.provider == "gemini" and (cfg.ai.api_key or os.environ.get("GEMINI_API_KEY")):
+            provider_mode = f"Google Gemini ({cfg.ai.model or '2.5-pro'})"
+        elif cfg.ai.provider == "groq" and (cfg.ai.api_key or os.environ.get("GROQ_API_KEY")):
+            provider_mode = f"Groq Cloud ({cfg.ai.model or 'llama-3.3-70b'})"
+        elif cfg.ai.provider in ["openai", "openrouter"] and (cfg.ai.api_key or os.environ.get("OPENAI_API_KEY")):
+            provider_mode = f"OpenAI ({cfg.ai.model or 'gpt-4o-mini'})"
+        elif cfg.ai.provider == "ollama":
+            provider_mode = f"Ollama ({cfg.ai.ollama_model})"
+        lab_manual._provider_used = provider_mode
+        lab_manual._custom_instructions = instructions.strip() if instructions else ""
+
         solver = TaskSolver(cfg)
         runner = CodeRunner(cfg)
         studio = ScreenshotStudio(cfg)
@@ -689,6 +719,15 @@ async def close_lab():
     global CURRENT_LAB, LAST_RESULT
     CURRENT_LAB.clear()
     LAST_RESULT.clear()
+    if WORKSPACE_DIR.exists():
+        for p in WORKSPACE_DIR.iterdir():
+            try:
+                if p.is_dir():
+                    shutil.rmtree(p)
+                else:
+                    p.unlink()
+            except Exception:
+                pass
     return {"success": True, "message": "Active lab session closed. Ready for new lab manual."}
 
 
