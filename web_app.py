@@ -251,6 +251,8 @@ def _format_lab_title(lab_manual) -> str:
 def _recompile_all_formats(builder, sanitizer, lab_manual, solutions, exec_results, screenshots, clean_lab, formats="docx,pdf"):
     out_doc_path = OUTPUT_DIR / f"{clean_lab}.docx"
     out_pdf_path = OUTPUT_DIR / f"{clean_lab}.pdf"
+    out_md_path = OUTPUT_DIR / f"{clean_lab}.md"
+    out_html_path = OUTPUT_DIR / f"{clean_lab}.html"
 
     # 1. Build DOCX & Sanitize
     builder.build_report(lab_manual, solutions, exec_results, screenshots, out_doc_path)
@@ -262,11 +264,27 @@ def _recompile_all_formats(builder, sanitizer, lab_manual, solutions, exec_resul
     if not formats or "pdf" in formats.lower():
         pdf_res = builder.build_pdf(out_doc_path, out_pdf_path)
 
+    # 3. Build Markdown if requested
+    md_res = None
+    if formats and ("md" in formats.lower() or "markdown" in formats.lower()):
+        try:
+            md_res = builder.build_markdown_report(lab_manual, solutions, exec_results, screenshots, out_md_path)
+        except Exception as e:
+            logger.warning(f"Markdown report generation failed: {e}")
+
+    # 4. Build HTML if requested
+    html_res = None
+    if formats and "html" in formats.lower():
+        try:
+            html_res = builder.build_html_report(lab_manual, solutions, exec_results, screenshots, out_html_path)
+        except Exception as e:
+            logger.warning(f"HTML report generation failed: {e}")
+
     return {
         "docx": out_doc_path.name,
         "pdf": out_pdf_path.name if (pdf_res and pdf_res.exists()) else None,
-        "md": None,
-        "html": None,
+        "md": out_md_path.name if (md_res and md_res.exists()) else None,
+        "html": out_html_path.name if (html_res and html_res.exists()) else None,
         "verification": verification,
     }
 
@@ -443,7 +461,9 @@ async def run_lab(
         upload_target_dir.mkdir(parents=True, exist_ok=True)
 
         if custom_logo and custom_logo.filename:
-            logo_ext = Path(custom_logo.filename).suffix or ".png"
+            logo_ext = Path(custom_logo.filename).suffix.lower() or ".png"
+            if logo_ext not in [".png", ".jpg", ".jpeg", ".webp"]:
+                return {"success": False, "error": "Invalid logo format. Allowed: .png, .jpg, .jpeg, .webp"}
             logo_save_path = upload_target_dir / f"custom_logo{logo_ext}"
             with open(logo_save_path, "wb") as buf:
                 shutil.copyfileobj(custom_logo.file, buf)
@@ -457,9 +477,20 @@ async def run_lab(
                     break
 
         if is_sample and is_sample.lower() == "true":
-            target_manual_path = Path(sample_path) if sample_path else (EXAMPLES_DIR / "sample_lab_manual.docx")
-        elif manual_file:
-            target_manual_path = upload_target_dir / manual_file.filename
+            if sample_path:
+                cand = (BASE_DIR / sample_path).resolve() if not Path(sample_path).is_absolute() else Path(sample_path).resolve()
+                if cand.is_relative_to(BASE_DIR.resolve()) and cand.exists():
+                    target_manual_path = cand
+                else:
+                    target_manual_path = EXAMPLES_DIR / "sample_lab_manual.docx"
+            else:
+                target_manual_path = EXAMPLES_DIR / "sample_lab_manual.docx"
+        elif manual_file and manual_file.filename:
+            safe_manual_name = Path(manual_file.filename).name
+            manual_ext = Path(manual_file.filename).suffix.lower()
+            if manual_ext not in [".docx", ".pdf", ".txt", ".md", ".doc"]:
+                return {"success": False, "error": f"Invalid manual file format '{manual_ext}'. Supported: .docx, .pdf, .txt, .md, .doc"}
+            target_manual_path = session_dir / safe_manual_name
             with open(target_manual_path, "wb") as buffer:
                 shutil.copyfileobj(manual_file.file, buffer)
         else:
@@ -697,14 +728,25 @@ async def extract_manual(
 
         # Handle manual file saving
         if is_sample and is_sample.lower() == "true":
-            target_manual_path = Path(sample_path) if sample_path else (EXAMPLES_DIR / "Lab 03 manual.docx")
+            if sample_path:
+                cand = (BASE_DIR / sample_path).resolve() if not Path(sample_path).is_absolute() else Path(sample_path).resolve()
+                if cand.is_relative_to(BASE_DIR.resolve()) and cand.exists():
+                    target_manual_path = cand
+                else:
+                    target_manual_path = EXAMPLES_DIR / "Lab 03 manual.docx"
+            else:
+                target_manual_path = EXAMPLES_DIR / "Lab 03 manual.docx"
             if not target_manual_path.exists():
                 target_manual_path = EXAMPLES_DIR / "sample_lab_manual.docx"
             if not target_manual_path.exists():
                 from examples.generate_sample_manual import create_sample_manual
                 create_sample_manual(target_manual_path)
         elif manual_file and manual_file.filename:
-            target_manual_path = session_dir / manual_file.filename
+            safe_manual_name = Path(manual_file.filename).name
+            manual_ext = Path(manual_file.filename).suffix.lower()
+            if manual_ext not in [".docx", ".pdf", ".txt", ".md", ".doc"]:
+                raise HTTPException(status_code=400, detail=f"Invalid manual file format '{manual_ext}'. Supported: .docx, .pdf, .txt, .md, .doc")
+            target_manual_path = session_dir / safe_manual_name
             with open(target_manual_path, "wb") as buffer:
                 shutil.copyfileobj(manual_file.file, buffer)
         else:
@@ -1234,7 +1276,9 @@ async def upload_logo_file(logo_file: UploadFile = File(...)):
     """Uploads custom university logo and returns preview URL."""
     try:
         UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-        ext = Path(logo_file.filename).suffix or ".png"
+        ext = Path(logo_file.filename).suffix.lower() if logo_file.filename else ".png"
+        if ext not in [".png", ".jpg", ".jpeg", ".webp"]:
+            return {"success": False, "error": "Invalid file format. Allowed formats: PNG, JPG, JPEG, WEBP."}
         target_path = UPLOADS_DIR / f"custom_logo{ext}"
         with open(target_path, "wb") as buf:
             shutil.copyfileobj(logo_file.file, buf)
@@ -1252,22 +1296,24 @@ async def upload_logo_file(logo_file: UploadFile = File(...)):
 @app.get("/api/preview/pdf/{filename}")
 async def preview_pdf(filename: str):
     """Streams PDF inline with appropriate headers for browser embedding."""
-    file_path = OUTPUT_DIR / filename
-    if not file_path.exists():
+    safe_name = Path(filename).name
+    file_path = (OUTPUT_DIR / safe_name).resolve()
+    if not file_path.exists() or not file_path.is_file() or not file_path.is_relative_to(OUTPUT_DIR.resolve()):
         raise HTTPException(status_code=404, detail="PDF not found")
     return FileResponse(
         path=str(file_path),
-        filename=filename,
+        filename=safe_name,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="{filename}"'}
+        headers={"Content-Disposition": f'inline; filename="{safe_name}"'}
     )
 
 
 @app.get("/api/preview/html/{filename}")
 async def preview_html(filename: str):
     """Renders full standalone HTML report document."""
-    file_path = OUTPUT_DIR / filename
-    if not file_path.exists():
+    safe_name = Path(filename).name
+    file_path = (OUTPUT_DIR / safe_name).resolve()
+    if not file_path.exists() or not file_path.is_file() or not file_path.is_relative_to(OUTPUT_DIR.resolve()) or file_path.suffix.lower() not in [".html", ".htm"]:
         raise HTTPException(status_code=404, detail="HTML report not found")
     return HTMLResponse(content=file_path.read_text(encoding="utf-8"))
 
@@ -1472,8 +1518,7 @@ async def execute_scratchpad(payload: dict = Body(...)):
 
             compiler = "gcc" if language == "c" else "g++"
             comp = subprocess.run(
-                f'{compiler} -O2 -o "{bin_path}" "{fpath}" -lm',
-                shell=True,
+                [compiler, "-O2", "-o", str(bin_path), str(fpath), "-lm"],
                 cwd=str(scratch_dir),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -1490,8 +1535,7 @@ async def execute_scratchpad(payload: dict = Body(...)):
                 }
 
             run = subprocess.run(
-                f'"{bin_path}"',
-                shell=True,
+                [str(bin_path)],
                 cwd=str(scratch_dir),
                 input=stdin_input.encode("utf-8") if stdin_input else None,
                 stdout=subprocess.PIPE,
@@ -1507,9 +1551,21 @@ async def execute_scratchpad(payload: dict = Body(...)):
             fpath.write_text(code, encoding="utf-8")
             shared_db = (WORKSPACE_DIR / "dbms_lab.db").resolve()
             py_bin = sys.executable
+            student_name_val = str(cfg.student.name) if (cfg and cfg.student and cfg.student.name) else "Student"
+            student_roll_val = str(cfg.student.roll_number) if (cfg and cfg.student and cfg.student.roll_number) else "001"
             run = subprocess.run(
-                f'"{py_bin}" -m labgenius.sql_runner "{fpath}" --db "{shared_db}" --name "{cfg.student.name}" --roll "{cfg.student.roll_number}"',
-                shell=True,
+                [
+                    py_bin,
+                    "-m",
+                    "labgenius.sql_runner",
+                    str(fpath),
+                    "--db",
+                    str(shared_db),
+                    "--name",
+                    student_name_val,
+                    "--roll",
+                    student_roll_val,
+                ],
                 cwd=str(BASE_DIR),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -1526,8 +1582,7 @@ async def execute_scratchpad(payload: dict = Body(...)):
             env = os.environ.copy()
             env["PYTHONPATH"] = str(BASE_DIR)
             run = subprocess.run(
-                f'"{py_bin}" "{fpath}"',
-                shell=True,
+                [py_bin, str(fpath)],
                 cwd=str(scratch_dir),
                 env=env,
                 input=stdin_input.encode("utf-8") if stdin_input else None,
@@ -1664,8 +1719,9 @@ async def get_academic_templates():
 
 @app.get("/api/download/{filename}")
 async def download_file(filename: str):
-    file_path = OUTPUT_DIR / filename
-    if not file_path.exists():
+    safe_name = Path(filename).name
+    file_path = (OUTPUT_DIR / safe_name).resolve()
+    if not file_path.exists() or not file_path.is_file() or not file_path.is_relative_to(OUTPUT_DIR.resolve()):
         raise HTTPException(status_code=404, detail="File not found")
 
     ext = file_path.suffix.lower()
@@ -1680,6 +1736,11 @@ async def download_file(filename: str):
         ".sql": "application/sql",
     }
     media_type = media_map.get(ext, "application/octet-stream")
+    return FileResponse(
+        path=str(file_path),
+        filename=safe_name,
+        media_type=media_type,
+    )
 
 # ==============================================================================
 # Doc Tools API Endpoints (Multi-Document Merger, Converter, Splitter, Inspector)
@@ -1698,13 +1759,13 @@ async def api_merge_documents(
 
     temp_dir = Path(tempfile.mkdtemp(prefix="labgen_upload_merge_"))
     try:
-        saved_files = {}
-        for upload in files:
-            safe_name = Path(upload.filename or f"doc_{time.time()}").name
-            dest_path = temp_dir / safe_name
+        saved_files_list = []
+        for idx, upload in enumerate(files):
+            orig_name = Path(upload.filename or f"doc_{idx}").name
+            dest_path = temp_dir / f"{idx}_{orig_name}"
             with open(dest_path, "wb") as buf:
                 shutil.copyfileobj(upload.file, buf)
-            saved_files[safe_name] = dest_path
+            saved_files_list.append((orig_name, dest_path))
 
         # Determine file order
         ordered_paths = []
@@ -1712,16 +1773,22 @@ async def api_merge_documents(
             try:
                 order_list = json.loads(order)
                 if isinstance(order_list, list):
-                    for name in order_list:
-                        if name in saved_files:
-                            ordered_paths.append(saved_files[name])
+                    # Consume from available files matching the names in order
+                    available = list(saved_files_list)
+                    for target_name in order_list:
+                        for entry in list(available):
+                            if entry[0] == target_name:
+                                ordered_paths.append(entry[1])
+                                available.remove(entry)
+                                break
+                    # Any remaining files not matched
+                    for _, rem_path in available:
+                        ordered_paths.append(rem_path)
             except Exception as e:
                 print("[-] Could not parse custom order json:", e)
 
-        # Append any remaining files not specified in order list
-        for name, p in saved_files.items():
-            if p not in ordered_paths:
-                ordered_paths.append(p)
+        if not ordered_paths:
+            ordered_paths = [p for _, p in saved_files_list]
 
         if not ordered_paths:
             raise HTTPException(status_code=400, detail="No valid documents found to merge.")
@@ -1731,7 +1798,7 @@ async def api_merge_documents(
             ext_clean = "pdf"
 
         # Sanitize filename
-        clean_name = re.sub(r'[^a-zA-Z0-9_\- ]', '', (filename or "Merged_Document").strip())
+        clean_name = re.sub(r'[^a-zA-Z0-9_\- ]', '', (filename or "Merged_Document").strip())[:60]
         if not clean_name:
             clean_name = f"Merged_Document_{int(time.time())}"
         out_filename = f"{clean_name}.{ext_clean}"
@@ -1810,8 +1877,9 @@ async def api_extract_pdf_pages(
         with open(dest_path, "wb") as buf:
             shutil.copyfileobj(file.file, buf)
 
-        clean_ranges = re.sub(r'[^0-9,\-]', '', page_ranges)
-        out_filename = f"{Path(safe_name).stem}_pages_{clean_ranges.replace(',', '_')}.pdf"
+        clean_ranges = re.sub(r'[^0-9,\-]', '', page_ranges)[:40]
+        stem_safe = Path(safe_name).stem[:40]
+        out_filename = f"{stem_safe}_pages_{clean_ranges.replace(',', '_')}.pdf"
         out_path = OUTPUT_DIR / out_filename
 
         result = doc_tools.extract_pdf_pages(dest_path, page_ranges, out_path)
@@ -1851,38 +1919,50 @@ async def api_inspect_document(file: UploadFile = File(...)):
 @app.get("/api/doc-tools/sample-files")
 async def api_get_doc_tools_sample_files():
     """
-    Creates and returns URLs to 2 ready-to-test sample documents (1 DOCX, 1 PDF) in OUTPUT_DIR.
+    Creates and returns URLs to 3 ready-to-test sample documents (PDF, DOCX, TXT) matching reference UI.
     """
     import docx as pydocx
-    sample_docx = OUTPUT_DIR / "Sample_Lab_Part1_Intro.docx"
-    sample_pdf = OUTPUT_DIR / "Sample_Lab_Part2_Appendix.pdf"
+    import subprocess
+    sample_pdf = OUTPUT_DIR / "Data_Structures_Lab1.pdf"
+    sample_docx = OUTPUT_DIR / "Algorithms_Notes.docx"
+    sample_txt = OUTPUT_DIR / "Example_Code.txt"
 
     if not sample_docx.exists():
         d = pydocx.Document()
-        d.add_heading("Part 1: Laboratory Manual & Objectives", level=1)
-        d.add_paragraph("This is the introductory section from Word (.docx). It includes student objectives, apparatus requirements, and theory.")
+        d.add_heading("Algorithms & Data Structures: Laboratory Notes", level=1)
+        d.add_paragraph("This is the introductory algorithmic notes section formatted in Word (.docx). It includes problem specifications, asymptotic complexity benchmarks, and core logic.")
         p = d.add_paragraph()
         p.add_run("Student Name: ").bold = True
         p.add_run("Bheesham Kumar Sajnani\n")
-        p.add_run("Experiment: ").bold = True
-        p.add_run("Database Indexing & Query Optimization")
+        p.add_run("Topic: ").bold = True
+        p.add_run("Divide-and-Conquer Recurrence Relations")
         d.save(str(sample_docx))
 
     if not sample_pdf.exists():
-        temp_docx = OUTPUT_DIR / "_temp_part2.docx"
+        temp_docx = OUTPUT_DIR / "_temp_ds_lab.docx"
         d2 = pydocx.Document()
-        d2.add_heading("Part 2: Execution Results & Appendix", level=1)
-        d2.add_paragraph("This is the appendix section originally formatted as a standalone PDF report.")
+        d2.add_heading("Data Structures Lab 01: Tree Traversal Analysis", level=1)
+        d2.add_paragraph("This is the primary laboratory manual component formatted as a standalone PDF report.")
         d2.add_paragraph("Terminal Query Benchmarks: execution time 0.042s, buffer hits 98.4%.")
         d2.save(str(temp_docx))
         subprocess.run(["libreoffice", "--headless", "--convert-to", "pdf", str(temp_docx), "--outdir", str(OUTPUT_DIR)], check=True)
-        if (OUTPUT_DIR / "_temp_part2.pdf").exists():
-            (OUTPUT_DIR / "_temp_part2.pdf").rename(sample_pdf)
+        if (OUTPUT_DIR / "_temp_ds_lab.pdf").exists():
+            (OUTPUT_DIR / "_temp_ds_lab.pdf").rename(sample_pdf)
         if temp_docx.exists():
             temp_docx.unlink()
 
+    if not sample_txt.exists():
+        with open(sample_txt, "w") as f_txt:
+            f_txt.write("// Example Code: Binary Search Tree Implementation\n// Time Complexity: O(log N) average, O(N) worst\n\nfunction searchBST(root, val) {\n    if (!root || root.val === val) return root;\n    if (val < root.val) return searchBST(root.left, val);\n    return searchBST(root.right, val);\n}\n")
+
     return {
         "samples": [
+            {
+                "name": sample_pdf.name,
+                "url": f"/api/download/{sample_pdf.name}",
+                "type": "pdf",
+                "size_formatted": doc_tools._format_size(os.path.getsize(sample_pdf)),
+            },
             {
                 "name": sample_docx.name,
                 "url": f"/api/download/{sample_docx.name}",
@@ -1890,10 +1970,10 @@ async def api_get_doc_tools_sample_files():
                 "size_formatted": doc_tools._format_size(os.path.getsize(sample_docx)),
             },
             {
-                "name": sample_pdf.name,
-                "url": f"/api/download/{sample_pdf.name}",
-                "type": "pdf",
-                "size_formatted": doc_tools._format_size(os.path.getsize(sample_pdf)),
+                "name": sample_txt.name,
+                "url": f"/api/download/{sample_txt.name}",
+                "type": "txt",
+                "size_formatted": doc_tools._format_size(os.path.getsize(sample_txt)),
             }
         ]
     }

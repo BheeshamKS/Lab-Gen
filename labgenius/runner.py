@@ -10,7 +10,7 @@ import time
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Tuple, Dict
+from typing import Optional, Tuple, Dict, List
 
 from .config import Config
 from .solver import TaskSolution
@@ -50,7 +50,7 @@ class CodeRunner:
             f.write(solution.code)
 
         # Determine command based on language
-        cmd, run_cmd_display = self._build_command(solution, code_path)
+        cmd, run_cmd_display, compile_cmd = self._build_command(solution, code_path)
 
         start_time = time.time()
         env = os.environ.copy()
@@ -63,9 +63,31 @@ class CodeRunner:
         stdin_data = sample_input if sample_input is not None else self.DEFAULT_INTERACTIVE_INPUTS
 
         try:
+            if compile_cmd:
+                comp_res = subprocess.run(
+                    compile_cmd,
+                    cwd=str(task_dir),
+                    env=env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=15,
+                )
+                if comp_res.returncode != 0:
+                    duration = time.time() - start_time
+                    return ExecutionResult(
+                        task_id=solution.task_id,
+                        command_str=run_cmd_display,
+                        stdout=comp_res.stdout.decode("utf-8", errors="replace").strip(),
+                        stderr=comp_res.stderr.decode("utf-8", errors="replace").strip(),
+                        exit_code=comp_res.returncode,
+                        execution_time=duration,
+                        output_files={},
+                        work_dir=task_dir,
+                        success=False,
+                    )
+
             res = subprocess.run(
                 cmd,
-                shell=True,
                 cwd=str(task_dir),
                 env=env,
                 input=stdin_data.encode("utf-8"),
@@ -107,46 +129,50 @@ class CodeRunner:
             success=(exit_code == 0),
         )
 
-    def _build_command(self, solution: TaskSolution, code_path: Path) -> Tuple[str, str]:
+    def _build_command(self, solution: TaskSolution, code_path: Path) -> Tuple[List[str], str, Optional[List[str]]]:
         fname = code_path.name
         lang = solution.language.lower()
 
         if lang == "python":
             py_bin = sys.executable if "venv" in sys.executable else "python3"
-            full_cmd = f'"{py_bin}" "{fname}"'
-            display_cmd = f"python3 {fname}"
-            return full_cmd, display_cmd
+            return [py_bin, fname], f"python3 {fname}", None
 
         elif lang == "c":
             bin_name = code_path.stem
-            full_cmd = f'gcc -O2 -o "{bin_name}" "{fname}" -lm && ./"{bin_name}"'
+            compile_cmd = ["gcc", "-O2", "-o", bin_name, fname, "-lm"]
+            run_cmd = [f"./{bin_name}"]
             display_cmd = f"gcc -o {bin_name} {fname} -lm && ./{bin_name}"
-            return full_cmd, display_cmd
+            return run_cmd, display_cmd, compile_cmd
 
         elif lang in ["cpp", "c++"]:
             bin_name = code_path.stem
-            full_cmd = f'g++ -O2 -o "{bin_name}" "{fname}" -lm && ./"{bin_name}"'
+            compile_cmd = ["g++", "-O2", "-o", bin_name, fname, "-lm"]
+            run_cmd = [f"./{bin_name}"]
             display_cmd = f"g++ -o {bin_name} {fname} && ./{bin_name}"
-            return full_cmd, display_cmd
+            return run_cmd, display_cmd, compile_cmd
 
         elif lang == "bash":
-            full_cmd = f'bash "{fname}"'
-            display_cmd = f"bash {fname}"
-            return full_cmd, display_cmd
+            return ["bash", fname], f"bash {fname}", None
 
         elif lang == "sql":
             py_bin = sys.executable
             shared_db = (self.base_workspace / "dbms_lab.db").resolve()
-            full_cmd = (
-                f'"{py_bin}" -m labgenius.sql_runner "{fname}" '
-                f'--db "{shared_db}" '
-                f'--name "{self.config.student.name}" '
-                f'--roll "{self.config.student.roll_number}"'
-            )
+            student_name = str(self.config.student.name or "Student")
+            student_roll = str(self.config.student.roll_number or "001")
+            sql_cmd = [
+                py_bin,
+                "-m",
+                "labgenius.sql_runner",
+                fname,
+                "--db",
+                str(shared_db),
+                "--name",
+                student_name,
+                "--roll",
+                student_roll,
+            ]
             display_cmd = f"sqlcmd -i {fname}"
-            return full_cmd, display_cmd
+            return sql_cmd, display_cmd, None
 
         else:
-            full_cmd = f'python3 "{fname}"'
-            display_cmd = f"python3 {fname}"
-            return full_cmd, display_cmd
+            return ["python3", fname], f"python3 {fname}", None

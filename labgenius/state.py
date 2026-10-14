@@ -6,6 +6,7 @@ and a SessionManager backed by SQLite and per-session workspace directories.
 
 import json
 import os
+import re
 import shutil
 import sqlite3
 import threading
@@ -148,7 +149,11 @@ class SessionManager:
     directories under workspace/{session_id}/.
     """
 
-    def __init__(self, workspace_root: Optional[Union[str, Path]] = None):
+    def __init__(
+        self,
+        workspace_root: Optional[Union[str, Path]] = None,
+        db_path: Optional[Union[str, Path]] = None,
+    ):
         if workspace_root is None:
             base_dir = Path(__file__).resolve().parent.parent
             self.workspace_root = (base_dir / "workspace").resolve()
@@ -156,7 +161,10 @@ class SessionManager:
             self.workspace_root = Path(workspace_root).resolve()
 
         self.workspace_root.mkdir(parents=True, exist_ok=True)
-        self.db_path = self.workspace_root / "sessions.db"
+        if db_path is not None:
+            self.db_path = Path(db_path).resolve()
+        else:
+            self.db_path = self.workspace_root / "sessions.db"
         self._lock = threading.Lock()
         self._active_session_id: Optional[str] = None
         
@@ -188,9 +196,18 @@ class SessionManager:
             finally:
                 conn.close()
 
+    def _sanitize_session_id(self, session_id: Optional[str]) -> str:
+        """Sanitizes session ID to alphanumeric, dash, and underscore characters only."""
+        if not session_id:
+            return ""
+        return re.sub(r"[^a-zA-Z0-9_\-]", "", str(session_id).strip())
+
     def get_session_dir(self, session_id: str) -> Path:
         """Returns the isolated workspace directory for the session."""
-        session_dir = self.workspace_root / session_id
+        safe_id = self._sanitize_session_id(session_id) or "default"
+        session_dir = (self.workspace_root / safe_id).resolve()
+        if not session_dir.is_relative_to(self.workspace_root.resolve()):
+            raise ValueError(f"Invalid session_id path traversal attempt: {session_id}")
         session_dir.mkdir(parents=True, exist_ok=True)
         return session_dir
 
@@ -265,12 +282,14 @@ class SessionManager:
                 conn.close()
 
     def get_session(self, session_id: Optional[str] = None) -> Optional[LabSession]:
-        target_id = session_id or self._active_session_id
+        target_id = self._sanitize_session_id(session_id or self._active_session_id)
         if not target_id:
             return None
 
         # Check file first
-        s_dir = self.workspace_root / target_id
+        s_dir = (self.workspace_root / target_id).resolve()
+        if not s_dir.is_relative_to(self.workspace_root.resolve()):
+            return None
         json_file = s_dir / "session.json"
         if json_file.exists():
             try:
@@ -297,7 +316,7 @@ class SessionManager:
         return None
 
     def set_active_session_id(self, session_id: str) -> None:
-        self._active_session_id = session_id
+        self._active_session_id = self._sanitize_session_id(session_id)
 
     def get_active_session_id(self) -> Optional[str]:
         return self._active_session_id
@@ -306,13 +325,16 @@ class SessionManager:
         return self.get_session(self._active_session_id)
 
     def set_live_data(self, session_id: str, key: str, value: Any) -> None:
+        safe_id = self._sanitize_session_id(session_id)
+        if not safe_id:
+            return
         with self._lock:
-            if session_id not in self._live_objects:
-                self._live_objects[session_id] = {}
-            self._live_objects[session_id][key] = value
+            if safe_id not in self._live_objects:
+                self._live_objects[safe_id] = {}
+            self._live_objects[safe_id][key] = value
 
     def get_live_data(self, session_id: Optional[str], key: str, default: Any = None) -> Any:
-        target_id = session_id or self._active_session_id
+        target_id = self._sanitize_session_id(session_id or self._active_session_id)
         if not target_id:
             return default
         with self._lock:
@@ -335,20 +357,23 @@ class SessionManager:
                 conn.close()
 
     def delete_session(self, session_id: str) -> bool:
+        safe_id = self._sanitize_session_id(session_id)
+        if not safe_id:
+            return False
         with self._lock:
-            if session_id in self._live_objects:
-                del self._live_objects[session_id]
-            if self._active_session_id == session_id:
+            if safe_id in self._live_objects:
+                del self._live_objects[safe_id]
+            if self._active_session_id == safe_id:
                 self._active_session_id = None
 
-            s_dir = self.workspace_root / session_id
-            if s_dir.exists():
+            s_dir = (self.workspace_root / safe_id).resolve()
+            if s_dir.is_relative_to(self.workspace_root.resolve()) and s_dir != self.workspace_root.resolve() and s_dir.exists():
                 shutil.rmtree(s_dir, ignore_errors=True)
 
             conn = sqlite3.connect(str(self.db_path))
             try:
                 cursor = conn.cursor()
-                cursor.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
+                cursor.execute("DELETE FROM sessions WHERE session_id = ?", (safe_id,))
                 conn.commit()
             finally:
                 conn.close()

@@ -25,7 +25,7 @@ def _run_libreoffice_convert(input_path: Path, target_ext: str, out_dir: Path) -
     target_ext_clean = target_ext.lstrip(".").lower()
 
     cmd = ["libreoffice", "--headless"]
-    if target_ext_clean == "docx":
+    if target_ext_clean == "docx" and input_path.suffix.lower() == ".pdf":
         cmd.extend(["--infilter=writer_pdf_import", "--convert-to", "docx"])
     else:
         cmd.extend(["--convert-to", target_ext_clean])
@@ -62,13 +62,13 @@ def merge_to_pdf(input_files: List[Path], output_path: Path, insert_page_break: 
 
             if ext == ".pdf":
                 temp_pdf_to_read = file_path
-            elif ext == ".docx":
+            elif ext in [".docx", ".doc", ".txt"]:
                 converted = _run_libreoffice_convert(file_path, "pdf", temp_dir / f"step_{idx}")
                 if not converted or not converted.exists():
-                    raise RuntimeError(f"Failed to convert Word document '{file_path.name}' to PDF for merging.")
+                    raise RuntimeError(f"Failed to convert document '{file_path.name}' to PDF for merging.")
                 temp_pdf_to_read = converted
             else:
-                raise ValueError(f"Unsupported file format '{ext}' for merging. Only .pdf and .docx are supported.")
+                raise ValueError(f"Unsupported file format '{ext}' for merging. Only .pdf, .docx, .doc, and .txt are supported.")
 
             reader = PdfReader(str(temp_pdf_to_read))
             for page in reader.pages:
@@ -94,8 +94,8 @@ def merge_to_pdf(input_files: List[Path], output_path: Path, insert_page_break: 
 
 def merge_to_docx(input_files: List[Path], output_path: Path, insert_page_break: bool = True) -> Dict[str, Any]:
     """
-    Merges an ordered list of PDF and/or DOCX files into a single master DOCX.
-    PDF files are automatically converted to DOCX before appending.
+    Merges an ordered list of PDF, DOCX, and TXT files into a single master DOCX.
+    Non-DOCX files are automatically converted to DOCX before appending.
     """
     if not input_files:
         raise ValueError("No files provided for merging.")
@@ -113,13 +113,13 @@ def merge_to_docx(input_files: List[Path], output_path: Path, insert_page_break:
                 dest = temp_dir / f"doc_{idx}_{file_path.name}"
                 shutil.copy2(file_path, dest)
                 docx_paths.append(dest)
-            elif ext == ".pdf":
-                converted = _run_libreoffice_convert(file_path, "docx", temp_dir / f"pdf_step_{idx}")
+            elif ext in [".pdf", ".txt", ".doc"]:
+                converted = _run_libreoffice_convert(file_path, "docx", temp_dir / f"step_{idx}")
                 if not converted or not converted.exists():
-                    raise RuntimeError(f"Failed to convert PDF document '{file_path.name}' to Word DOCX for merging.")
+                    raise RuntimeError(f"Failed to convert document '{file_path.name}' to Word DOCX for merging.")
                 docx_paths.append(converted)
             else:
-                raise ValueError(f"Unsupported file format '{ext}' for merging. Only .pdf and .docx are supported.")
+                raise ValueError(f"Unsupported file format '{ext}' for merging. Only .pdf, .docx, .doc, and .txt are supported.")
 
         # Step 2: Use docxcompose Composer to stitch all DOCX documents
         master_doc = docx.Document(str(docx_paths[0]))
@@ -253,6 +253,10 @@ def inspect_document(input_file: Path) -> Dict[str, Any]:
                 row_text = " | ".join(cell.text.strip() for cell in row.cells if cell.text.strip())
                 if row_text:
                     text_content += row_text + "\n"
+    elif ext in [".txt", ".md"]:
+        text_content = input_file.read_text(encoding="utf-8", errors="replace")
+        paragraph_count = len([p for p in text_content.splitlines() if p.strip()])
+        pages_count = 1
     else:
         raise ValueError(f"Unsupported file format: {ext}")
 

@@ -167,12 +167,19 @@ class DocumentBuilder:
             p_c_lbl.paragraph_format.space_before = Pt(4)
             p_c_lbl.paragraph_format.space_after = Pt(4)
 
-            # Code Screenshot Image
+            # Code Screenshot Image or Formatted Text Fallback
             if code_img and code_img.exists():
                 p_code_img = doc.add_paragraph()
                 p_code_img.paragraph_format.space_before = Pt(0)
                 p_code_img.paragraph_format.space_after = Pt(6)
                 self._add_image_natural(p_code_img, code_img, max_width_in=6.0, max_height_in=5.2)
+            elif sol and sol.code:
+                p_code = doc.add_paragraph()
+                p_code.paragraph_format.space_before = Pt(2)
+                p_code.paragraph_format.space_after = Pt(6)
+                r_code = p_code.add_run(sol.code.strip())
+                r_code.font.name = "Consolas"
+                r_code.font.size = Pt(9.5)
 
             # 3. Subheading: OUTPUT:
             p_o_lbl = doc.add_paragraph()
@@ -182,12 +189,27 @@ class DocumentBuilder:
             p_o_lbl.paragraph_format.space_before = Pt(4)
             p_o_lbl.paragraph_format.space_after = Pt(4)
 
-            # Output Screenshot Image
+            # Output Screenshot Image or Formatted Text Fallback
             if out_img and out_img.exists():
                 p_out_img = doc.add_paragraph()
                 p_out_img.paragraph_format.space_before = Pt(0)
                 p_out_img.paragraph_format.space_after = Pt(6)
                 self._add_image_natural(p_out_img, out_img, max_width_in=6.0, max_height_in=3.8)
+            else:
+                out_text = ""
+                if res and res.stdout:
+                    out_text = res.stdout.strip()
+                elif res and res.stderr:
+                    out_text = res.stderr.strip()
+                elif sol and sol.explanation:
+                    out_text = sol.explanation.strip()
+                if out_text:
+                    p_out = doc.add_paragraph()
+                    p_out.paragraph_format.space_before = Pt(2)
+                    p_out.paragraph_format.space_after = Pt(6)
+                    r_out = p_out.add_run(out_text)
+                    r_out.font.name = "Consolas"
+                    r_out.font.size = Pt(9.5)
 
             # Page break between programs (except the last one)
             if idx < len(manual.tasks) - 1:

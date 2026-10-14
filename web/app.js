@@ -15,6 +15,42 @@ document.addEventListener('DOMContentLoaded', () => {
   setupPlayground();
   setupKeyboardShortcuts();
   restoreActiveLabSession();
+
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('view') === 'doctools' || window.location.hash === '#doctools') {
+    openNavDocTools();
+    if (urlParams.get('sample') === '1') {
+      mergerQueue = [
+        {
+          id: 'sample_1',
+          name: 'Data_Structures_Lab1.pdf',
+          sizeFormatted: '2.4 MB',
+          type: 'pdf',
+          file: new File([new Blob(["dummy pdf content"])], 'Data_Structures_Lab1.pdf', { type: 'application/pdf' })
+        },
+        {
+          id: 'sample_2',
+          name: 'Algorithms_Notes.docx',
+          sizeFormatted: '1.8 MB',
+          type: 'docx',
+          file: new File([new Blob(["dummy docx content"])], 'Algorithms_Notes.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
+        },
+        {
+          id: 'sample_3',
+          name: 'Example_Code.txt',
+          sizeFormatted: '432 KB',
+          type: 'txt',
+          file: new File([new Blob(["dummy txt content"])], 'Example_Code.txt', { type: 'text/plain' })
+        }
+      ];
+      currentMergerStep = 2;
+      renderMergerQueue();
+    }
+    const tool = urlParams.get('tool');
+    if (tool) {
+      switchDocTool(tool);
+    }
+  }
 });
 
 function initProfile() {
@@ -880,9 +916,62 @@ function updateNavState(hasLab) {
   }
 }
 
+function returnToLabGeniusHome() {
+  const doctoolsWorkspace = document.getElementById('doctools-workspace');
+  if (doctoolsWorkspace) doctoolsWorkspace.style.display = 'none';
+
+  const layoutContainer = document.getElementById('main-layout-container');
+  if (layoutContainer) layoutContainer.classList.remove('doctools-active');
+
+  const btnGenNav = document.getElementById('btn-open-generator-nav');
+  const btnDocToolsNav = document.getElementById('btn-open-doctools-nav');
+  const btnPlaygroundNav = document.getElementById('btn-open-playground-nav');
+  if (btnGenNav) btnGenNav.classList.add('active');
+  if (btnDocToolsNav) {
+    btnDocToolsNav.classList.remove('active', 'active-pill-highlight');
+  }
+  if (btnPlaygroundNav) btnPlaygroundNav.classList.remove('active');
+
+  const sidebarDocTools = document.getElementById('sidebar-item-doctools');
+  if (sidebarDocTools) sidebarDocTools.classList.remove('active');
+  const sidebarHome = document.getElementById('sidebar-item-home');
+  if (sidebarHome) sidebarHome.classList.add('active');
+
+  const uploadCard = document.getElementById('upload-card');
+  const resultsContainer = document.getElementById('results-container');
+
+  if (currentLabData) {
+    if (uploadCard) uploadCard.style.display = 'none';
+    if (resultsContainer) {
+      resultsContainer.style.display = 'block';
+      resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    switchMainView('pdf');
+  } else {
+    if (resultsContainer) resultsContainer.style.display = 'none';
+    if (uploadCard) {
+      uploadCard.style.display = 'block';
+      uploadCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+  showToast('Returned to Lab Generator');
+}
+
 function openNavPlayground() {
-  document.getElementById('upload-card').style.display = 'none';
-  document.getElementById('results-container').style.display = 'block';
+  const doctoolsWorkspace = document.getElementById('doctools-workspace');
+  if (doctoolsWorkspace) doctoolsWorkspace.style.display = 'none';
+  const uploadCard = document.getElementById('upload-card');
+  if (uploadCard) uploadCard.style.display = 'none';
+  const resultsContainer = document.getElementById('results-container');
+  if (resultsContainer) resultsContainer.style.display = 'block';
+
+  const btnGenNav = document.getElementById('btn-open-generator-nav');
+  const btnDocToolsNav = document.getElementById('btn-open-doctools-nav');
+  const btnPlaygroundNav = document.getElementById('btn-open-playground-nav');
+  if (btnGenNav) btnGenNav.classList.remove('active');
+  if (btnDocToolsNav) btnDocToolsNav.classList.remove('active');
+  if (btnPlaygroundNav) btnPlaygroundNav.classList.add('active');
+
   switchMainView('scratchpad');
 }
 
@@ -928,6 +1017,18 @@ async function closeAndStartNewLab() {
 
   // Clear query params from URL
   window.history.replaceState({}, document.title, window.location.pathname);
+
+  // Hide Doc Tools workspace
+  const doctoolsWorkspace = document.getElementById('doctools-workspace');
+  if (doctoolsWorkspace) doctoolsWorkspace.style.display = 'none';
+
+  // Update navbar state
+  const btnGenNav = document.getElementById('btn-open-generator-nav');
+  const btnDocToolsNav = document.getElementById('btn-open-doctools-nav');
+  const btnPlaygroundNav = document.getElementById('btn-open-playground-nav');
+  if (btnGenNav) btnGenNav.classList.add('active');
+  if (btnDocToolsNav) btnDocToolsNav.classList.remove('active');
+  if (btnPlaygroundNav) btnPlaygroundNav.classList.remove('active');
 
   // Show upload card
   document.getElementById('results-container').style.display = 'none';
@@ -1584,15 +1685,20 @@ function switchMainView(viewName) {
     if (c) c.style.display = 'none';
   });
 
+  // Hide Doc Tools workspace for general lab views
+  const doctoolsWorkspace = document.getElementById('doctools-workspace');
+  if (viewName !== 'doctools' && doctoolsWorkspace) {
+    doctoolsWorkspace.style.display = 'none';
+  }
+
   // Handle download-card and refine-card visibility:
   const downloadCard = document.querySelector('.download-card');
   const refineCard = document.getElementById('refine-card');
   const previewActions = document.querySelector('.preview-actions');
 
   if (viewName === 'doctools') {
-    if (downloadCard) downloadCard.style.display = 'none';
-    if (refineCard) refineCard.style.display = 'none';
-    if (previewActions) previewActions.style.display = 'none';
+    openNavDocTools();
+    return;
   } else {
     if (currentLabData) {
       if (downloadCard) downloadCard.style.display = 'flex';
@@ -1622,10 +1728,6 @@ function switchMainView(viewName) {
   } else if (viewName === 'tasks' && tasksContainer && btnTasks) {
     tasksContainer.style.display = 'block';
     btnTasks.classList.add('active');
-  } else if (viewName === 'doctools' && doctoolsContainer && btnDocTools) {
-    doctoolsContainer.style.display = 'block';
-    btnDocTools.classList.add('active');
-    goToMergerStep(currentMergerStep || 1);
   } else {
     if (docContainer && btnDoc) {
       docContainer.style.display = 'block';
@@ -2367,10 +2469,65 @@ let selectedInspectorFile = null;
 function openNavDocTools() {
   const uploadCard = document.getElementById('upload-card');
   if (uploadCard) uploadCard.style.display = 'none';
+  const wizardCard = document.getElementById('wizard-review-card');
+  if (wizardCard) wizardCard.style.display = 'none';
+  const progressCard = document.getElementById('progress-card');
+  if (progressCard) progressCard.style.display = 'none';
   const resultsContainer = document.getElementById('results-container');
-  if (resultsContainer) resultsContainer.style.display = 'block';
-  switchMainView('doctools');
-  goToMergerStep(currentMergerStep || 1);
+  if (resultsContainer) resultsContainer.style.display = 'none';
+
+  const doctoolsWorkspace = document.getElementById('doctools-workspace');
+  if (doctoolsWorkspace) {
+    doctoolsWorkspace.style.display = 'block';
+    doctoolsWorkspace.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  const layoutContainer = document.getElementById('main-layout-container');
+  if (layoutContainer) layoutContainer.classList.add('doctools-active');
+
+  // Sidebar navigation sync
+  const sidebarMenu = document.getElementById('sidebar-saas-menu');
+  if (sidebarMenu) sidebarMenu.style.display = 'flex';
+  const generatorSettings = document.getElementById('sidebar-generator-settings');
+  if (generatorSettings) generatorSettings.style.display = 'none';
+
+  const sidebarDocTools = document.getElementById('sidebar-item-doctools');
+  if (sidebarDocTools) sidebarDocTools.classList.add('active');
+  const sidebarHome = document.getElementById('sidebar-item-home');
+  if (sidebarHome) sidebarHome.classList.remove('active');
+
+  // Top navbar sync
+  const btnGenNav = document.getElementById('btn-open-generator-nav');
+  const btnDocToolsNav = document.getElementById('btn-open-doctools-nav');
+  const btnPlaygroundNav = document.getElementById('btn-open-playground-nav');
+  if (btnGenNav) btnGenNav.classList.remove('active');
+  if (btnDocToolsNav) {
+    btnDocToolsNav.classList.add('active', 'active-pill-highlight');
+  }
+  if (btnPlaygroundNav) btnPlaygroundNav.classList.remove('active');
+
+  setupMergerDropzone();
+  renderMergerQueue();
+}
+
+function toggleSidebarSettings() {
+  const genSettings = document.getElementById('sidebar-generator-settings');
+  if (genSettings) {
+    const isVisible = genSettings.style.display !== 'none';
+    genSettings.style.display = isVisible ? 'none' : 'block';
+    if (!isVisible) {
+      genSettings.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      showToast('Opened Student Profile Settings');
+    }
+  }
+}
+
+function updateMergerTabCount() {
+  const tabBadge = document.getElementById('merger-tab-count');
+  if (tabBadge) {
+    tabBadge.textContent = mergerQueue.length;
+    tabBadge.style.display = mergerQueue.length > 0 ? 'inline-flex' : 'none';
+  }
 }
 
 function switchDocTool(toolId) {
@@ -2379,85 +2536,132 @@ function switchDocTool(toolId) {
     const btn = document.getElementById(`tab-btn-${t}`);
     const panel = document.getElementById(`panel-doc-${t}`);
     if (btn) {
-      if (t === toolId) btn.classList.add('active');
-      else btn.classList.remove('active');
+      if (t === toolId) {
+        btn.classList.add('active');
+        btn.setAttribute('aria-selected', 'true');
+      } else {
+        btn.classList.remove('active');
+        btn.setAttribute('aria-selected', 'false');
+      }
     }
     if (panel) {
       panel.style.display = (t === toolId) ? 'block' : 'none';
+      if (t === toolId) panel.classList.add('active');
+      else panel.classList.remove('active');
     }
   });
 }
 
 function formatByteSize(bytes) {
+  if (!bytes || isNaN(bytes)) return '0 KB';
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
   return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
 }
 
+function getFileBadgeHtml(type) {
+  const t = (type || '').toLowerCase();
+  if (t === 'pdf') {
+    return `<div class="file-badge pdf" title="PDF Document">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M10 12h4"></path><path d="M10 16h4"></path></svg>
+    </div>`;
+  }
+  if (t === 'docx') {
+    return `<div class="file-badge docx" title="Word Document">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M9 13v4"></path><path d="M12 15l1.5-2"></path><path d="M15 13v4"></path></svg>
+    </div>`;
+  }
+  return `<div class="file-badge txt" title="Text Document">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+  </div>`;
+}
+
 // -------------------------------------------------------------
-// Multi-Document Merger Logic (3-Step Progressive Flow)
+// Document Merger Workspace Logic (Matching Reference input_file_0.png)
 // -------------------------------------------------------------
 
 let currentMergerStep = 1;
+let mergerDropzoneInitialized = false;
 
-function goToMergerStep(stepNum) {
-  if (stepNum > 1 && mergerQueue.length === 0) {
-    alert('Please upload or load at least 1 document first.');
-    return;
-  }
+function setupMergerDropzone() {
+  if (mergerDropzoneInitialized) return;
+  const dropzone = document.getElementById('merger-dropzone');
+  if (!dropzone) return;
 
+  ['dragenter', 'dragover'].forEach(eventName => {
+    dropzone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropzone.classList.add('drag-active');
+    }, false);
+  });
+
+  ['dragleave', 'drop'].forEach(eventName => {
+    dropzone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropzone.classList.remove('drag-active');
+    }, false);
+  });
+
+  dropzone.addEventListener('drop', (e) => {
+    const dt = e.dataTransfer;
+    if (dt && dt.files && dt.files.length) {
+      handleMergerFileList(dt.files);
+    }
+  }, false);
+
+  mergerDropzoneInitialized = true;
+}
+
+function focusMergerStep(stepNum) {
   currentMergerStep = stepNum;
+  updateStepperState();
+}
 
-  // 1. Toggle Step Views
-  for (let s = 1; s <= 3; s++) {
-    const viewEl = document.getElementById(`merger-step-view-${s}`);
-    if (viewEl) {
-      viewEl.style.display = (s === stepNum) ? 'block' : 'none';
-    }
-  }
+function updateStepperState() {
+  const stepCount = mergerQueue.length;
+  const node1 = document.getElementById('step-node-1');
+  const node2 = document.getElementById('step-node-2');
+  const node3 = document.getElementById('step-node-3');
+  const conn1 = document.getElementById('step-conn-1');
+  const conn2 = document.getElementById('step-conn-2');
 
-  // 2. Update Stepper Header Badges & Lines
-  for (let s = 1; s <= 3; s++) {
-    const stepBtn = document.getElementById(`stepper-step-${s}`);
-    if (stepBtn) {
-      stepBtn.classList.remove('active', 'completed');
-      if (s === stepNum) {
-        stepBtn.classList.add('active');
-      } else if (s < stepNum) {
-        stepBtn.classList.add('completed');
-      }
-    }
+  if (node1) {
+    node1.classList.toggle('active', currentMergerStep === 1 || stepCount === 0);
+    node1.classList.toggle('completed', stepCount > 0 && currentMergerStep > 1);
   }
-
-  const line1 = document.getElementById('stepper-line-1');
-  const line2 = document.getElementById('stepper-line-2');
-  if (line1) {
-    if (stepNum >= 2) line1.classList.add('active');
-    else line1.classList.remove('active');
+  if (node2) {
+    node2.classList.toggle('active', currentMergerStep === 2 || (stepCount > 0 && currentMergerStep !== 3));
+    node2.classList.toggle('completed', currentMergerStep === 3);
   }
-  if (line2) {
-    if (stepNum >= 3) line2.classList.add('active');
-    else line2.classList.remove('active');
+  if (node3) {
+    node3.classList.toggle('active', currentMergerStep === 3);
   }
-
-  // 3. Step Specific Rendering
-  if (stepNum === 1) {
-    renderStagedFiles();
-  } else if (stepNum === 2) {
-    renderMergerQueue();
-  } else if (stepNum === 3) {
-    renderMergerSequenceSummary();
+  if (conn1) {
+    conn1.classList.toggle('active', stepCount > 0);
+  }
+  if (conn2) {
+    conn2.classList.toggle('active', currentMergerStep === 3);
   }
 }
 
 function handleMergerFilesSelected(event) {
-  const files = Array.from(event.target.files || []);
+  const files = event.target.files;
+  if (!files || !files.length) return;
+  handleMergerFileList(files);
+  event.target.value = '';
+}
+
+function handleMergerFileList(filesList) {
+  const files = Array.from(filesList);
   if (!files.length) return;
 
+  let addedCount = 0;
   files.forEach(file => {
     const ext = file.name.split('.').pop().toLowerCase();
-    if (ext !== 'pdf' && ext !== 'docx') {
-      alert(`Skipping unsupported file "${file.name}". Only .pdf and .docx are supported.`);
+    if (ext !== 'pdf' && ext !== 'docx' && ext !== 'txt') {
+      showToast(`Skipped "${file.name}" (supports PDF, DOCX, TXT)`);
       return;
     }
     mergerQueue.push({
@@ -2467,185 +2671,152 @@ function handleMergerFilesSelected(event) {
       sizeFormatted: formatByteSize(file.size),
       type: ext
     });
+    addedCount++;
   });
 
-  // Reset file input so re-selecting same files triggers change event
-  event.target.value = '';
-  renderStagedFiles();
+  if (addedCount > 0) {
+    currentMergerStep = 2;
+    showToast(`Added ${addedCount} document${addedCount === 1 ? '' : 's'}!`);
+  }
   renderMergerQueue();
-  showToast(`Added ${files.length} document${files.length === 1 ? '' : 's'}!`);
-}
-
-function renderStagedFiles() {
-  const section = document.getElementById('staged-files-section');
-  const list = document.getElementById('staged-chips-list');
-  const countBadge = document.getElementById('step1-counter-badge');
-  const countText = document.getElementById('staged-count-text');
-  const proceedBtn = document.getElementById('btn-proceed-to-step2');
-  const hintText = document.getElementById('step1-hint-text');
-
-  const count = mergerQueue.length;
-  if (countBadge) countBadge.textContent = `${count} File${count === 1 ? '' : 's'} Ready`;
-  if (countText) countText.textContent = count;
-
-  if (count === 0) {
-    if (section) section.style.display = 'none';
-    if (proceedBtn) {
-      proceedBtn.disabled = true;
-      const span = proceedBtn.querySelector('span');
-      if (span) span.textContent = 'Next: Arrange Order →';
-    }
-    if (hintText) hintText.textContent = 'Add at least 1 document to proceed to reordering.';
-    return;
-  }
-
-  if (section) section.style.display = 'block';
-  if (proceedBtn) {
-    proceedBtn.disabled = false;
-    const span = proceedBtn.querySelector('span');
-    if (span) span.textContent = `Next: Arrange Order (${count} File${count === 1 ? '' : 's'}) →`;
-  }
-  if (hintText) hintText.textContent = `${count} document${count === 1 ? '' : 's'} staged. Click Next to arrange merge sequence.`;
-
-  if (list) {
-    list.innerHTML = mergerQueue.map((item, idx) => `
-      <div class="staged-chip">
-        <span class="merger-type-badge ${item.type}">${item.type.toUpperCase()}</span>
-        <span style="font-weight: 500;">${escapeHtml(item.name)}</span>
-        <span style="color: var(--text-muted); font-size: 11px;">(${item.sizeFormatted})</span>
-        <button type="button" class="staged-chip-remove" onclick="removeStagedFile(${idx})" title="Remove">✕</button>
-      </div>
-    `).join('');
-  }
-}
-
-function removeStagedFile(idx) {
-  mergerQueue.splice(idx, 1);
-  renderStagedFiles();
-  renderMergerQueue();
-}
-
-function renderMergerSequenceSummary() {
-  const flowContainer = document.getElementById('summary-flow-chips');
-  if (!flowContainer) return;
-
-  if (!mergerQueue.length) {
-    flowContainer.innerHTML = '<span style="color: var(--text-muted); font-size: 12px;">No documents arranged.</span>';
-    return;
-  }
-
-  flowContainer.innerHTML = mergerQueue.map((item, idx) => `
-    <div class="summary-item-chip">
-      <span style="color: #888;">#${idx + 1}</span>
-      <span class="merger-type-badge ${item.type}" style="font-size: 9.5px; padding: 1px 5px;">${item.type.toUpperCase()}</span>
-      <span>${escapeHtml(item.name)}</span>
-    </div>
-    ${idx < mergerQueue.length - 1 ? '<span class="summary-arrow">➔</span>' : ''}
-  `).join('');
 }
 
 function renderMergerQueue() {
-  const listEl = document.getElementById('merger-queue-list');
-  const countEl = document.getElementById('merger-queue-count');
-  const statusEl = document.getElementById('merger-status-msg');
+  const listEl = document.getElementById('merger-selected-files-list');
+  const selectedCountEl = document.getElementById('merger-selected-count');
+  const clearBtn = document.getElementById('btn-clear-queue');
+  const summaryCountEl = document.getElementById('summary-file-count');
+  const summarySizeEl = document.getElementById('summary-total-size');
+  const summaryOrderList = document.getElementById('summary-file-order-list');
+  const executeBtn = document.getElementById('btn-execute-merge');
 
-  if (!listEl) return;
+  updateMergerTabCount();
+  updateStepperState();
 
-  if (countEl) {
-    countEl.textContent = `${mergerQueue.length} Document${mergerQueue.length === 1 ? '' : 's'}`;
+  const count = mergerQueue.length;
+
+  if (selectedCountEl) selectedCountEl.textContent = count;
+  if (clearBtn) clearBtn.style.display = count > 0 ? 'inline-block' : 'none';
+  if (summaryCountEl) {
+    summaryCountEl.textContent = `${count} file${count === 1 ? '' : 's'} selected`;
   }
 
-  if (mergerQueue.length === 0) {
-    listEl.innerHTML = `
-      <div class="merger-empty-state" id="merger-empty-state">
-        <div class="empty-icon">📂</div>
-        <p>No documents in queue yet.</p>
-        <small>Go back to Step 1 or click <strong>⚡ Load Sample Documents</strong> to add files.</small>
-      </div>
-    `;
-    if (statusEl) statusEl.textContent = 'Add documents to begin';
-    return;
+  // Calculate total size
+  let totalBytes = 0;
+  mergerQueue.forEach(item => {
+    if (item.file && typeof item.file.size === 'number' && item.file.size > 1000) {
+      totalBytes += item.file.size;
+    } else if (item.sizeFormatted) {
+      const parts = item.sizeFormatted.trim().split(' ');
+      const val = parseFloat(parts[0]);
+      if (!isNaN(val)) {
+        if (parts[1] === 'MB') totalBytes += val * 1024 * 1024;
+        else if (parts[1] === 'KB') totalBytes += val * 1024;
+        else totalBytes += val;
+      }
+    }
+  });
+  if (summarySizeEl) {
+    summarySizeEl.textContent = `Total size: ${formatByteSize(totalBytes)}`;
   }
 
-  if (statusEl) {
-    statusEl.textContent = `${mergerQueue.length} files ready to merge sequentially.`;
-  }
-
-  listEl.innerHTML = mergerQueue.map((item, idx) => {
-    const isFirst = idx === 0;
-    const isLast = idx === mergerQueue.length - 1;
-    return `
-      <div class="merger-item" draggable="true" data-index="${idx}" id="merger-item-${idx}">
-        <div class="merger-item-left">
-          <div class="drag-handle" title="Drag to reorder">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-              <circle cx="9" cy="5" r="2"></circle><circle cx="9" cy="12" r="2"></circle><circle cx="9" cy="19" r="2"></circle>
-              <circle cx="15" cy="5" r="2"></circle><circle cx="15" cy="12" r="2"></circle><circle cx="15" cy="19" r="2"></circle>
-            </svg>
+  // Render Selected Files List in Left Column
+  if (listEl) {
+    if (count === 0) {
+      listEl.innerHTML = `
+        <div class="merger-empty-row-hint">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.4; margin-bottom: 6px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+          <p>No documents selected yet. Upload files above or load sample documents.</p>
+        </div>
+      `;
+    } else {
+      listEl.innerHTML = mergerQueue.map((item, idx) => `
+        <div class="merger-file-card" draggable="true" data-index="${idx}" id="merger-file-card-${idx}">
+          <div class="file-card-left">
+            ${getFileBadgeHtml(item.type)}
+            <div class="file-card-details">
+              <span class="file-card-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span>
+              <span class="file-card-sub">${item.sizeFormatted} • ${item.type.toUpperCase()}</span>
+            </div>
           </div>
-          <span class="merger-order-badge">#${idx + 1}</span>
-          <span class="merger-type-badge ${item.type}">${item.type.toUpperCase()}</span>
-          <div class="merger-file-details">
-            <span class="merger-file-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span>
-            <span class="merger-file-size">${item.sizeFormatted}</span>
+          <div class="file-card-actions">
+            <div class="file-drag-grip" title="Drag to reorder sequence" aria-label="Drag handle">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="5" r="1.5"></circle><circle cx="9" cy="12" r="1.5"></circle><circle cx="9" cy="19" r="1.5"></circle><circle cx="15" cy="5" r="1.5"></circle><circle cx="15" cy="12" r="1.5"></circle><circle cx="15" cy="19" r="1.5"></circle></svg>
+            </div>
+            <button type="button" class="file-delete-btn" onclick="removeMergerItem(${idx})" title="Remove file" aria-label="Remove ${escapeHtml(item.name)}">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+            </button>
           </div>
         </div>
-        <div class="merger-item-right">
-          <button type="button" class="merger-btn-icon" onclick="moveMergerItem(${idx}, -1)" ${isFirst ? 'disabled style="opacity:0.3;cursor:default;"' : ''} title="Move Up">▲</button>
-          <button type="button" class="merger-btn-icon" onclick="moveMergerItem(${idx}, 1)" ${isLast ? 'disabled style="opacity:0.3;cursor:default;"' : ''} title="Move Down">▼</button>
-          <button type="button" class="merger-btn-icon merger-btn-remove" onclick="removeMergerItem(${idx})" title="Remove">✕</button>
-        </div>
-      </div>
-    `;
-  }).join('');
+      `).join('');
+      attachMergerDragAndDrop();
+    }
+  }
 
-  attachMergerDragAndDrop();
+  // Render File Order in Right Column Summary
+  if (summaryOrderList) {
+    if (count === 0) {
+      summaryOrderList.innerHTML = '<div class="empty-order-hint">Add documents to arrange order</div>';
+    } else {
+      summaryOrderList.innerHTML = mergerQueue.map((item, idx) => `
+        <div class="summary-order-item">
+          <span class="summary-order-num">${idx + 1}</span>
+          <span class="summary-order-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span>
+        </div>
+      `).join('');
+    }
+  }
+
+  // Update Execution Button
+  if (executeBtn) {
+    executeBtn.disabled = count === 0;
+  }
 }
 
 function attachMergerDragAndDrop() {
-  const items = document.querySelectorAll('.merger-item');
+  const cards = document.querySelectorAll('.merger-file-card');
   let draggedIndex = null;
 
-  items.forEach(item => {
-    item.addEventListener('dragstart', (e) => {
-      draggedIndex = parseInt(item.getAttribute('data-index'), 10);
+  cards.forEach(card => {
+    card.addEventListener('dragstart', (e) => {
+      draggedIndex = parseInt(card.getAttribute('data-index'), 10);
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', draggedIndex);
-      setTimeout(() => item.classList.add('dragging'), 0);
+      setTimeout(() => card.classList.add('dragging'), 0);
     });
 
-    item.addEventListener('dragend', () => {
-      item.classList.remove('dragging');
-      document.querySelectorAll('.merger-item').forEach(el => {
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      document.querySelectorAll('.merger-file-card').forEach(el => {
         el.classList.remove('drag-over-top', 'drag-over-bottom');
       });
     });
 
-    item.addEventListener('dragover', (e) => {
+    card.addEventListener('dragover', (e) => {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
-      const rect = item.getBoundingClientRect();
+      const rect = card.getBoundingClientRect();
       const mid = rect.top + rect.height / 2;
-      item.classList.remove('drag-over-top', 'drag-over-bottom');
+      card.classList.remove('drag-over-top', 'drag-over-bottom');
       if (e.clientY < mid) {
-        item.classList.add('drag-over-top');
+        card.classList.add('drag-over-top');
       } else {
-        item.classList.add('drag-over-bottom');
+        card.classList.add('drag-over-bottom');
       }
     });
 
-    item.addEventListener('dragleave', () => {
-      item.classList.remove('drag-over-top', 'drag-over-bottom');
+    card.addEventListener('dragleave', () => {
+      card.classList.remove('drag-over-top', 'drag-over-bottom');
     });
 
-    item.addEventListener('drop', (e) => {
+    card.addEventListener('drop', (e) => {
       e.preventDefault();
-      const targetIndex = parseInt(item.getAttribute('data-index'), 10);
-      item.classList.remove('drag-over-top', 'drag-over-bottom');
+      const targetIndex = parseInt(card.getAttribute('data-index'), 10);
+      card.classList.remove('drag-over-top', 'drag-over-bottom');
 
       if (draggedIndex === null || draggedIndex === targetIndex) return;
 
-      const rect = item.getBoundingClientRect();
+      const rect = card.getBoundingClientRect();
       const mid = rect.top + rect.height / 2;
       let newIndex = (e.clientY < mid) ? targetIndex : targetIndex + 1;
       if (draggedIndex < newIndex) {
@@ -2655,40 +2826,28 @@ function attachMergerDragAndDrop() {
       const moved = mergerQueue.splice(draggedIndex, 1)[0];
       mergerQueue.splice(newIndex, 0, moved);
       renderMergerQueue();
-      renderMergerSequenceSummary();
+      showToast('Reordered merge sequence');
     });
   });
 }
 
-function moveMergerItem(index, direction) {
-  const newIndex = index + direction;
-  if (newIndex < 0 || newIndex >= mergerQueue.length) return;
-  const item = mergerQueue.splice(index, 1)[0];
-  mergerQueue.splice(newIndex, 0, item);
-  renderMergerQueue();
-  renderMergerSequenceSummary();
-}
-
 function removeMergerItem(index) {
-  mergerQueue.splice(index, 1);
-  renderMergerQueue();
-  renderStagedFiles();
-  renderMergerSequenceSummary();
-  if (mergerQueue.length === 0 && currentMergerStep > 1) {
-    goToMergerStep(1);
+  if (index >= 0 && index < mergerQueue.length) {
+    const removed = mergerQueue.splice(index, 1)[0];
+    renderMergerQueue();
+    showToast(`Removed "${removed.name}"`);
   }
 }
 
 function clearMergerQueue() {
-  if (mergerQueue.length && confirm('Are you sure you want to clear all documents from the merge queue?')) {
+  if (!mergerQueue.length) return;
+  if (confirm('Are you sure you want to clear all selected documents?')) {
     mergerQueue = [];
-    renderStagedFiles();
+    currentMergerStep = 1;
     renderMergerQueue();
     const resultCard = document.getElementById('merger-result-card');
     if (resultCard) resultCard.style.display = 'none';
-    if (currentMergerStep > 1) {
-      goToMergerStep(1);
-    }
+    showToast('Cleared all documents');
   }
 }
 
@@ -2696,37 +2855,29 @@ function selectExportFormat(format) {
   mergerExportFormat = format;
   const cardPdf = document.getElementById('format-card-pdf');
   const cardDocx = document.getElementById('format-card-docx');
-  const extLabel = document.getElementById('merger-filename-ext');
-  const btnText = document.getElementById('btn-merge-text');
 
-  if (format === 'pdf') {
-    if (cardPdf) cardPdf.classList.add('active');
-    if (cardDocx) cardDocx.classList.remove('active');
-    if (extLabel) extLabel.textContent = '.pdf';
-    if (btnText) btnText.textContent = '⚡ Merge Documents into PDF';
-  } else {
-    if (cardDocx) cardDocx.classList.add('active');
-    if (cardPdf) cardPdf.classList.remove('active');
-    if (extLabel) extLabel.textContent = '.docx';
-    if (btnText) btnText.textContent = '⚡ Merge Documents into Word (.docx)';
-  }
+  if (cardPdf) cardPdf.classList.toggle('active', format === 'pdf');
+  if (cardDocx) cardDocx.classList.toggle('active', format === 'docx');
 }
 
 async function loadSampleMergeFiles() {
-  const statusEl = document.getElementById('merger-status-msg');
-  if (statusEl) statusEl.textContent = 'Loading sample documents...';
-
   try {
+    showToast('Loading sample documents...');
     const res = await fetch('/api/doc-tools/sample-files');
     const data = await res.json();
     if (!data.samples || !data.samples.length) {
       throw new Error('No sample files available.');
     }
 
+    mergerQueue = []; // Reset to load fresh reference sample set
     for (const s of data.samples) {
       const fileRes = await fetch(s.url);
       const blob = await fileRes.blob();
-      const fileObj = new File([blob], s.name, { type: s.type === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      let mimeType = 'text/plain';
+      if (s.type === 'pdf') mimeType = 'application/pdf';
+      else if (s.type === 'docx') mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+      const fileObj = new File([blob], s.name, { type: mimeType });
       mergerQueue.push({
         id: 'sample_' + Math.random().toString(36).substring(2, 9),
         file: fileObj,
@@ -2736,31 +2887,29 @@ async function loadSampleMergeFiles() {
       });
     }
 
-    renderStagedFiles();
+    currentMergerStep = 2;
     renderMergerQueue();
-    showToast('Loaded 2 sample documents! Click "Next: Arrange Order" to proceed.');
+    showToast('Loaded 3 sample documents! Ready to merge.');
   } catch (err) {
     console.error('Failed to load samples:', err);
-    alert('Failed to load sample documents: ' + err.message);
+    showToast('Failed to load sample documents: ' + err.message);
   }
 }
 
 async function executeDocumentMerge() {
   if (!mergerQueue.length) {
-    alert('Please add at least one document to the merge queue.');
+    showToast('Please add at least one document to merge.');
     return;
   }
 
   const btn = document.getElementById('btn-execute-merge');
   const spinner = document.getElementById('merger-spinner');
   const btnText = document.getElementById('btn-merge-text');
-  const statusEl = document.getElementById('merger-status-msg');
   const resultCard = document.getElementById('merger-result-card');
 
   btn.disabled = true;
   if (spinner) spinner.style.display = 'inline-block';
   if (btnText) btnText.textContent = 'Merging Documents...';
-  if (statusEl) statusEl.textContent = 'Converting components and assembling master document...';
   if (resultCard) resultCard.style.display = 'none';
 
   try {
@@ -2778,8 +2927,7 @@ async function executeDocumentMerge() {
     if (filenameInput && filenameInput.value.trim()) {
       formData.append('filename', filenameInput.value.trim());
     }
-    const pageBreakCb = document.getElementById('merger-page-break');
-    formData.append('page_break', pageBreakCb ? pageBreakCb.checked : true);
+    formData.append('page_break', 'true');
 
     const res = await fetch('/api/doc-tools/merge', {
       method: 'POST',
@@ -2793,8 +2941,10 @@ async function executeDocumentMerge() {
 
     const data = await res.json();
     lastMergedResult = data;
+    currentMergerStep = 3;
+    updateStepperState();
 
-    // Show Result Card
+    // Display Result Card
     if (resultCard) {
       resultCard.style.display = 'block';
       const titleEl = document.getElementById('result-title');
@@ -2804,7 +2954,7 @@ async function executeDocumentMerge() {
       const downloadBtn = document.getElementById('btn-download-merged');
       const previewBtn = document.getElementById('btn-preview-merged');
 
-      if (titleEl) titleEl.textContent = `Documents Merged into ${data.format.toUpperCase()}!`;
+      if (titleEl) titleEl.textContent = `Merged Successfully into ${data.format.toUpperCase()}`;
       if (filenamePill) filenamePill.textContent = data.filename;
       if (sizePill) sizePill.textContent = data.size_formatted;
       if (pagesPill) {
@@ -2831,27 +2981,28 @@ async function executeDocumentMerge() {
       resultCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
-    if (statusEl) statusEl.textContent = `Completed! Successfully merged ${data.file_count} documents.`;
-    showToast(`Merged into ${data.filename}!`);
+    showToast(`Successfully merged into ${data.filename}!`);
   } catch (err) {
     console.error('Merge error:', err);
-    alert('Document merge failed: ' + err.message);
-    if (statusEl) statusEl.textContent = 'Merge failed: ' + err.message;
+    showToast('Document merge failed: ' + err.message);
   } finally {
     btn.disabled = false;
     if (spinner) spinner.style.display = 'none';
-    if (btnText) btnText.textContent = `⚡ Merge Documents into ${mergerExportFormat === 'pdf' ? 'PDF' : 'Word (.docx)'}`;
+    if (btnText) btnText.textContent = 'Merge Documents >';
   }
 }
 
 function previewMergedDocument() {
   if (!lastMergedResult) return;
   if (lastMergedResult.preview_url) {
-    // Open in interactive PDF viewer
     const frame = document.getElementById('pdf-embed-frame');
     if (frame) {
       frame.src = lastMergedResult.preview_url;
     }
+    const doctoolsWorkspace = document.getElementById('doctools-workspace');
+    if (doctoolsWorkspace) doctoolsWorkspace.style.display = 'none';
+    const resultsContainer = document.getElementById('results-container');
+    if (resultsContainer) resultsContainer.style.display = 'block';
     switchMainView('pdf');
   } else {
     window.open(lastMergedResult.download_url, '_blank');
@@ -2863,9 +3014,8 @@ function resetMergerWorkflow() {
   lastMergedResult = null;
   const resultCard = document.getElementById('merger-result-card');
   if (resultCard) resultCard.style.display = 'none';
-  renderStagedFiles();
+  currentMergerStep = 1;
   renderMergerQueue();
-  goToMergerStep(1);
 }
 
 function resetMergerForm() {
@@ -2911,12 +3061,19 @@ function handleConverterFileSelected(event) {
 
   const pill = document.getElementById('converter-selected-file');
   if (pill) {
-    pill.textContent = `Selected: ${file.name} (${formatByteSize(file.size)})`;
+    pill.innerHTML = `
+      <div style="display:flex;align-items:center;gap:6px;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+        <span>${escapeHtml(file.name)}</span>
+        <span style="color:var(--text-muted);">(${formatByteSize(file.size)})</span>
+      </div>
+    `;
     pill.style.display = 'inline-block';
   }
 
   const btn = document.getElementById('btn-run-convert');
   if (btn) btn.disabled = false;
+  showToast(`Selected ${file.name}`);
 }
 
 async function runDocumentConvert() {
@@ -2956,7 +3113,7 @@ async function runDocumentConvert() {
     }
     showToast(`Converted into ${data.filename}!`);
   } catch (err) {
-    alert('Conversion error: ' + err.message);
+    showToast('Conversion error: ' + err.message);
   } finally {
     btn.disabled = false;
     if (spinner) spinner.style.display = 'none';
@@ -2974,7 +3131,13 @@ function handleSplitterFileSelected(event) {
 
   const pill = document.getElementById('splitter-selected-file');
   if (pill) {
-    pill.textContent = `Selected: ${file.name} (${formatByteSize(file.size)})`;
+    pill.innerHTML = `
+      <div style="display:flex;align-items:center;gap:6px;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+        <span>${escapeHtml(file.name)}</span>
+        <span style="color:var(--text-muted);">(${formatByteSize(file.size)})</span>
+      </div>
+    `;
     pill.style.display = 'inline-block';
   }
 
@@ -2989,6 +3152,7 @@ function handleSplitterFileSelected(event) {
     .then(data => {
       const totalEl = document.getElementById('splitter-total-pages');
       if (totalEl) totalEl.textContent = data.page_count || '1+';
+      showToast(`Detected ${data.page_count || 1} pages in ${file.name}`);
     })
     .catch(() => {});
 }
@@ -2999,7 +3163,7 @@ async function runDocumentSplit() {
   const rangeInput = document.getElementById('splitter-range-input');
   const rangeVal = rangeInput ? rangeInput.value.trim() : '1';
   if (!rangeVal) {
-    alert('Please enter a valid page range (e.g. 1-3, 5).');
+    showToast('Please enter a valid page range (e.g. 1-3, 5).');
     return;
   }
 
@@ -3037,7 +3201,7 @@ async function runDocumentSplit() {
     }
     showToast(`Pages extracted into ${data.filename}!`);
   } catch (err) {
-    alert('Split error: ' + err.message);
+    showToast('Split error: ' + err.message);
   } finally {
     btn.disabled = false;
     if (spinner) spinner.style.display = 'none';
@@ -3082,8 +3246,10 @@ async function handleInspectorFileSelected(event) {
       document.getElementById('inspect-pages').textContent = `${data.paragraph_count} Paragraphs`;
     }
     document.getElementById('inspect-text-content').value = data.text_preview || '(No text extracted)';
+    showToast(`Extracted text from ${file.name}`);
   } catch (err) {
     document.getElementById('inspect-text-content').value = 'Error extracting text: ' + err.message;
+    showToast('Inspection failed: ' + err.message);
   }
 }
 

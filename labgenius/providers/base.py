@@ -15,16 +15,28 @@ class BaseAIProvider(ABC):
     """Abstract base class for AI completion providers."""
 
     @abstractmethod
+    def solve_task(
+        self,
+        task: LabTask,
+        custom_instructions: str = "",
+        lab_context: str = "",
+    ) -> TaskSolution:
+        """Generates authentic executable code and explanation for a single lab task."""
+        pass
+
     def solve_tasks(
         self,
         tasks: List[LabTask],
-        context: str,
-        student_profile: Any,
+        context: str = "",
+        student_profile: Any = None,
         course_name: str = "",
         custom_instructions: str = "",
     ) -> List[TaskSolution]:
         """Generates authentic executable code and explanation for a list of lab tasks."""
-        pass
+        return [
+            self.solve_task(task, custom_instructions=custom_instructions, lab_context=context)
+            for task in tasks
+        ]
 
     @abstractmethod
     def solve_analysis_questions(

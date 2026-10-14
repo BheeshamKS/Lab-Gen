@@ -1,0 +1,456 @@
+{
+  "evaluation_type": "baseline_pre_remediation",
+  "held_out_documents_count": 5,
+  "results": [
+    {
+      "id": "HELDOUT_01",
+      "file": "evaluation_corpus/held_out/held_out_01_dsa_doubly_linked_list.docx",
+      "format": "docx",
+      "identification": {
+        "detected_lab_number": "07",
+        "expected_lab_number": "07",
+        "lab_number_match": true,
+        "detected_title": "DOUBLY LINKED LIST OPERATIONS & BIDIRECTIONAL NAVIGATION",
+        "detected_course": "Department of Computer Science & Software Engineering"
+      },
+      "extraction": {
+        "extracted_task_count": 3,
+        "expected_task_count": 3,
+        "missing_tasks_count": 0,
+        "extracted_task_titles": [
+          "Task 1: Insertion Operations: Implement a DoublyLinkedList class with insert_at_head and insert_at_tail methods in Python.",
+          "Task 2: Node Deletion Mechanism: Implement a delete_node method that searches for a value and removes it, updating neighboring pointers correctly.",
+          "Task 3: Bidirectional List Traversal: Implement display_forward and display_backward methods to traverse and print the list in both directions."
+        ],
+        "extracted_viva_count": 2,
+        "expected_viva_count": 2,
+        "extracted_analysis_count": 2,
+        "expected_analysis_count": 2,
+        "warnings": [],
+        "errors": []
+      },
+      "solving": {
+        "solutions_generated_count": 3,
+        "has_analysis_answers": true,
+        "has_viva_answers": true
+      },
+      "execution": {
+        "total_tasks": 3,
+        "syntax_pass_count": 3,
+        "execution_pass_count": 3,
+        "relevant_code_count": 2
+      },
+      "report_generation": {
+        "docx_generated": true,
+        "docx_size_bytes": 118901,
+        "pdf_generated": true,
+        "tasks_in_doc_text": [
+          false,
+          false,
+          false
+        ],
+        "analysis_in_doc": true,
+        "viva_in_doc": true
+      },
+      "question_level_results": [
+        {
+          "task_id": 1,
+          "title": "Task 1: Insertion Operations: Implement a DoublyLinkedList class with insert_at_head and insert_at_tail methods in Python.",
+          "language": "python",
+          "syntax_valid": true,
+          "syntax_error": null,
+          "execution_success": true,
+          "exit_code": 0,
+          "stdout_snippet": "[+] Initial List: 15 -> 30 -> 45 -> 60 -> None\n[+] After prepend(5): 5 -> 15 -> 30 -> 45 -> 60 -> None\n[+] After delete(30): 5 -> 15 -> 45 -> 60 -> None",
+          "stderr_snippet": "",
+          "code_snippet": "class Node:\n    def __init__(self, data):\n        self.data = data\n        self.next = None\n\nclass LinkedList:\n    def __init__(self):\n        self.head = None\n\n    def append(self, data):\n        new",
+          "is_code_relevant": true
+        },
+        {
+          "task_id": 2,
+          "title": "Task 2: Node Deletion Mechanism: Implement a delete_node method that searches for a value and removes it, updating neighboring pointers correctly.",
+          "language": "python",
+          "syntax_valid": true,
+          "syntax_error": null,
+          "execution_success": true,
+          "exit_code": 0,
+          "stdout_snippet": "Input Sequence: [18, 42, 29, 65, 87, 33, 51, 94]\nComputed Metrics: {'count': 8, 'min': 18, 'max': 94, 'sum': 419, 'avg': 52.38}\nElements >= Average (52.38): [65, 87, 94]",
+          "stderr_snippet": "",
+          "code_snippet": "def process_data_stream(data):\n    stats = {'count': len(data), 'min': min(data), 'max': max(data), 'sum': sum(data)}\n    stats['avg'] = round(stats['sum'] / stats['count'], 2)\n    filtered = [x for x",
+          "is_code_relevant": false
+        },
+        {
+          "task_id": 3,
+          "title": "Task 3: Bidirectional List Traversal: Implement display_forward and display_backward methods to traverse and print the list in both directions.",
+          "language": "python",
+          "syntax_valid": true,
+          "syntax_error": null,
+          "execution_success": true,
+          "exit_code": 0,
+          "stdout_snippet": "Demonstrating Doubly Linked List Operations:\n  Inserted at head: 20\n  Inserted at head: 10\n  Inserted at tail: 30\n  Inserted at tail: 40\n[+] Forward Traversal:  10 <-> 20 <-> 30 <-> 40 <-> None\n[+] Ba",
+          "stderr_snippet": "",
+          "code_snippet": "class Node:\n    def __init__(self, data):\n        self.data = data\n        self.prev = None\n        self.next = None\n\nclass DoublyLinkedList:\n    def __init__(self):\n        self.head = None\n        s",
+          "is_code_relevant": true
+        }
+      ],
+      "failures": []
+    },
+    {
+      "id": "HELDOUT_02",
+      "file": "evaluation_corpus/held_out/held_out_02_dbms_library_system.pdf",
+      "format": "pdf",
+      "identification": {
+        "detected_lab_number": "08",
+        "expected_lab_number": "08",
+        "lab_number_match": true,
+        "detected_title": "RELATIONAL LIBRARY SCHEMA & CIRCULATION TRACKING",
+        "detected_course": "Database Management Systems (DBMS)"
+      },
+      "extraction": {
+        "extracted_task_count": 3,
+        "expected_task_count": 3,
+        "missing_tasks_count": 0,
+        "extracted_task_titles": [
+          "Task 1: Relational Table Creation with Constraints: Write SQL statements to",
+          "Task 2: Book Circulation Category Aggregation: Write a query grouping books by",
+          "Task 3: Member Active Borrowing Join Report: Write an INNER JOIN query"
+        ],
+        "extracted_viva_count": 2,
+        "expected_viva_count": 2,
+        "extracted_analysis_count": 2,
+        "expected_analysis_count": 2,
+        "warnings": [],
+        "errors": []
+      },
+      "solving": {
+        "solutions_generated_count": 3,
+        "has_analysis_answers": true,
+        "has_viva_answers": true
+      },
+      "execution": {
+        "total_tasks": 3,
+        "syntax_pass_count": 3,
+        "execution_pass_count": 3,
+        "relevant_code_count": 3
+      },
+      "report_generation": {
+        "docx_generated": true,
+        "docx_size_bytes": 118866,
+        "pdf_generated": true,
+        "tasks_in_doc_text": [
+          false,
+          false,
+          false
+        ],
+        "analysis_in_doc": true,
+        "viva_in_doc": true
+      },
+      "question_level_results": [
+        {
+          "task_id": 1,
+          "title": "Task 1: Relational Table Creation with Constraints: Write SQL statements to",
+          "language": "sql",
+          "syntax_valid": true,
+          "syntax_error": null,
+          "execution_success": true,
+          "exit_code": 0,
+          "stdout_snippet": "Commands completed successfully.\n\nCommands completed successfully.\n\nCommands completed successfully.\n\n(4 rows affected)\n\n(2 rows affected)\n\n(2 rows affected)\n\nBookID  Title                       Autho",
+          "stderr_snippet": "",
+          "code_snippet": "CREATE TABLE IF NOT EXISTS Books (\n    BookID INT PRIMARY KEY,\n    Title VARCHAR(100) NOT NULL,\n    Author VARCHAR(100) NOT NULL,\n    Category VARCHAR(50) NOT NULL,\n    Price DECIMAL(10,2) CHECK (Pric",
+          "is_code_relevant": true
+        },
+        {
+          "task_id": 2,
+          "title": "Task 2: Book Circulation Category Aggregation: Write a query grouping books by",
+          "language": "sql",
+          "syntax_valid": true,
+          "syntax_error": null,
+          "execution_success": true,
+          "exit_code": 0,
+          "stdout_snippet": "Commands completed successfully.\n\n(1 row affected)\n\nCategory              TotalBooks  AvgPrice\n--------------------  ----------  --------\nComputer Science      2           75.0    \nLiterature         ",
+          "stderr_snippet": "",
+          "code_snippet": "-- Ensure schema exists in SQLite environment\nCREATE TABLE IF NOT EXISTS Books (\n    BookID INT PRIMARY KEY,\n    Title VARCHAR(100) NOT NULL,\n    Author VARCHAR(100) NOT NULL,\n    Category VARCHAR(50)",
+          "is_code_relevant": true
+        },
+        {
+          "task_id": 3,
+          "title": "Task 3: Member Active Borrowing Join Report: Write an INNER JOIN query",
+          "language": "sql",
+          "syntax_valid": true,
+          "syntax_error": null,
+          "execution_success": true,
+          "exit_code": 0,
+          "stdout_snippet": "Commands completed successfully.\n\nCommands completed successfully.\n\nCommands completed successfully.\n\n(1 row affected)\n\n(1 row affected)\n\n(1 row affected)\n\nMemberName      BookTitle                 Lo",
+          "stderr_snippet": "",
+          "code_snippet": "-- Ensure schema exists in SQLite environment\nCREATE TABLE IF NOT EXISTS Books (BookID INT PRIMARY KEY, Title VARCHAR(100), Author VARCHAR(100), Category VARCHAR(50), Price DECIMAL(10,2));\nCREATE TABL",
+          "is_code_relevant": true
+        }
+      ],
+      "failures": []
+    },
+    {
+      "id": "HELDOUT_03",
+      "file": "evaluation_corpus/held_out/held_out_03_systems_c_strings.txt",
+      "format": "txt",
+      "identification": {
+        "detected_lab_number": "09",
+        "expected_lab_number": "09",
+        "lab_number_match": true,
+        "detected_title": "C STRING ALGORITHMS WITHOUT STANDARD LIBRARY",
+        "detected_course": "Systems Programming in C"
+      },
+      "extraction": {
+        "extracted_task_count": 3,
+        "expected_task_count": 3,
+        "missing_tasks_count": 0,
+        "extracted_task_titles": [
+          "Task 1: Palindrome Verification",
+          "Task 2: Sentence Word Counter",
+          "Task 3: Substring Search Engine"
+        ],
+        "extracted_viva_count": 2,
+        "expected_viva_count": 2,
+        "extracted_analysis_count": 2,
+        "expected_analysis_count": 2,
+        "warnings": [],
+        "errors": []
+      },
+      "solving": {
+        "solutions_generated_count": 3,
+        "has_analysis_answers": true,
+        "has_viva_answers": true
+      },
+      "execution": {
+        "total_tasks": 3,
+        "syntax_pass_count": 3,
+        "execution_pass_count": 3,
+        "relevant_code_count": 3
+      },
+      "report_generation": {
+        "docx_generated": true,
+        "docx_size_bytes": 118465,
+        "pdf_generated": true,
+        "tasks_in_doc_text": [
+          false,
+          false,
+          false
+        ],
+        "analysis_in_doc": true,
+        "viva_in_doc": true
+      },
+      "question_level_results": [
+        {
+          "task_id": 1,
+          "title": "Task 1: Palindrome Verification",
+          "language": "c",
+          "syntax_valid": true,
+          "syntax_error": null,
+          "execution_success": true,
+          "exit_code": 0,
+          "stdout_snippet": "[+] String 1: 'radar' -> Palindrome\n[+] String 2: 'systems' -> Not a Palindrome",
+          "stderr_snippet": "",
+          "code_snippet": "#include <stdio.h>\n\nint isPalindrome(const char *str) {\n    int len = 0;\n    while (str[len] != '\\0') len++;\n    int left = 0, right = len - 1;\n    while (left < right) {\n        if (str[left] != str[",
+          "is_code_relevant": true
+        },
+        {
+          "task_id": 2,
+          "title": "Task 2: Sentence Word Counter",
+          "language": "c",
+          "syntax_valid": true,
+          "syntax_error": null,
+          "execution_success": true,
+          "exit_code": 0,
+          "stdout_snippet": "[+] Input Sentence: 'Low-level systems programming in C without libraries'\n[+] Total Words Counted: 7",
+          "stderr_snippet": "",
+          "code_snippet": "#include <stdio.h>\n\nint countWords(const char *str) {\n    int count = 0, in_word = 0;\n    for (int i = 0; str[i] != '\\0'; i++) {\n        if (str[i] == ' ' || str[i] == '\\t' || str[i] == '\\n') {\n      ",
+          "is_code_relevant": true
+        },
+        {
+          "task_id": 3,
+          "title": "Task 3: Substring Search Engine",
+          "language": "c",
+          "syntax_valid": true,
+          "syntax_error": null,
+          "execution_success": true,
+          "exit_code": 0,
+          "stdout_snippet": "[+] Source Text: 'advanced systems programming'\n[+] Substring:   'systems'\n[+] Result: Match found at index 9",
+          "stderr_snippet": "",
+          "code_snippet": "#include <stdio.h>\n\nint findSubstring(const char *text, const char *pattern) {\n    int n = 0, m = 0;\n    while (text[n] != '\\0') n++;\n    while (pattern[m] != '\\0') m++;\n    if (m == 0) return 0;\n    ",
+          "is_code_relevant": true
+        }
+      ],
+      "failures": []
+    },
+    {
+      "id": "HELDOUT_04",
+      "file": "evaluation_corpus/held_out/held_out_04_data_science_pandas.md",
+      "format": "md",
+      "identification": {
+        "detected_lab_number": "10",
+        "expected_lab_number": "10",
+        "lab_number_match": true,
+        "detected_title": "TRANSACTION DATA DISTRIBUTION ANALYSIS AND IQR OUTLIER DETECTION",
+        "detected_course": "Data Science Laboratory Manual"
+      },
+      "extraction": {
+        "extracted_task_count": 3,
+        "expected_task_count": 3,
+        "missing_tasks_count": 0,
+        "extracted_task_titles": [
+          "Task 1: Descriptive Statistics Summary",
+          "Task 2: Outlier Detection using Interquartile Range",
+          "Task 3: Summary Visualization and Distribution Reporting"
+        ],
+        "extracted_viva_count": 2,
+        "expected_viva_count": 2,
+        "extracted_analysis_count": 2,
+        "expected_analysis_count": 2,
+        "warnings": [],
+        "errors": []
+      },
+      "solving": {
+        "solutions_generated_count": 3,
+        "has_analysis_answers": true,
+        "has_viva_answers": true
+      },
+      "execution": {
+        "total_tasks": 3,
+        "syntax_pass_count": 3,
+        "execution_pass_count": 3,
+        "relevant_code_count": 3
+      },
+      "report_generation": {
+        "docx_generated": true,
+        "docx_size_bytes": 119465,
+        "pdf_generated": true,
+        "tasks_in_doc_text": [
+          false,
+          false,
+          false
+        ],
+        "analysis_in_doc": true,
+        "viva_in_doc": true
+      },
+      "question_level_results": [
+        {
+          "task_id": 1,
+          "title": "Task 1: Descriptive Statistics Summary",
+          "language": "python",
+          "syntax_valid": true,
+          "syntax_error": null,
+          "execution_success": true,
+          "exit_code": 0,
+          "stdout_snippet": "=== Student Performance Dataset Preview ===\n    StudentID  Quiz_Score  Assignment_Score  Study_Hours  Total_Score\n0  25F-DS-001          93                70          4.1         79.2\n1  25F-DS-002   ",
+          "stderr_snippet": "",
+          "code_snippet": "import numpy as np\nimport pandas as pd\n\nnp.random.seed(42)\ndata = {\n    'StudentID': [f'25F-DS-{i:03d}' for i in range(1, 11)],\n    'Quiz_Score': np.random.randint(55, 98, size=10),\n    'Assignment_Sc",
+          "is_code_relevant": true
+        },
+        {
+          "task_id": 2,
+          "title": "Task 2: Outlier Detection using Interquartile Range",
+          "language": "python",
+          "syntax_valid": true,
+          "syntax_error": null,
+          "execution_success": true,
+          "exit_code": 0,
+          "stdout_snippet": "[+] Calculated Q1 (25th percentile): 125.00\n[+] Calculated Q3 (75th percentile): 155.00\n[+] Interquartile Range (IQR):      30.00\n[+] Anomaly Threshold Bounds:       [80.00, 200.00]\n[+] Total Detected",
+          "stderr_snippet": "",
+          "code_snippet": "import numpy as np\nimport pandas as pd\n\nnp.random.seed(42)\namounts = [120, 150, 130, 140, 160, 110, 145, 135, 125, 155, 950, 1200, 30]\ndf = pd.DataFrame({\n    'TransactionID': [f'TXN-{i:04d}' for i in",
+          "is_code_relevant": true
+        },
+        {
+          "task_id": 3,
+          "title": "Task 3: Summary Visualization and Distribution Reporting",
+          "language": "python",
+          "syntax_valid": true,
+          "syntax_error": null,
+          "execution_success": true,
+          "exit_code": 0,
+          "stdout_snippet": "=== Descriptive Statistics Summary (AmountUSD) ===\nMean:               $273.08\nMedian:             $140.00\nStandard Deviation: $361.01\nVariance:           $130331.41\n\n=== Full Summary Statistics ===\nc",
+          "stderr_snippet": "",
+          "code_snippet": "import numpy as np\nimport pandas as pd\n\nnp.random.seed(42)\namounts = [120, 150, 130, 140, 160, 110, 145, 135, 125, 155, 950, 1200, 30]\ndf = pd.DataFrame({\n    'TransactionID': [f'TXN-{i:04d}' for i in",
+          "is_code_relevant": true
+        }
+      ],
+      "failures": []
+    },
+    {
+      "id": "HELDOUT_05",
+      "file": "evaluation_corpus/held_out/held_out_05_malformed_metadata.txt",
+      "format": "txt",
+      "identification": {
+        "detected_lab_number": "01",
+        "expected_lab_number": "01",
+        "lab_number_match": true,
+        "detected_title": "LAB REPORT",
+        "detected_course": "Programming / Data Science"
+      },
+      "extraction": {
+        "extracted_task_count": 2,
+        "expected_task_count": 2,
+        "missing_tasks_count": 0,
+        "extracted_task_titles": [
+          "Task 1: Implement Quick Sort partitioning on an array of integers.",
+          "Task 2: Implement Linear Search to find target element in an unsorted list."
+        ],
+        "extracted_viva_count": 2,
+        "expected_viva_count": 2,
+        "extracted_analysis_count": 0,
+        "expected_analysis_count": 0,
+        "warnings": [],
+        "errors": []
+      },
+      "solving": {
+        "solutions_generated_count": 2,
+        "has_analysis_answers": false,
+        "has_viva_answers": true
+      },
+      "execution": {
+        "total_tasks": 2,
+        "syntax_pass_count": 2,
+        "execution_pass_count": 2,
+        "relevant_code_count": 2
+      },
+      "report_generation": {
+        "docx_generated": true,
+        "docx_size_bytes": 117763,
+        "pdf_generated": true,
+        "tasks_in_doc_text": [
+          false,
+          false
+        ],
+        "analysis_in_doc": null,
+        "viva_in_doc": true
+      },
+      "question_level_results": [
+        {
+          "task_id": 1,
+          "title": "Task 1: Implement Quick Sort partitioning on an array of integers.",
+          "language": "python",
+          "syntax_valid": true,
+          "syntax_error": null,
+          "execution_success": true,
+          "exit_code": 0,
+          "stdout_snippet": "[+] Input Array:  [64, 34, 25, 12, 22, 11, 90, 48]\n[+] Partitioned at index 5 (Pivot=48): [34, 25, 12, 22, 11, 48, 90, 64]\n  [+] Partitioned at index 0 (Pivot=11): [11, 25, 12, 22, 34, 48, 90, 64]\n   ",
+          "stderr_snippet": "",
+          "code_snippet": "def quicksort(arr, low, high, depth=0):\n    indent = '  ' * depth\n    if low < high:\n        pi = partition(arr, low, high)\n        print(f'{indent}[+] Partitioned at index {pi} (Pivot={arr[pi]}): {ar",
+          "is_code_relevant": true
+        },
+        {
+          "task_id": 2,
+          "title": "Task 2: Implement Linear Search to find target element in an unsorted list.",
+          "language": "python",
+          "syntax_valid": true,
+          "syntax_error": null,
+          "execution_success": true,
+          "exit_code": 0,
+          "stdout_snippet": "[+] Unsorted Array: [64, 34, 25, 12, 22, 11, 90, 48]\n[+] Target Element: 22\n[+] Result: Found at index 4 in 5 comparisons (O(n) time).",
+          "stderr_snippet": "",
+          "code_snippet": "def linear_search(arr, target):\n    comparisons = 0\n    for i, val in enumerate(arr):\n        comparisons += 1\n        if val == target:\n            return i, comparisons\n    return -1, comparisons\n\ni",
+          "is_code_relevant": true
+        }
+      ],
+      "failures": []
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+ALGORITHMS LAB PRACTICE SHEET
+Department of Software Studies
+
+PRACTICE PROBLEMS:
+Problem 1: Implement Quick Sort partitioning on an array of integers.
+Problem 2: Implement Linear Search to find target element in an unsorted list.
+
+VIVA QUESTIONS:
+1. What is the average time complexity of Quick Sort?
+2. What is the worst-case complexity of Linear Search?

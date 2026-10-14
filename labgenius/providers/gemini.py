@@ -47,29 +47,27 @@ class GeminiProvider(BaseAIProvider):
             cleaned = cleaned.split("```")[1].split("```")[0].strip()
         return json.loads(cleaned)
 
-    def solve_tasks(
+    def solve_task(
         self,
-        tasks: List[LabTask],
-        context: str,
-        student_profile: Any,
-        course_name: str = "",
+        task: LabTask,
         custom_instructions: str = "",
-    ) -> List[TaskSolution]:
-        solutions = []
+        lab_context: str = "",
+    ) -> TaskSolution:
+        lang = task.language or "python"
+        ext = ".py" if lang == "python" else ".c" if lang == "c" else ".cpp" if lang == "cpp" else ".sql" if lang == "sql" else ".sh"
+        fname = f"task_{task.task_id:02d}{ext}"
 
-        for task in tasks:
-            lang = task.language or "python"
-            ext = ".py" if lang == "python" else ".c" if lang == "c" else ".cpp" if lang == "cpp" else ".sql" if lang == "sql" else ".sh"
-            fname = f"task_{task.task_id:02d}{ext}"
+        student_name = getattr(getattr(self.config, 'student', None), 'name', 'Student')
+        student_roll = getattr(getattr(self.config, 'student', None), 'roll_number', '25F-DS-020')
 
-            prompt = f"""You are an undergraduate student named {getattr(student_profile, 'name', 'Student')} (Roll No: {getattr(student_profile, 'roll_number', '25F-DS-020')}) completing an authentic lab assignment for '{course_name or 'Computer Science'}'.
+        prompt = f"""You are an undergraduate student named {student_name} (Roll No: {student_roll}) completing an authentic lab assignment.
 Generate complete, fully working, self-contained {lang.upper()} source code and a realistic lab report explanation.
 
 TASK DETAILS:
 Task Number: {task.task_id}
 Title: {task.title}
 Requirements: {task.description}
-Context: {context[:1500] if context else 'Standard lab task'}
+Context: {lab_context[:1500] if lab_context else 'Standard lab task'}
 Custom Instructions: {custom_instructions or 'None'}
 
 REQUIREMENTS:
@@ -89,33 +87,40 @@ Return ONLY a valid JSON object matching this exact structure:
   "discussion_answers": {{}}
 }}
 """
-            try:
-                raw_resp = self._generate_text(prompt)
-                data = self._extract_json(raw_resp)
-                solutions.append(
-                    TaskSolution(
-                        task_id=task.task_id,
-                        language=data.get("language", lang),
-                        code=data.get("code", ""),
-                        explanation=data.get("explanation", ""),
-                        discussion_answers=data.get("discussion_answers", {}),
-                        file_name=data.get("file_name", fname),
-                    )
-                )
-            except Exception as e:
-                # Fallback to simple stub if API fails
-                solutions.append(
-                    TaskSolution(
-                        task_id=task.task_id,
-                        language=lang,
-                        code=f"# Solution generation error: {e}\nprint('Task {task.task_id} complete')\n",
-                        explanation=f"Implementation for Task {task.task_id}.",
-                        discussion_answers={},
-                        file_name=fname,
-                    )
-                )
+        try:
+            raw_resp = self._generate_text(prompt)
+            data = self._extract_json(raw_resp)
+            return TaskSolution(
+                task_id=task.task_id,
+                language=data.get("language", lang),
+                code=data.get("code", ""),
+                explanation=data.get("explanation", ""),
+                discussion_answers=data.get("discussion_answers", {}),
+                file_name=data.get("file_name", fname),
+            )
+        except Exception as e:
+            # Fallback to simple stub if API fails
+            return TaskSolution(
+                task_id=task.task_id,
+                language=lang,
+                code=f"# Solution generation error: {e}\nprint('Task {task.task_id} complete')\n",
+                explanation=f"Implementation for Task {task.task_id}.",
+                discussion_answers={},
+                file_name=fname,
+            )
 
-        return solutions
+    def solve_tasks(
+        self,
+        tasks: List[LabTask],
+        context: str = "",
+        student_profile: Any = None,
+        course_name: str = "",
+        custom_instructions: str = "",
+    ) -> List[TaskSolution]:
+        return [
+            self.solve_task(task, custom_instructions=custom_instructions, lab_context=context)
+            for task in tasks
+        ]
 
     def solve_analysis_questions(
         self,

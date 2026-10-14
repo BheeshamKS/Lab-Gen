@@ -64,7 +64,8 @@ class TaskOrchestrator:
             if req:
                 req.status = RequirementStatus.GENERATING
 
-            sol = self.provider.solve_task(task, custom_instructions=custom_instructions, lab_context=manual.context)
+            combined_context = f"{manual.title}\n{manual.course_name or ''}\n{manual.context or ''}".strip()
+            sol = self.provider.solve_task(task, custom_instructions=custom_instructions, lab_context=combined_context)
             solutions.append(sol)
 
             if req:

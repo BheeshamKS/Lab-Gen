@@ -69,9 +69,14 @@ class ManualParser:
         r"^(?:\d+[\.\)]\s*)?problem\s+statements?[\s:]*$",
     ]
 
+    ROMAN_NUMERALS = {
+        "i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5,
+        "vi": 6, "vii": 7, "viii": 8, "ix": 9, "x": 10,
+    }
+
     TASK_KEYWORD_PATTERN = (
         r"^(?:lab|task|assignment|experiment|exercise|activity|problem|program|part|query|question)"
-        r"\s*#?\s*0*([1-9][0-9]*)\b(?:\s*[\u2013\u2014\-:\.]\s*(.*)|$)"
+        r"\s*#?\s*(?:0*([1-9][0-9]*)|([ivxldcm]+))\b(?:\s*[\u2013\u2014\-:\.]\s*(.*)|$)"
     )
 
     END_SECTION_MARKERS = [
@@ -125,15 +130,20 @@ class ManualParser:
             "truncate table", "dbms", "queries", "table_name"
         ]) and not "data structure" in text_lower[:500]:
             return "sql"
-        if any(k in text_lower for k in ["in c language", "dev c++", "dev-c++", "#include <stdio.h>", "stdio.h"]):
+        if any(k in text_lower for k in [
+            "in c language", "dev c++", "dev-c++", "#include <stdio.h>", "stdio.h",
+            "systems programming in c", "programming in c", "c program", "c string", "gcc",
+        ]):
             return "c"
-        if any(k in text_lower for k in ["c++", "cpp", "iostream"]):
+        if any(k in text_lower for k in ["c++", "cpp", "iostream", "g++", "std::"]):
             return "cpp"
-        if any(k in text_lower for k in ["python", "pandas", "numpy"]):
+        if any(k in text_lower for k in ["python", "pandas", "numpy", "def ", "import "]):
             return "python"
-        if any(k in text_lower for k in ["bash", "shell script", "linux command"]):
+        if any(k in text_lower for k in ["bash", "shell script", "linux command", "#!/bin/bash"]):
             return "bash"
-        return "c"  # Default for programming fundamentals labs
+        if any(k in text_lower for k in ["tree", "graph", "sort", "search", "stack", "queue", "linked list", "array"]):
+            return "python"
+        return "c"
 
     def _parse_docx(self) -> LabManual:
         if not docx:
@@ -149,25 +159,38 @@ class ManualParser:
         title = "LAB REPORT"
 
         # Check filename first
-        m_fn = re.search(r"(?:lab|experiment)\s*#?\s*([0-9]+)", self.path.stem, re.IGNORECASE)
+        m_fn = re.search(r"(?:lab\s*(?:session|manual)?|experiment|session|assignment)\s*[:#-]?\s*([0-9]+)", self.path.stem, re.IGNORECASE)
         if m_fn:
             lab_number = m_fn.group(1).zfill(2)
 
-        # Check first 15 paragraphs for Lab/Experiment number and title
+        # Check first 15 paragraphs for explicit Topic / Title
+        for p in paragraphs_text[:15]:
+            p_clean = re.sub(r"^[#\s\*\-]+", "", p).strip()
+            m_topic = re.match(r"^(?:title|topic)\s*[:\-]\s*(.+)", p_clean, re.IGNORECASE)
+            if m_topic:
+                cand_title = m_topic.group(1).strip()
+                if len(cand_title) > 2:
+                    title = cand_title
+                    break
+
+        # Check first 15 paragraphs for Lab/Experiment/Session/Assignment number and title
         for i, p in enumerate(paragraphs_text[:15]):
-            m = re.search(r"(?:lab|experiment)\s*#?\s*([0-9]+)", p, re.IGNORECASE)
+            m = re.search(r"(?:lab\s*(?:session|manual)?|experiment|session|assignment)\s*[:#-]?\s*([0-9]+)", p, re.IGNORECASE)
             if m:
                 lab_number = m.group(1).zfill(2)
-                after = re.sub(r"(?:lab|experiment)\s*#?\s*[0-9]+[\s:\.-]*", "", p, flags=re.IGNORECASE).strip()
-                if len(after) > 3:
-                    title = after
-                elif i + 1 < len(paragraphs_text):
-                    next_p = paragraphs_text[i + 1].strip()
-                    if not any(next_p.lower().startswith(x) for x in ["objective", "theory", "date", "roll", "name"]):
-                        title = next_p
+                if title == "LAB REPORT":
+                    after = re.sub(r"(?:lab\s*(?:session|manual)?|experiment|session|assignment)\s*[:#-]?\s*[0-9]+[\s:\.-]*", "", p, flags=re.IGNORECASE).strip()
+                    if len(after) > 3:
+                        title = after
+                    elif i + 1 < len(paragraphs_text):
+                        next_p = paragraphs_text[i + 1].strip()
+                        if not any(next_p.lower().startswith(x) for x in ["objective", "theory", "date", "roll", "name", "topic:", "title:"]):
+                            title = next_p
                 break
 
         # Clean title boilerplate
+        title = re.sub(r"^[#\s\*\-]+", "", title).strip()
+        title = re.sub(r"^(?:title|topic)\s*[:\-]\s*", "", title, flags=re.IGNORECASE).strip()
         title = re.sub(r"\s+in\s+c\s+language.*", "", title, flags=re.IGNORECASE).strip()
         title = re.sub(r"\s+in\s+c\+\+.*", "", title, flags=re.IGNORECASE).strip()
         title = re.sub(r"\s+in\s+python.*", "", title, flags=re.IGNORECASE).strip()
@@ -259,7 +282,7 @@ class ManualParser:
             m = task_kw_regex.match(p)
             if m:
                 num = int(m.group(1))
-                if i < 8 and num == doc_lab_num:
+                if i < 8 and re.match(r"^(?:lab|experiment|session)\b", p, re.IGNORECASE) and num == doc_lab_num:
                     continue
                 explicit_headings.append(num)
 
@@ -279,7 +302,13 @@ class ManualParser:
                 clean_sub = re.sub(r"^task\s*\d+[\s:\-]*", "", current_task_title, flags=re.IGNORECASE).strip().rstrip(":")
                 if clean_sub.lower().endswith("that") or clean_sub.lower() in ["create a python program", "write a python program", "implement a python program"]:
                     if title and len(title) > 5 and "lab" not in title.lower():
-                        clean_sub = f"Implementation & Performance Comparison of {title.title()}"
+                        t_clean = title.title().strip()
+                        if t_clean.lower().startswith("performance comparison"):
+                            clean_sub = f"Implementation & {t_clean}"
+                        elif t_clean.lower().startswith("implementation"):
+                            clean_sub = t_clean
+                        else:
+                            clean_sub = f"Implementation & Performance Comparison of {t_clean}"
                     else:
                         clean_sub = re.sub(r"\s+that$", "", clean_sub, flags=re.IGNORECASE).strip()
                     current_task_title = f"Task {current_task_num}: {clean_sub}"
@@ -307,7 +336,7 @@ class ManualParser:
                     continue
 
                 # Section: Viva Questions
-                if re.search(r"^(?:\d+[\.\)]\s*)?(?:viva\s*(?:questions?|voce)?|interview\s*questions?)[\s:]*$", p_text, re.IGNORECASE):
+                if re.search(r"^(?:\d+[\.\)]\s*)?(?:viva(?:\s+voce)?(?:\s+questions?)?|interview\s*questions?)[\s:]*$", p_text, re.IGNORECASE):
                     save_task()
                     in_viva_section = True
                     in_analysis_section = False
@@ -365,7 +394,7 @@ class ManualParser:
                     continue
 
                 m_exp = task_kw_regex.match(p_text)
-                is_manual_header = "lab manual" in p_text.lower() or (idx_el < 8 and m_exp and int(m_exp.group(1)) == doc_lab_num)
+                is_manual_header = "lab manual" in p_text.lower() or (idx_el < 8 and m_exp and re.match(r"^(?:lab|experiment|session)\b", p_text, re.IGNORECASE) and int(m_exp.group(1)) == doc_lab_num)
 
                 m_named = re.match(
                     r"^(performance\s+visualization|comparative\s+experiment|discussion\s+questions|challenge\s+activity(?:\s*\([^)]*\))?)\b[\s:\.-]*(.*)",
@@ -413,11 +442,16 @@ class ManualParser:
                         save_task()
                         return tasks, "\n".join(preamble_lines).strip(), viva_questions, analysis_questions, observation_tables
 
+                m_plain_num = re.match(r"^0*([1-9][0-9]*)[\.\)]\s+(.*)", p_text)
                 if m_exp and not is_manual_header:
                     save_task()
                     in_task_section = True
-                    current_task_num = int(m_exp.group(1))
-                    rest = m_exp.group(2).strip() if m_exp.group(2) else ""
+                    num_str = m_exp.group(1)
+                    if num_str:
+                        current_task_num = int(num_str)
+                    elif m_exp.group(2):
+                        current_task_num = self.ROMAN_NUMERALS.get(m_exp.group(2).lower(), 1)
+                    rest = m_exp.group(3).strip() if m_exp.group(3) else ""
 
                     # If rest is empty, check next paragraph for task title
                     if not rest:
@@ -429,6 +463,14 @@ class ManualParser:
 
                     current_task_title = f"Task {current_task_num}: {rest}" if rest else f"Task {current_task_num}"
                     current_task_lines = []
+                    continue
+
+                elif not has_explicit_experiment_headings and in_task_section and m_plain_num and not is_manual_header:
+                    save_task()
+                    current_task_num = int(m_plain_num.group(1))
+                    rest = m_plain_num.group(2).strip()
+                    current_task_title = f"Task {current_task_num}: {rest}" if rest else f"Task {current_task_num}"
+                    current_task_lines = [rest] if rest else []
                     continue
 
                 elif m_named and not is_manual_header:
@@ -626,6 +668,14 @@ class ManualParser:
 
         reader = pypdf.PdfReader(self.path)
         full_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        return self._parse_from_text(full_text)
+
+    def _parse_text(self) -> LabManual:
+        with open(self.path, "r", encoding="utf-8", errors="replace") as f:
+            text = f.read()
+        return self._parse_from_text(text)
+
+    def _parse_from_text(self, full_text: str) -> LabManual:
         overall_lang = self._detect_overall_language(full_text)
         lines = [line.strip() for line in full_text.splitlines() if line.strip()]
 
@@ -634,32 +684,45 @@ class ManualParser:
         title = "LAB REPORT"
 
         # Check filename first
-        m_fn = re.search(r"(?:lab|experiment)\s*#?\s*([0-9]+)", self.path.stem, re.IGNORECASE)
+        m_fn = re.search(r"(?:lab\s*(?:session|manual)?|experiment|session|assignment)\s*[:#-]?\s*([0-9]+)", self.path.stem, re.IGNORECASE)
         if m_fn:
             lab_number = m_fn.group(1).zfill(2)
 
-        # Check first 25 lines of text
+        # Check first 25 lines for explicit Topic / Title
+        for p in lines[:25]:
+            p_clean = re.sub(r"^[#\s\*\-]+", "", p).strip()
+            m_topic = re.match(r"^(?:title|topic)\s*[:\-]\s*(.+)", p_clean, re.IGNORECASE)
+            if m_topic:
+                cand_title = m_topic.group(1).strip()
+                if len(cand_title) > 2:
+                    title = cand_title
+                    break
+
+        # Check first 25 lines of text for Lab/Experiment/Session/Assignment number and title
         for i, p in enumerate(lines[:25]):
-            m = re.search(r"(?:lab|experiment)\s*#?\s*([0-9]+)", p, re.IGNORECASE)
+            m = re.search(r"(?:lab\s*(?:session|manual)?|experiment|session|assignment)\s*[:#-]?\s*([0-9]+)", p, re.IGNORECASE)
             if m:
                 lab_number = m.group(1).zfill(2)
-                after = re.sub(r"(?:lab|experiment)\s*#?\s*[0-9]+[\s:\.-]*", "", p, flags=re.IGNORECASE).strip()
-                if len(after) > 3:
-                    title = after
-                elif i + 1 < len(lines):
-                    next_p = lines[i + 1].strip()
-                    if not any(next_p.lower().startswith(x) for x in ["objective", "theory", "date", "roll", "name", "department", "university"]):
-                        title = next_p
+                if title == "LAB REPORT":
+                    after = re.sub(r"(?:lab\s*(?:session|manual)?|experiment|session|assignment)\s*[:#-]?\s*[0-9]+[\s:\.-]*", "", p, flags=re.IGNORECASE).strip()
+                    if len(after) > 3:
+                        title = after
+                    elif i + 1 < len(lines):
+                        next_p = lines[i + 1].strip()
+                        if not any(next_p.lower().startswith(x) for x in ["objective", "theory", "date", "roll", "name", "department", "university", "topic:", "title:"]):
+                            title = next_p
                 break
 
         # Also fallback regex if title wasn't found from above
         if title == "LAB REPORT":
-            m_alt = re.search(r"lab\s*#?\s*([0-9]+)\s*:\s*([^.\n\r]+)", full_text, re.IGNORECASE)
+            m_alt = re.search(r"(?:lab|session|assignment)\s*#?\s*([0-9]+)\s*[:\-]\s*([^.\n\r]+)", full_text, re.IGNORECASE)
             if m_alt:
                 lab_number = m_alt.group(1).zfill(2)
                 title = m_alt.group(2).strip()
 
         # Clean title boilerplate
+        title = re.sub(r"^[#\s\*\-]+", "", title).strip()
+        title = re.sub(r"^(?:title|topic)\s*[:\-]\s*", "", title, flags=re.IGNORECASE).strip()
         title = re.sub(r"\s+in\s+c\s+language.*", "", title, flags=re.IGNORECASE).strip()
         title = re.sub(r"\s+in\s+c\+\+.*", "", title, flags=re.IGNORECASE).strip()
         title = re.sub(r"\s+in\s+python.*", "", title, flags=re.IGNORECASE).strip()
@@ -681,6 +744,8 @@ class ManualParser:
                     course_name_pdf = p.replace("Course:", "").replace("Subject:", "").strip()
                     break
 
+        course_name_pdf = re.sub(r"^[#\s\*\-]+", "", course_name_pdf).strip()
+
         tasks: List[LabTask] = []
         in_tasks = False
         in_viva = False
@@ -691,9 +756,27 @@ class ManualParser:
         preamble_lines: List[str] = []
         viva_questions: List[str] = []
         analysis_questions: List[str] = []
+        observation_tables: List[Dict[str, Any]] = []
+        table_lines: List[str] = []
+        latest_tbl_title = ""
 
         doc_lab_num = int(lab_number) if lab_number.isdigit() else 0
         task_kw_regex = re.compile(self.TASK_KEYWORD_PATTERN, re.IGNORECASE)
+
+        explicit_headings = []
+        for i_l, l_raw in enumerate(lines):
+            c_l = re.sub(r"^[#\s\*\-]+", "", l_raw).strip()
+            c_no_f = re.sub(r"[\*\_]+", "", c_l).strip()
+            m_h = task_kw_regex.match(c_no_f)
+            if m_h:
+                n_str = m_h.group(1)
+                if n_str:
+                    n_val = int(n_str)
+                    if i_l < 15 and re.match(r"^(?:lab|experiment|session)\b", c_no_f, re.IGNORECASE) and n_val == doc_lab_num:
+                        continue
+                    explicit_headings.append(n_val)
+
+        has_explicit_headings = len(explicit_headings) >= 2 or (len(explicit_headings) >= 1 and explicit_headings[0] == 1)
 
         def save_task():
             nonlocal current_task_num, current_task_title, current_lines
@@ -715,6 +798,24 @@ class ManualParser:
             current_lines = []
             current_task_title = ""
 
+        def flush_table():
+            nonlocal table_lines, latest_tbl_title
+            if len(table_lines) >= 2:
+                h_line = [c.strip() for c in table_lines[0].strip("|").split("|")]
+                data_rows = []
+                for r_line in table_lines[1:]:
+                    if re.match(r"^[\s\|:\-]+$", r_line):
+                        continue
+                    data_rows.append([c.strip() for c in r_line.strip("|").split("|")])
+                if h_line and data_rows:
+                    observation_tables.append({
+                        "title": latest_tbl_title or f"Observation Table {len(observation_tables)+1}",
+                        "headers": h_line,
+                        "rows": data_rows,
+                    })
+            table_lines = []
+            latest_tbl_title = ""
+
         for idx, line_str in enumerate(lines):
             # Skip page headers / footers that repeat across pages
             if len(line_str) < 55 and any(hdr in line_str.lower() for hdr in [
@@ -722,8 +823,22 @@ class ManualParser:
             ]):
                 continue
 
+            clean_line = re.sub(r"^[#\s\*\-]+", "", line_str).strip()
+            clean_line_no_fmt = re.sub(r"[\*\_]+", "", clean_line).strip()
+
+            # Track observation table titles
+            if re.search(r"^(?:table\s+[0-9]+|observation\s+table)[\s:]*.*$", clean_line_no_fmt, re.IGNORECASE):
+                latest_tbl_title = clean_line_no_fmt
+
+            # Track Markdown table rows
+            if line_str.startswith("|") and line_str.endswith("|"):
+                table_lines.append(line_str)
+                continue
+            elif table_lines:
+                flush_table()
+
             # Viva Voce section
-            if re.search(r"^viva\s*(?:questions?|voce)?[\s:]*$", line_str, re.IGNORECASE):
+            if re.search(r"^(?:\d+[\.\)]\s*)?(?:viva(?:\s+voce)?(?:\s+questions?)?|interview\s*questions?)[\s:]*$", clean_line_no_fmt, re.IGNORECASE):
                 save_task()
                 in_viva = True
                 in_analysis = False
@@ -731,7 +846,7 @@ class ManualParser:
                 continue
 
             # Analysis Questions section
-            if re.search(r"^analysis\s*questions?[\s:]*$", line_str, re.IGNORECASE):
+            if re.search(r"^(?:\d+[\.\)]\s*)?(?:analysis\s*questions?|questions?\s+(?:for\s+)?analysis)[\s:]*$", clean_line_no_fmt, re.IGNORECASE):
                 save_task()
                 in_analysis = True
                 in_viva = False
@@ -739,51 +854,76 @@ class ManualParser:
                 continue
 
             if in_viva:
-                if any(re.search(end_m, line_str, re.IGNORECASE) for end_m in self.END_SECTION_MARKERS):
+                if any(re.search(end_m, clean_line_no_fmt, re.IGNORECASE) for end_m in self.END_SECTION_MARKERS):
                     break
-                viva_questions.append(line_str)
+                if viva_questions and not re.match(r"^(?:\d+[\.\)]|[-*•]|Q\d+:?)\s+", clean_line_no_fmt, re.IGNORECASE):
+                    viva_questions[-1] = f"{viva_questions[-1]} {clean_line_no_fmt}"
+                else:
+                    viva_questions.append(clean_line_no_fmt)
                 continue
 
             if in_analysis:
-                if any(re.search(end_m, line_str, re.IGNORECASE) for end_m in self.END_SECTION_MARKERS) or \
-                   re.search(r"^viva\s*(?:questions?|voce)?[\s:]*$", line_str, re.IGNORECASE):
+                is_analysis_end = any(re.search(end_m, clean_line_no_fmt, re.IGNORECASE) for end_m in self.END_SECTION_MARKERS) or \
+                                   re.search(r"^(?:\d+[\.\)]\s*)?(?:viva(?:\s+voce)?(?:\s+questions?)?|interview\s*questions?)[\s:]*$", clean_line_no_fmt, re.IGNORECASE)
+                if is_analysis_end:
                     in_analysis = False
-                    if re.search(r"^viva\s*(?:questions?|voce)?[\s:]*$", line_str, re.IGNORECASE):
+                    if re.search(r"^(?:\d+[\.\)]\s*)?(?:viva(?:\s+voce)?(?:\s+questions?)?|interview\s*questions?)[\s:]*$", clean_line_no_fmt, re.IGNORECASE):
                         in_viva = True
                     continue
-                analysis_questions.append(line_str)
+                if analysis_questions and not re.match(r"^(?:\d+[\.\)]|[-*•]|Q\d+:?)\s+", clean_line_no_fmt, re.IGNORECASE):
+                    analysis_questions[-1] = f"{analysis_questions[-1]} {clean_line_no_fmt}"
+                else:
+                    analysis_questions.append(clean_line_no_fmt)
                 continue
 
             # Check for End Section Marker
             if in_tasks:
-                if any(re.search(end_m, line_str, re.IGNORECASE) for end_m in self.END_SECTION_MARKERS):
+                if any(re.search(end_m, clean_line_no_fmt, re.IGNORECASE) for end_m in self.END_SECTION_MARKERS):
                     save_task()
                     break
 
             # Check explicit task pattern
-            tm = task_kw_regex.match(line_str)
-            is_doc_heading = idx < 15 and tm and int(tm.group(1)) == doc_lab_num
+            tm = task_kw_regex.match(clean_line_no_fmt)
+            is_doc_heading = idx < 15 and tm and re.match(r"^(?:lab|experiment|session)\b", clean_line_no_fmt, re.IGNORECASE) and (
+                (tm.group(1) and int(tm.group(1)) == doc_lab_num) or
+                (tm.group(2) and self.ROMAN_NUMERALS.get(tm.group(2).lower(), -1) == doc_lab_num)
+            )
 
             m_named = re.match(
                 r"^(performance\s+visualization|comparative\s+experiment|discussion\s+questions|challenge\s+activity(?:\s*\([^)]*\))?)\b[\s:\.-]*(.*)",
-                line_str,
+                clean_line_no_fmt,
                 re.IGNORECASE
             )
 
-            # Check section marker (e.g. "9. Assignment:", "LAB TASKS:")
-            if not in_tasks:
-                for marker in self.TASK_SECTION_MARKERS:
-                    if re.search(marker, line_str, re.IGNORECASE):
-                        in_tasks = True
-                        break
+            # Check section marker (e.g. "2. LAB TASKS:", "9. Assignment:", "LAB TASKS:")
+            is_section_marker = any(re.search(marker, clean_line_no_fmt, re.IGNORECASE) for marker in self.TASK_SECTION_MARKERS)
+            if not in_tasks and is_section_marker:
+                in_tasks = True
+                continue
+            elif in_tasks and is_section_marker:
+                continue
+
+            m_plain_num = re.match(r"^0*([1-9][0-9]*)[\.\)]\s+(.*)", clean_line_no_fmt)
 
             if tm and not is_doc_heading:
                 save_task()
                 in_tasks = True
-                current_task_num = int(tm.group(1))
-                rest = tm.group(2).strip() if tm.group(2) else ""
+                num_str = tm.group(1)
+                if num_str:
+                    current_task_num = int(num_str)
+                elif tm.group(2):
+                    current_task_num = self.ROMAN_NUMERALS.get(tm.group(2).lower(), 1)
+                rest = tm.group(3).strip() if tm.group(3) else ""
                 current_task_title = f"Task {current_task_num}: {rest}" if rest else f"Task {current_task_num}"
-                current_lines = []
+                current_lines = [rest] if rest else []
+                continue
+
+            elif not has_explicit_headings and in_tasks and m_plain_num and not is_doc_heading:
+                save_task()
+                current_task_num = int(m_plain_num.group(1))
+                rest = m_plain_num.group(2).strip()
+                current_task_title = f"Task {current_task_num}: {rest}" if rest else f"Task {current_task_num}"
+                current_lines = [rest] if rest else []
                 continue
 
             elif m_named and not is_doc_heading:
@@ -803,12 +943,14 @@ class ManualParser:
                 else:
                     current_lines.append(line_str)
 
+        flush_table()
         save_task()
 
         # Fallback if no tasks were extracted
         if not tasks:
             for p in lines:
-                m_fb = re.match(r"^(?:task|exercise|program|question|query)\s*#?\s*([0-9]+)[\s:\.-]+(.*)", p, re.IGNORECASE)
+                p_clean = re.sub(r"^[#\s\*\-]+", "", p).strip()
+                m_fb = re.match(r"^(?:task|exercise|program|question|query|problem)\s*#?\s*([0-9]+)[\s:\.-]+(.*)", p_clean, re.IGNORECASE)
                 if m_fb:
                     t_num = int(m_fb.group(1))
                     desc = m_fb.group(2).strip()
@@ -830,9 +972,5 @@ class ManualParser:
             context=preamble_context,
             viva_questions=viva_questions,
             analysis_questions=analysis_questions,
+            observation_tables=observation_tables,
         )
-
-    def _parse_text(self) -> LabManual:
-        with open(self.path, "r", encoding="utf-8") as f:
-            text = f.read()
-        return self._parse_pdf()

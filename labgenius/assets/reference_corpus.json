@@ -169,6 +169,28 @@
     "verified": true
   },
   {
+    "lab_id": "DSA_LAB06",
+    "task_id": 1,
+    "title": "Performance Comparison of Iterative and Recursive Binary Search",
+    "original_task_statement": "Create a Python program that generates a sorted list containing at least 100,000 integers, searches for a target using both Iterative Binary Search and Recursive Binary Search, measures execution times with time.perf_counter(), displays search results and execution times, and compares both methods.",
+    "subject": "dsa",
+    "topic": "Searching Algorithms & Empirical Recursion Overhead",
+    "keywords": [
+      "binary search",
+      "iterative binary search",
+      "recursive binary search",
+      "recursion overhead",
+      "sorted array",
+      "execution time",
+      "100000 integers"
+    ],
+    "solution_approach": "Implement while-loop iterative search and divide-and-conquer recursive search. Benchmark both on identical sorted dataset of 100,000 integers using time.perf_counter().",
+    "code_pattern": "import time\n\ndef iterative_binary_search(arr, target):\n    low, high = 0, len(arr) - 1\n    while low <= high:\n        mid = (low + high) // 2\n        if arr[mid] == target: return mid\n        elif arr[mid] < target: low = mid + 1\n        else: high = mid - 1\n    return -1\n\ndef recursive_binary_search(arr, target, low, high):\n    if low > high: return -1\n    mid = (low + high) // 2\n    if arr[mid] == target: return mid\n    elif arr[mid] < target: return recursive_binary_search(arr, target, mid + 1, high)\n    else: return recursive_binary_search(arr, target, low, mid - 1)\n",
+    "explanation_depth": "Both algorithms exhibit O(log n) time complexity. Iterative execution outperforms recursive execution due to eliminating call stack allocation frames.",
+    "assumptions_and_limitations": "Requires monotonically sorted array. Recursive approach is subject to call stack overhead on deep divides.",
+    "verified": true
+  },
+  {
     "lab_id": "DBMS_LAB01",
     "task_id": 1,
     "title": "SQL Server Connection & Server Metadata Verification",

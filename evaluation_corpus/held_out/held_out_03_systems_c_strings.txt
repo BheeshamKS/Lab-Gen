@@ -1,0 +1,26 @@
+Session: 09 - Low-Level Systems Programming Lab
+Course: Systems Programming in C
+Title: C STRING ALGORITHMS WITHOUT STANDARD LIBRARY
+
+OBJECTIVES:
+1. Implement pointer-based character array manipulation.
+2. Prevent standard string library dependencies (string.h).
+3. Handle null-terminated strings and buffer bounds.
+
+ASSIGNMENT TASKS:
+Task 1: Palindrome Verification
+Write a C program that checks whether an input string is a palindrome using two-pointer approach without using string.h functions.
+
+Task 2: Sentence Word Counter
+Write a C program to count total words in a sentence by scanning whitespace delimiters and consecutive non-space tokens.
+
+Task 3: Substring Search Engine
+Write a C program to search for a target substring in a source string and return the starting 0-based index or -1 if not found.
+
+QUESTIONS FOR ANALYSIS:
+1. Discuss the security vulnerabilities of gets() versus fgets() when reading character arrays in C.
+2. What is the algorithmic time complexity of naive substring search versus Knuth-Morris-Pratt?
+
+VIVA QUESTIONS:
+1. Why must all C strings end with the null terminator character '\0'?
+2. What happens if a C program attempts to access an index beyond the allocated array size?
