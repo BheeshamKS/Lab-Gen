@@ -17,10 +17,6 @@
     <!-- Zone 1: Global Navigation Rail (64px fixed) -->
     <nav class="app-rail" id="app-rail" aria-label="Main Navigation">
       <div class="rail-top">
-        <div class="rail-logo" title="LabGenius Studio" onclick="returnToLabGeniusHome()">
-          <span class="logo-mark">▲</span>
-        </div>
-        
         <div class="rail-nav-group">
           <button type="button" class="rail-item active" id="rail-item-home" onclick="returnToLabGeniusHome()" data-tooltip="Lab Generator">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -348,7 +344,8 @@
       <!-- Top Status Bar -->
       <header class="app-topbar">
         <div class="topbar-left">
-          <div class="topbar-brand">
+          <div class="topbar-brand" onclick="returnToLabGeniusHome()" role="button" tabindex="0" title="Return to Home">
+            <span class="topbar-logo-mark">▲</span>
             <span class="topbar-brand-title">LabGenius Studio</span>
             <span class="topbar-crumb-sep">/</span>
             <span class="topbar-crumb-active" id="top-bar-view-title">Lab Generator</span>
@@ -363,11 +360,6 @@
         </div>
 
         <div class="topbar-right">
-          <button type="button" class="btn-topbar-action" id="btn-quick-doctools" onclick="openNavDocTools()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-            <span>Doc Tools</span>
-          </button>
-          
           <button type="button" class="btn-topbar-action" id="btn-quick-settings" onclick="toggleSidebarSettings('profile')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
             <span>Config</span>

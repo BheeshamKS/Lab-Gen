@@ -23,12 +23,17 @@ def test_index_html_contains_new_3zone_layout():
     assert res.status_code == 200
     html = res.text
 
-    # Zone 1: Navigation Rail
+    # Zone 1: Navigation Rail (no duplicate logo, clean navigation items)
     assert 'class="app-rail"' in html or 'id="app-rail"' in html
     assert 'id="rail-item-home"' in html
     assert 'id="rail-item-doctools"' in html
     assert 'id="rail-item-playground"' in html
     assert 'id="btn-theme-toggle"' in html
+    assert 'class="rail-logo"' not in html
+
+    # Topbar Brand: Contains unified logo mark, no redundant doctools button
+    assert 'class="topbar-logo-mark"' in html
+    assert 'id="btn-quick-doctools"' not in html
 
     # Zone 2: Slide-Over Settings Drawer
     assert 'id="settings-drawer"' in html
