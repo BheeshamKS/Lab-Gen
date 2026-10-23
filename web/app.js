@@ -173,37 +173,205 @@ async function initScreenshotThemeSystem() {
         const selectEl = document.getElementById('terminal-theme');
         if (selectEl && Array.isArray(data.themes)) {
           selectEl.innerHTML = '';
-          if (isSecretEnvActive) {
-            const envOpt = document.createElement('option');
-            envOpt.value = 'env_default';
-            envOpt.textContent = '✨ Signature Theme (.env Active)';
-            envOpt.selected = true;
-            selectEl.appendChild(envOpt);
-          }
           data.themes.forEach(t => {
             const opt = document.createElement('option');
             opt.value = t.id;
             opt.textContent = `${t.name}`;
-            if (!isSecretEnvActive && t.id === (data.active_theme || 'modern-dark')) {
-              opt.selected = true;
-            }
             selectEl.appendChild(opt);
           });
         }
 
         const savedUserTheme = localStorage.getItem('lg_screenshot_theme');
-        if (savedUserTheme && !isSecretEnvActive) {
-          onThemeChanged(savedUserTheme, false);
-        } else if (!isSecretEnvActive) {
-          onThemeChanged(data.active_theme || 'modern-dark', false);
+        const customInput = document.getElementById('custom-theme-input');
+
+        if (savedUserTheme) {
+          if (THEME_PRESETS[savedUserTheme]) {
+            if (selectEl) selectEl.value = savedUserTheme;
+            onThemeChanged(savedUserTheme, false);
+          } else {
+            // Restore custom / secret theme
+            if (customInput) customInput.value = savedUserTheme;
+            try {
+              const tr = await fetch(`/api/theme/${encodeURIComponent(savedUserTheme)}`);
+              const td = await tr.json();
+              if (td.success && td.theme) {
+                const t = td.theme;
+                THEME_PRESETS[t.id] = {
+                  name: t.name,
+                  bg: t.bg_hex,
+                  headerBg: t.header_bg_hex,
+                  border: t.border_hex,
+                  text: t.text_hex,
+                  promptColor: t.prompt_hex,
+                  cmdColor: t.accent_hex || '#0000ff',
+                  outColor: t.text_hex,
+                  isSecret: t.is_secret,
+                  windowStyle: t.window_style,
+                };
+                activeScreenshotTheme = t.id;
+                if (selectEl) {
+                  let opt = Array.from(selectEl.options).find(o => o.value === t.id);
+                  if (!opt) {
+                    opt = document.createElement('option');
+                    opt.value = t.id;
+                    opt.textContent = `✨ ${t.name} (Custom Active)`;
+                    selectEl.appendChild(opt);
+                  }
+                  selectEl.value = t.id;
+                }
+                updateMiniTerminalPreview(t.id, t.is_secret);
+                const statusEl = document.getElementById('custom-theme-status');
+                if (statusEl) {
+                  statusEl.style.display = 'flex';
+                  statusEl.className = 'custom-theme-status success';
+                  statusEl.innerHTML = `<span>✓ Active: <strong>${t.name}</strong> (${t.id})</span>`;
+                }
+              } else {
+                onThemeChanged(data.active_theme || 'modern-dark', false);
+              }
+            } catch (e) {
+              onThemeChanged(data.active_theme || 'modern-dark', false);
+            }
+          }
+        } else if (isSecretEnvActive) {
+          // Auto-load signature theme from .env
+          if (customInput) customInput.value = 'bheeshamks';
+          try {
+            const tr = await fetch('/api/theme/bheeshamks');
+            const td = await tr.json();
+            if (td.success && td.theme) {
+              const t = td.theme;
+              THEME_PRESETS[t.id] = {
+                name: t.name,
+                bg: t.bg_hex,
+                headerBg: t.header_bg_hex,
+                border: t.border_hex,
+                text: t.text_hex,
+                promptColor: t.prompt_hex,
+                cmdColor: t.accent_hex || '#0000ff',
+                outColor: t.text_hex,
+                isSecret: t.is_secret,
+                windowStyle: t.window_style,
+              };
+              activeScreenshotTheme = t.id;
+              if (selectEl) {
+                let opt = Array.from(selectEl.options).find(o => o.value === t.id);
+                if (!opt) {
+                  opt = document.createElement('option');
+                  opt.value = t.id;
+                  opt.textContent = `✨ ${t.name} (Custom Active)`;
+                  selectEl.appendChild(opt);
+                }
+                selectEl.value = t.id;
+              }
+              updateMiniTerminalPreview(t.id, true);
+              const statusEl = document.getElementById('custom-theme-status');
+              if (statusEl) {
+                statusEl.style.display = 'flex';
+                statusEl.className = 'custom-theme-status success';
+                statusEl.innerHTML = `<span>✓ Active: <strong>${t.name}</strong> (${t.id})</span>`;
+              }
+            }
+          } catch (e) {
+            updateMiniTerminalPreview('modern-dark', true);
+          }
         } else {
-          updateMiniTerminalPreview('modern-dark', true);
+          onThemeChanged(data.active_theme || 'modern-dark', false);
         }
       }
     }
   } catch (err) {
     console.warn('Could not load themes from API, using client presets', err);
     onThemeChanged('modern-dark', false);
+  }
+}
+
+async function applyCustomTheme() {
+  const input = document.getElementById('custom-theme-input');
+  const statusEl = document.getElementById('custom-theme-status');
+  const rawTheme = (input ? input.value : '').trim().toLowerCase();
+
+  if (!rawTheme) {
+    if (statusEl) {
+      statusEl.style.display = 'flex';
+      statusEl.className = 'custom-theme-status error';
+      statusEl.innerHTML = '<span>⚠️ Please enter a theme name.</span>';
+    }
+    showToast('Please enter a theme name');
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/theme/${encodeURIComponent(rawTheme)}`);
+    const data = await res.json();
+
+    if (data.success && data.theme) {
+      const t = data.theme;
+      THEME_PRESETS[t.id] = {
+        name: t.name,
+        bg: t.bg_hex,
+        headerBg: t.header_bg_hex,
+        border: t.border_hex,
+        text: t.text_hex,
+        promptColor: t.prompt_hex,
+        cmdColor: t.accent_hex || '#0000ff',
+        outColor: t.text_hex,
+        isSecret: t.is_secret,
+        windowStyle: t.window_style,
+      };
+
+      activeScreenshotTheme = t.id;
+      localStorage.setItem('lg_screenshot_theme', t.id);
+
+      // Deselect all swatch chips
+      document.querySelectorAll('.theme-swatch-chip').forEach(chip => chip.classList.remove('active'));
+
+      // Update or add select option in #terminal-theme
+      const selectEl = document.getElementById('terminal-theme');
+      if (selectEl) {
+        let opt = Array.from(selectEl.options).find(o => o.value === t.id);
+        if (!opt) {
+          opt = document.createElement('option');
+          opt.value = t.id;
+          opt.textContent = `✨ ${t.name} (Custom Active)`;
+          selectEl.appendChild(opt);
+        }
+        selectEl.value = t.id;
+      }
+
+      // Update theme active badge in drawer
+      const badge = document.getElementById('theme-active-badge');
+      if (badge) {
+        badge.textContent = t.name;
+      }
+
+      // Update mini terminal preview
+      updateMiniTerminalPreview(t.id, t.is_secret);
+
+      // Update status message
+      if (statusEl) {
+        statusEl.style.display = 'flex';
+        statusEl.className = 'custom-theme-status success';
+        statusEl.innerHTML = `<span>✓ Active: <strong>${t.name}</strong> (${t.id})</span>`;
+      }
+
+      showToast(`✨ Applied theme: ${t.name}`);
+    } else {
+      if (statusEl) {
+        statusEl.style.display = 'flex';
+        statusEl.className = 'custom-theme-status error';
+        statusEl.innerHTML = `<span>❌ Theme "${rawTheme}" not recognized. Type full name (e.g. bheeshamks).</span>`;
+      }
+      showToast(`Theme "${rawTheme}" not found`);
+    }
+  } catch (err) {
+    console.error('Error applying custom theme:', err);
+    if (statusEl) {
+      statusEl.style.display = 'flex';
+      statusEl.className = 'custom-theme-status error';
+      statusEl.innerHTML = '<span>❌ Network error resolving theme.</span>';
+    }
+    showToast('Error applying theme');
   }
 }
 
@@ -241,8 +409,14 @@ function onThemeChanged(themeId, notify = true) {
     badge.textContent = preset.name.split(' (')[0];
   }
 
+  // Clear custom theme status if user switched to a preset
+  const statusEl = document.getElementById('custom-theme-status');
+  if (statusEl && preset && !preset.isSecret) {
+    statusEl.style.display = 'none';
+  }
+
   // Update Live Mini Terminal Preview
-  updateMiniTerminalPreview(themeId, false);
+  updateMiniTerminalPreview(themeId, !!preset.isSecret);
 
   if (notify) {
     showToast(`Screenshot theme set to ${preset.name.split(' (')[0]}`);
@@ -292,11 +466,11 @@ function updateMiniTerminalPreview(themeId, isSecret = false) {
   }
 
   if (paletteName) {
-    paletteName.textContent = isSecret ? 'Custom .env Override' : preset.name.split(' (')[0];
+    paletteName.textContent = isSecret ? preset.name : preset.name.split(' (')[0];
   }
 
   if (metaTag) {
-    metaTag.textContent = isSecret ? '⚡ Active: .env Signature Theme' : `Theme: ${preset.name.split(' (')[0]}`;
+    metaTag.textContent = isSecret ? `⚡ Active: ${preset.name}` : `Theme: ${preset.name.split(' (')[0]}`;
   }
 }
 

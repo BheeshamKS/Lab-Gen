@@ -37,7 +37,7 @@ from labgenius.state import (
     ManualInfo,
     SessionArtifacts,
 )
-from labgenius.themes import get_theme, list_public_themes
+from labgenius.themes import get_theme, list_public_themes, resolve_theme_info
 import labgenius.doc_tools as doc_tools
 
 app = FastAPI(title="LabGenius Web App", version="1.0.0")
@@ -221,6 +221,15 @@ async def get_available_themes():
         "is_custom_env": active.is_secret,
         "themes": list_public_themes(),
     }
+
+
+@app.get("/api/theme/{theme_name}")
+async def get_single_theme(theme_name: str):
+    """Resolves and returns a theme configuration when typed in full."""
+    theme_info = resolve_theme_info(theme_name)
+    if theme_info:
+        return {"success": True, "theme": theme_info}
+    return {"success": False, "error": f"Theme '{theme_name}' not found"}
 
 
 def _build_tasks_response(tasks, solutions, exec_results, screenshots):

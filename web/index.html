@@ -286,6 +286,29 @@
               </select>
             </div>
 
+            <!-- Custom / Secret Theme Direct Box -->
+            <div class="custom-theme-box-container">
+              <label for="custom-theme-input" class="custom-theme-label">
+                <span>Custom / Secret Theme</span>
+                <span class="custom-theme-sublabel">Type name in full &amp; apply</span>
+              </label>
+              <div class="custom-theme-input-group">
+                <input 
+                  type="text" 
+                  id="custom-theme-input" 
+                  class="custom-theme-input" 
+                  placeholder="Enter theme name in full..." 
+                  autocomplete="off" 
+                  spellcheck="false"
+                  onkeydown="if(event.key === 'Enter') { event.preventDefault(); applyCustomTheme(); }"
+                >
+                <button type="button" class="btn-apply-custom-theme" id="btn-apply-custom-theme" onclick="applyCustomTheme()">
+                  Apply
+                </button>
+              </div>
+              <div class="custom-theme-status" id="custom-theme-status" style="display: none;"></div>
+            </div>
+
             <!-- Live Mini-Terminal Screenshot Preview Window -->
             <div class="mini-term-preview-wrap">
               <div class="mini-term-preview-label">

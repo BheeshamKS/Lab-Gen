@@ -24,7 +24,11 @@ def _run_libreoffice_convert(input_path: Path, target_ext: str, out_dir: Path) -
     out_dir.mkdir(parents=True, exist_ok=True)
     target_ext_clean = target_ext.lstrip(".").lower()
 
-    cmd = ["libreoffice", "--headless"]
+    cmd = [
+        "libreoffice",
+        "--headless",
+        "-env:UserInstallation=file:///tmp/libreoffice_profile",
+    ]
     if target_ext_clean == "docx" and input_path.suffix.lower() == ".pdf":
         cmd.extend(["--infilter=writer_pdf_import", "--convert-to", "docx"])
     else:

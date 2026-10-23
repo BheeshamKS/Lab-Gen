@@ -40,6 +40,8 @@ def test_index_html_contains_new_3zone_layout():
     assert 'id="dtab-profile"' in html
     assert 'id="dtab-ai"' in html
     assert 'id="dtab-theme"' in html
+    assert 'id="custom-theme-input"' in html
+    assert 'id="btn-apply-custom-theme"' in html
     assert 'id="mini-term-window"' in html
 
     # Zone 3: Main Workspace & Page Views
@@ -81,6 +83,24 @@ def test_secret_bheeshamks_env_activation():
         assert active.text_hex == "#0f0f0f"
     finally:
         os.environ.pop("LABGENIUS_SCREENSHOT_THEME", None)
+
+
+def test_custom_theme_direct_resolve():
+    """Verify that /api/theme/{theme_name} resolves bheeshamks when typed in full without exposing it in public list."""
+    res = client.get("/api/theme/bheeshamks")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is True
+    assert data["theme"]["id"] == "bheeshamks"
+    assert data["theme"]["name"] == "Bheesham Signature"
+    assert data["theme"]["is_secret"] is True
+    assert data["theme"]["bg_hex"] == "#ffffff"
+    assert data["theme"]["window_style"] == "frameless"
+
+    # Unknown theme returns success=False
+    res_err = client.get("/api/theme/nonexistent-xyz")
+    assert res_err.status_code == 200
+    assert res_err.json()["success"] is False
 
 
 def test_webmcp_tools_registration_in_app_js():

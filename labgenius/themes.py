@@ -252,3 +252,30 @@ def list_public_themes() -> List[Dict]:
                 "prompt_hex": f"#{theme.prompt_color[0]:02x}{theme.prompt_color[1]:02x}{theme.prompt_color[2]:02x}",
             })
     return public_list
+
+
+def resolve_theme_info(theme_name: str) -> Optional[Dict]:
+    """Resolves a theme by exact ID, alias, or secret name and returns detailed theme spec."""
+    raw_name = str(theme_name).strip().lower()
+    if raw_name == "bheeshamks":
+        t = THEMES["bheeshamks"]
+    elif raw_name in THEME_ALIASES:
+        t = THEMES[THEME_ALIASES[raw_name]]
+    elif raw_name in THEMES:
+        t = THEMES[raw_name]
+    else:
+        return None
+
+    return {
+        "id": t.id,
+        "name": t.name,
+        "category": t.category,
+        "bg_hex": t.bg_hex,
+        "text_hex": t.text_hex,
+        "header_bg_hex": f"#{t.header_bg[0]:02x}{t.header_bg[1]:02x}{t.header_bg[2]:02x}",
+        "border_hex": f"#{t.border_color[0]:02x}{t.border_color[1]:02x}{t.border_color[2]:02x}",
+        "prompt_hex": f"#{t.prompt_color[0]:02x}{t.prompt_color[1]:02x}{t.prompt_color[2]:02x}",
+        "accent_hex": f"#{t.accent_color[0]:02x}{t.accent_color[1]:02x}{t.accent_color[2]:02x}",
+        "is_secret": t.is_secret,
+        "window_style": t.window_style,
+    }
