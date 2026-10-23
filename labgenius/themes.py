@@ -211,6 +211,8 @@ def get_theme(theme_name: Optional[str] = None) -> ScreenshotTheme:
     """
     raw_name = (
         theme_name
+        or os.environ.get("LABGENIUS_SCREENSHOT_THEME")
+        or os.environ.get("LABGENIUS_THEME")
         or os.environ.get("SCREENSHOT_THEME")
         or os.environ.get("TERMINAL_THEME")
         or os.environ.get("LAB_THEME")

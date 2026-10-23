@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupPlayground();
   setupKeyboardShortcuts();
   restoreActiveLabSession();
+  registerWebMCPTools();
 
   const urlParams = new URLSearchParams(window.location.search);
   if (urlParams.get('view') === 'doctools' || window.location.hash === '#doctools') {
@@ -52,6 +53,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (tool) {
       switchDocTool(tool);
     }
+  } else if (urlParams.get('view') === 'playground') {
+    openNavPlayground();
+  } else {
+    navigateToView('home');
   }
 });
 
@@ -626,12 +631,13 @@ function setupKeyboardShortcuts() {
       }
     }
 
-    // Escape -> Close any open modal
+    // Escape -> Close any open modal or settings drawer
     if (e.key === 'Escape') {
       closeModal();
       closeEditModal();
       closeCoverEditModal();
       closeShortcutsModal();
+      closeSidebarSettings();
     }
   });
 
@@ -918,9 +924,7 @@ async function runLabPipeline() {
     return;
   }
 
-  document.getElementById('upload-card').style.display = 'none';
-  document.getElementById('progress-card').style.display = 'block';
-  document.getElementById('results-container').style.display = 'none';
+  navigateToView('progress');
 
   startTimer();
   updateStep(1, 15, 'Parsing Lab Manual...', 'Extracting objectives and task problems...');
@@ -1028,9 +1032,7 @@ async function runLabPipeline() {
     updateStep(5, 100, 'Complete!', 'All formats compiled and verified.');
 
     // Instantly transition UI to results without requiring browser refresh
-    document.getElementById('upload-card').style.display = 'none';
-    document.getElementById('progress-card').style.display = 'none';
-    document.getElementById('results-container').style.display = 'block';
+    navigateToView('results');
 
     try {
       renderResults(result, 'pdf');
@@ -1168,72 +1170,194 @@ function updateNavState(hasLab) {
   }
 }
 
-function returnToLabGeniusHome() {
-  const doctoolsWorkspace = document.getElementById('doctools-workspace');
-  if (doctoolsWorkspace) doctoolsWorkspace.style.display = 'none';
+// ============================================================================
+// APP NAVIGATION & 3-ZONE ROUTING
+// ============================================================================
 
-  const layoutContainer = document.getElementById('main-layout-container');
-  if (layoutContainer) layoutContainer.classList.remove('doctools-active');
-
-  const btnGenNav = document.getElementById('btn-open-generator-nav');
-  const btnDocToolsNav = document.getElementById('btn-open-doctools-nav');
-  const btnPlaygroundNav = document.getElementById('btn-open-playground-nav');
-  if (btnGenNav) btnGenNav.classList.add('active');
-  if (btnDocToolsNav) {
-    btnDocToolsNav.classList.remove('active', 'active-pill-highlight');
-  }
-  if (btnPlaygroundNav) btnPlaygroundNav.classList.remove('active');
-
-  const sidebarDocTools = document.getElementById('sidebar-item-doctools');
-  if (sidebarDocTools) sidebarDocTools.classList.remove('active');
-  const sidebarHome = document.getElementById('sidebar-item-home');
-  if (sidebarHome) sidebarHome.classList.add('active');
+function navigateToView(viewName) {
+  const views = ['home', 'wizard', 'progress', 'results', 'doctools', 'playground'];
+  views.forEach(v => {
+    const el = document.getElementById(`view-${v}`);
+    if (el) {
+      if (v === viewName) {
+        el.style.display = 'block';
+        el.classList.add('active');
+      } else {
+        el.style.display = 'none';
+        el.classList.remove('active');
+      }
+    }
+  });
 
   const uploadCard = document.getElementById('upload-card');
+  const wizardCard = document.getElementById('wizard-review-card');
+  const progressCard = document.getElementById('progress-card');
   const resultsContainer = document.getElementById('results-container');
+  const doctoolsWorkspace = document.getElementById('doctools-workspace');
 
-  if (currentLabData) {
+  if (viewName === 'home') {
+    if (uploadCard) uploadCard.style.display = 'block';
+    if (wizardCard) wizardCard.style.display = 'none';
+    if (progressCard) progressCard.style.display = 'none';
+    if (resultsContainer) resultsContainer.style.display = 'none';
+    if (doctoolsWorkspace) doctoolsWorkspace.style.display = 'none';
+  } else if (viewName === 'wizard') {
     if (uploadCard) uploadCard.style.display = 'none';
-    if (resultsContainer) {
-      resultsContainer.style.display = 'block';
-      resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (wizardCard) wizardCard.style.display = 'block';
+    if (progressCard) progressCard.style.display = 'none';
+    if (resultsContainer) resultsContainer.style.display = 'none';
+    if (doctoolsWorkspace) doctoolsWorkspace.style.display = 'none';
+  } else if (viewName === 'progress') {
+    if (uploadCard) uploadCard.style.display = 'none';
+    if (wizardCard) wizardCard.style.display = 'none';
+    if (progressCard) progressCard.style.display = 'block';
+    if (resultsContainer) resultsContainer.style.display = 'none';
+    if (doctoolsWorkspace) doctoolsWorkspace.style.display = 'none';
+  } else if (viewName === 'results') {
+    if (uploadCard) uploadCard.style.display = 'none';
+    if (wizardCard) wizardCard.style.display = 'none';
+    if (progressCard) progressCard.style.display = 'none';
+    if (resultsContainer) resultsContainer.style.display = 'block';
+    if (doctoolsWorkspace) doctoolsWorkspace.style.display = 'none';
+  } else if (viewName === 'doctools') {
+    if (doctoolsWorkspace) doctoolsWorkspace.style.display = 'block';
+  }
+
+  // Update topbar breadcrumb title
+  const titleMap = {
+    'home': 'Lab Generator',
+    'wizard': 'Requirement Review',
+    'progress': 'Pipeline Execution',
+    'results': 'Output Studio',
+    'doctools': 'Document Tools',
+    'playground': 'Code Playground'
+  };
+  const titleEl = document.getElementById('top-bar-view-title');
+  if (titleEl && titleMap[viewName]) {
+    titleEl.textContent = titleMap[viewName];
+  }
+
+  // Update rail navigation active highlight
+  const railHome = document.getElementById('rail-item-home');
+  const railDoc = document.getElementById('rail-item-doctools');
+  const railPlay = document.getElementById('rail-item-playground');
+  if (railHome) railHome.classList.remove('active');
+  if (railDoc) railDoc.classList.remove('active');
+  if (railPlay) railPlay.classList.remove('active');
+
+  if (viewName === 'home' || viewName === 'wizard' || viewName === 'progress' || viewName === 'results') {
+    if (railHome) railHome.classList.add('active');
+  } else if (viewName === 'doctools') {
+    if (railDoc) railDoc.classList.add('active');
+  } else if (viewName === 'playground') {
+    if (railPlay) railPlay.classList.add('active');
+  }
+
+  // Active Lab Name in header
+  const labNameEl = document.getElementById('top-bar-lab-name');
+  if (labNameEl) {
+    if (currentLabData && currentLabData.filename) {
+      labNameEl.textContent = currentLabData.filename;
+    } else if (currentFile && currentFile.name) {
+      labNameEl.textContent = currentFile.name;
+    } else {
+      labNameEl.textContent = 'Workspace Ready';
     }
+  }
+
+  const viewport = document.getElementById('workspace-viewport');
+  if (viewport) viewport.scrollTop = 0;
+}
+
+function toggleSidebarSettings(tabId = null) {
+  const drawer = document.getElementById('settings-drawer');
+  const backdrop = document.getElementById('drawer-backdrop');
+  if (!drawer) return;
+  const isOpen = drawer.classList.contains('open');
+  if (isOpen && !tabId) {
+    closeSidebarSettings();
+  } else {
+    drawer.classList.add('open');
+    if (backdrop) backdrop.classList.add('open');
+    if (tabId) switchDrawerTab(tabId);
+  }
+}
+
+function closeSidebarSettings() {
+  const drawer = document.getElementById('settings-drawer');
+  const backdrop = document.getElementById('drawer-backdrop');
+  if (drawer) drawer.classList.remove('open');
+  if (backdrop) backdrop.classList.remove('open');
+}
+
+function switchDrawerTab(tabId) {
+  const tabs = ['profile', 'ai', 'theme'];
+  tabs.forEach(t => {
+    const btn = document.getElementById(`dtab-${t}`);
+    const pane = document.getElementById(`drawer-pane-${t}`);
+    if (btn) btn.classList.toggle('active', t === tabId);
+    if (pane) pane.classList.toggle('active', t === tabId);
+  });
+}
+
+function returnToLabGeniusHome() {
+  closeSidebarSettings();
+  if (currentLabData) {
+    navigateToView('results');
     switchMainView('pdf');
   } else {
-    if (resultsContainer) resultsContainer.style.display = 'none';
-    if (uploadCard) {
-      uploadCard.style.display = 'block';
-      uploadCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    navigateToView('home');
   }
   showToast('Returned to Lab Generator');
 }
 
 function openNavPlayground() {
-  const doctoolsWorkspace = document.getElementById('doctools-workspace');
-  if (doctoolsWorkspace) doctoolsWorkspace.style.display = 'none';
-  const uploadCard = document.getElementById('upload-card');
-  if (uploadCard) uploadCard.style.display = 'none';
-  const resultsContainer = document.getElementById('results-container');
-  if (resultsContainer) resultsContainer.style.display = 'block';
-
-  const btnGenNav = document.getElementById('btn-open-generator-nav');
-  const btnDocToolsNav = document.getElementById('btn-open-doctools-nav');
-  const btnPlaygroundNav = document.getElementById('btn-open-playground-nav');
-  if (btnGenNav) btnGenNav.classList.remove('active');
-  if (btnDocToolsNav) btnDocToolsNav.classList.remove('active');
-  if (btnPlaygroundNav) btnPlaygroundNav.classList.add('active');
-
-  switchMainView('scratchpad');
+  closeSidebarSettings();
+  navigateToView('playground');
+  // Sync editor with code
+  const codeMain = document.getElementById('scratch-code')?.value || '';
+  const codeStandalone = document.getElementById('scratch-code-standalone');
+  if (codeStandalone && !codeStandalone.value && codeMain) {
+    codeStandalone.value = codeMain;
+  }
 }
 
 function openNavTemplates() {
   openNavPlayground();
-  const select = document.getElementById('scratch-template-select');
+  const select = document.getElementById('scratch-template-standalone') || document.getElementById('scratch-template-select');
   if (select) {
     select.focus();
-    select.scrollIntoView({ behavior: 'smooth' });
   }
+}
+
+function syncScratchLang(val) {
+  const s1 = document.getElementById('scratch-lang');
+  const s2 = document.getElementById('scratch-lang-standalone');
+  if (s1 && s1.value !== val) s1.value = val;
+  if (s2 && s2.value !== val) s2.value = val;
+  onScratchLangChange();
+}
+
+function syncScratchTemplate(val) {
+  const s1 = document.getElementById('scratch-template-select');
+  const s2 = document.getElementById('scratch-template-standalone');
+  if (s1 && s1.value !== val) s1.value = val;
+  if (s2 && s2.value !== val) s2.value = val;
+  loadSelectedTemplate();
+}
+
+function syncCodeTextareas(val) {
+  const c1 = document.getElementById('scratch-code');
+  const c2 = document.getElementById('scratch-code-standalone');
+  if (c1 && c1.value !== val) c1.value = val;
+  if (c2 && c2.value !== val) c2.value = val;
+}
+
+function syncStdinInputs(val) {
+  const i1 = document.getElementById('scratch-stdin');
+  const i2 = document.getElementById('scratch-stdin-standalone');
+  if (i1 && i1.value !== val) i1.value = val;
+  if (i2 && i2.value !== val) i2.value = val;
 }
 
 async function closeAndStartNewLab() {
@@ -1253,54 +1377,9 @@ async function closeAndStartNewLab() {
   isCanvasDirty = false;
   currentFile = null;
 
-  const fileInput = document.getElementById('file-input');
-  if (fileInput) fileInput.value = '';
-  const selectedInfo = document.getElementById('selected-file-info');
-  if (selectedInfo) selectedInfo.style.display = 'none';
-  const customInst = document.getElementById('custom-instructions');
-  if (customInst) customInst.value = '';
-
-  const subjectSelect = document.getElementById('subject-select');
-  if (subjectSelect) subjectSelect.value = 'auto';
-  handleSubjectSelectChange();
-
-  const docNavBtn = document.getElementById('btn-doc-nav');
-  if (docNavBtn) docNavBtn.style.display = 'none';
-
-  // Clear query params from URL
-  window.history.replaceState({}, document.title, window.location.pathname);
-
-  // Hide Doc Tools workspace
-  const doctoolsWorkspace = document.getElementById('doctools-workspace');
-  if (doctoolsWorkspace) doctoolsWorkspace.style.display = 'none';
-
-  // Update navbar state
-  const btnGenNav = document.getElementById('btn-open-generator-nav');
-  const btnDocToolsNav = document.getElementById('btn-open-doctools-nav');
-  const btnPlaygroundNav = document.getElementById('btn-open-playground-nav');
-  if (btnGenNav) btnGenNav.classList.add('active');
-  if (btnDocToolsNav) btnDocToolsNav.classList.remove('active');
-  if (btnPlaygroundNav) btnPlaygroundNav.classList.remove('active');
-
-  // Show upload card
-  document.getElementById('results-container').style.display = 'none';
-  document.getElementById('progress-card').style.display = 'none';
-  const wizardReview = document.getElementById('wizard-review-card');
-  if (wizardReview) wizardReview.style.display = 'none';
-  const uploadCard = document.getElementById('upload-card');
-  if (uploadCard) {
-    uploadCard.style.display = 'block';
-    uploadCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-  // Clear canvas & tasks
-  const canvas = document.getElementById('doc-canvas');
-  if (canvas) canvas.innerHTML = '';
-  const tasksFeed = document.getElementById('tasks-feed');
-  if (tasksFeed) tasksFeed.innerHTML = '';
-
-  updateNavState(false);
-  showToast('Lab closed. Ready to upload a new lab manual!');
+  navigateToView('home');
+  clearSelectedFile();
+  showToast('Lab closed. Ready for new manual.');
 }
 
 function showToast(msg, duration = 3000) {
@@ -1323,12 +1402,7 @@ function renderResults(data, preferredView = null) {
   currentLabData = data;
   isCanvasDirty = false;
   updateNavState(true);
-
-  document.getElementById('upload-card').style.display = 'none';
-  document.getElementById('progress-card').style.display = 'none';
-  const wizardReview = document.getElementById('wizard-review-card');
-  if (wizardReview) wizardReview.style.display = 'none';
-  document.getElementById('results-container').style.display = 'block';
+  navigateToView('results');
 
   // Quality Gate Validation Banner
   const gateBanner = document.getElementById('quality-gate-banner');
@@ -2083,11 +2157,11 @@ function loadSelectedTemplate() {
 }
 
 async function runPlaygroundCode() {
-  const lang = document.getElementById('scratch-lang')?.value || 'python';
-  const code = document.getElementById('scratch-code')?.value || '';
-  const stdin = document.getElementById('scratch-stdin')?.value || '';
+  const lang = document.getElementById('scratch-lang-standalone')?.value || document.getElementById('scratch-lang')?.value || 'python';
+  const code = (document.getElementById('scratch-code-standalone')?.value || document.getElementById('scratch-code')?.value || '').trim();
+  const stdin = document.getElementById('scratch-stdin-standalone')?.value || document.getElementById('scratch-stdin')?.value || '';
 
-  if (!code.trim()) {
+  if (!code) {
     alert('Please enter or paste code to execute.');
     return;
   }
@@ -2098,7 +2172,9 @@ async function runPlaygroundCode() {
   const spinner = document.getElementById('scratch-spinner');
   const metrics = document.getElementById('scratch-metrics');
   const stdoutEl = document.getElementById('scratch-stdout');
+  const stdoutStandaloneEl = document.getElementById('scratch-stdout-standalone');
   const stderrEl = document.getElementById('scratch-stderr');
+  const stderrStandaloneEl = document.getElementById('scratch-stderr-standalone');
   const cmdDisplay = document.getElementById('term-cmd-display');
 
   if (btn) btn.setAttribute('disabled', 'true');
@@ -2132,17 +2208,22 @@ async function runPlaygroundCode() {
       metrics.style.color = '#ffffff';
     }
 
-    if (stdoutEl) {
-      stdoutEl.textContent = data.stdout || '(Process finished with no standard output)';
-    }
+    const outText = data.stdout || '(Process finished with no standard output)';
+    if (stdoutEl) stdoutEl.textContent = outText;
+    if (stdoutStandaloneEl) stdoutStandaloneEl.textContent = outText;
 
-    if (stderrEl) {
-      if (data.stderr && data.stderr.trim()) {
+    if (data.stderr && data.stderr.trim()) {
+      if (stderrEl) {
         stderrEl.textContent = data.stderr;
         stderrEl.style.display = 'block';
-      } else {
-        stderrEl.style.display = 'none';
       }
+      if (stderrStandaloneEl) {
+        stderrStandaloneEl.textContent = data.stderr;
+        stderrStandaloneEl.style.display = 'block';
+      }
+    } else {
+      if (stderrEl) stderrEl.style.display = 'none';
+      if (stderrStandaloneEl) stderrStandaloneEl.style.display = 'none';
     }
 
   } catch (err) {
@@ -2152,9 +2233,15 @@ async function runPlaygroundCode() {
     if (spinner) spinner.style.display = 'none';
     if (metrics) metrics.textContent = 'Error';
     if (stdoutEl) stdoutEl.textContent = '';
+    if (stdoutStandaloneEl) stdoutStandaloneEl.textContent = '';
+    const errText = 'Failed to communicate with local execution runner: ' + err;
     if (stderrEl) {
-      stderrEl.textContent = 'Failed to communicate with local execution runner: ' + err;
+      stderrEl.textContent = errText;
       stderrEl.style.display = 'block';
+    }
+    if (stderrStandaloneEl) {
+      stderrStandaloneEl.textContent = errText;
+      stderrStandaloneEl.style.display = 'block';
     }
   }
 }
@@ -2719,62 +2806,10 @@ let selectedSplitterFile = null;
 let selectedInspectorFile = null;
 
 function openNavDocTools() {
-  const uploadCard = document.getElementById('upload-card');
-  if (uploadCard) uploadCard.style.display = 'none';
-  const wizardCard = document.getElementById('wizard-review-card');
-  if (wizardCard) wizardCard.style.display = 'none';
-  const progressCard = document.getElementById('progress-card');
-  if (progressCard) progressCard.style.display = 'none';
-  const resultsContainer = document.getElementById('results-container');
-  if (resultsContainer) resultsContainer.style.display = 'none';
-
-  const doctoolsWorkspace = document.getElementById('doctools-workspace');
-  if (doctoolsWorkspace) {
-    doctoolsWorkspace.style.display = 'block';
-    doctoolsWorkspace.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-  const layoutContainer = document.getElementById('main-layout-container');
-  if (layoutContainer) layoutContainer.classList.add('doctools-active');
-
-  // Sidebar navigation sync
-  const sidebarMenu = document.getElementById('sidebar-saas-menu');
-  if (sidebarMenu) sidebarMenu.style.display = 'flex';
-  const generatorSettings = document.getElementById('sidebar-generator-settings');
-  if (generatorSettings) generatorSettings.style.display = 'none';
-
-  const sidebarDocTools = document.getElementById('sidebar-item-doctools');
-  if (sidebarDocTools) sidebarDocTools.classList.add('active');
-  const sidebarHome = document.getElementById('sidebar-item-home');
-  if (sidebarHome) sidebarHome.classList.remove('active');
-
-  // Top navbar sync
-  const btnGenNav = document.getElementById('btn-open-generator-nav');
-  const btnDocToolsNav = document.getElementById('btn-open-doctools-nav');
-  const btnPlaygroundNav = document.getElementById('btn-open-playground-nav');
-  if (btnGenNav) btnGenNav.classList.remove('active');
-  if (btnDocToolsNav) {
-    btnDocToolsNav.classList.add('active', 'active-pill-highlight');
-  }
-  if (btnPlaygroundNav) btnPlaygroundNav.classList.remove('active');
-
+  closeSidebarSettings();
+  navigateToView('doctools');
   setupMergerDropzone();
   renderMergerQueue();
-}
-
-function toggleSidebarSettings() {
-  const genSettings = document.getElementById('sidebar-generator-settings');
-  if (genSettings) {
-    const isVisible = window.getComputedStyle(genSettings).display !== 'none';
-    if (!isVisible) {
-      genSettings.style.display = 'block';
-      genSettings.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      showToast('Opened Profile & Theme Settings');
-    } else {
-      genSettings.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      showToast('Settings & Theme Studio');
-    }
-  }
 }
 
 function updateMergerTabCount() {
@@ -3594,10 +3629,7 @@ async function startWizardExtraction() {
 
     wizardSessionData = data;
     renderWizardReview(data);
-
-    document.getElementById('upload-card').style.display = 'none';
-    document.getElementById('wizard-review-card').style.display = 'block';
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    navigateToView('wizard');
 
   } catch (err) {
     alert('Extraction request failed: ' + err);
@@ -3742,9 +3774,7 @@ function removeReviewQuestion(btn) {
 }
 
 function backToUploadStep() {
-  document.getElementById('wizard-review-card').style.display = 'none';
-  document.getElementById('upload-card').style.display = 'block';
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  navigateToView('home');
 }
 
 async function generateFromConfirmedSession() {
@@ -3793,10 +3823,7 @@ async function generateFromConfirmedSession() {
   if (document.getElementById('fmt-docx')?.checked) formats.push('docx');
 
   // Transition UI to Progress bar
-  document.getElementById('wizard-review-card').style.display = 'none';
-  document.getElementById('progress-card').style.display = 'block';
-  document.getElementById('results-container').style.display = 'none';
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  navigateToView('progress');
 
   startTimer();
   updateStep(1, 15, 'Validating Requirements...', 'Requirements confirmed by student. Initializing orchestrator...');
@@ -3849,3 +3876,247 @@ async function generateFromConfirmedSession() {
   }
 }
 
+
+
+// ============================================================================
+// FIRST-PARTY WEBMCP AGENT TOOLS (WebMCP Specification)
+// ============================================================================
+
+function registerWebMCPTools() {
+  const modelContext = navigator.modelContext || document.modelContext;
+  if (!modelContext || typeof modelContext.registerTool !== 'function') {
+    console.info('[WebMCP] ModelContext not exposed in current browser.');
+    return;
+  }
+
+  // 1. generate_lab
+  modelContext.registerTool({
+    name: 'generate_lab',
+    description: 'Autonomous lab completer: generates student code, runs in sandbox, captures terminal screenshots, and builds formatted PDF/Word report.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        subject: {
+          type: 'string',
+          enum: ['auto', 'dbms', 'dsa', 'other'],
+          description: 'Academic subject domain.'
+        },
+        custom_subject: {
+          type: 'string',
+          description: 'Custom subject name when subject is other.'
+        },
+        instructions: {
+          type: 'string',
+          description: 'Special persona instructions, e.g. "Add detailed comments".'
+        },
+        export_pdf: {
+          type: 'boolean',
+          description: 'Whether to generate high-resolution PDF report.'
+        },
+        export_docx: {
+          type: 'boolean',
+          description: 'Whether to generate sanitized Word (.docx) report.'
+        },
+        use_sample: {
+          type: 'boolean',
+          description: 'Whether to use built-in sample Data Science lab manual.'
+        }
+      },
+      additionalProperties: false
+    },
+    readOnlyHint: false,
+    untrustedContentHint: true,
+    handler: async (args) => {
+      const parsed = typeof args === 'string' ? JSON.parse(args) : args;
+      if (parsed.use_sample) {
+        await loadSampleManual();
+      }
+      if (parsed.instructions) {
+        const instEl = document.getElementById('custom-instructions');
+        if (instEl) instEl.value = parsed.instructions;
+      }
+      if (parsed.subject) {
+        const subEl = document.getElementById('subject-select');
+        if (subEl) subEl.value = parsed.subject;
+      }
+      if (parsed.custom_subject) {
+        const otherEl = document.getElementById('other-subject-input');
+        if (otherEl) otherEl.value = parsed.custom_subject;
+      }
+      if (typeof parsed.export_pdf === 'boolean') {
+        const pdfFmt = document.getElementById('fmt-pdf');
+        if (pdfFmt) pdfFmt.checked = parsed.export_pdf;
+      }
+      if (typeof parsed.export_docx === 'boolean') {
+        const docxFmt = document.getElementById('fmt-docx');
+        if (docxFmt) docxFmt.checked = parsed.export_docx;
+      }
+      await runLabPipeline();
+      return {
+        status: 'completed',
+        lab: currentLabData ? {
+          filename: currentLabData.filename,
+          tasks_count: currentLabData.tasks ? currentLabData.tasks.length : 0,
+          quality_gate: currentLabData.validation_report ? currentLabData.validation_report.is_valid : true
+        } : null
+      };
+    }
+  });
+
+  // 2. execute_code
+  modelContext.registerTool({
+    name: 'execute_code',
+    description: 'Execute student code (Python 3, C, or SQL) in the local sandbox and return execution stdout/stderr and metrics.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        language: {
+          type: 'string',
+          enum: ['python', 'c', 'sql'],
+          description: 'Programming language.'
+        },
+        code: {
+          type: 'string',
+          description: 'Source code or query to execute.'
+        },
+        stdin: {
+          type: 'string',
+          description: 'Optional standard input.'
+        }
+      },
+      required: ['language', 'code'],
+      additionalProperties: false
+    },
+    readOnlyHint: false,
+    handler: async (args) => {
+      const parsed = typeof args === 'string' ? JSON.parse(args) : args;
+      const res = await fetch('/api/execute-scratchpad', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          language: parsed.language,
+          code: parsed.code,
+          stdin: parsed.stdin || ''
+        })
+      });
+      const data = await res.json();
+      return {
+        exit_code: data.exit_code,
+        stdout: data.stdout || '',
+        stderr: data.stderr || '',
+        execution_time_ms: data.execution_time_ms,
+        command: data.command
+      };
+    }
+  });
+
+  // 3. merge_documents
+  modelContext.registerTool({
+    name: 'merge_documents',
+    description: 'Combine multiple PDF or Word documents into a unified output submission.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        use_sample_files: {
+          type: 'boolean',
+          description: 'Populate merger with sample lab files and execute merge.'
+        },
+        output_format: {
+          type: 'string',
+          enum: ['pdf', 'docx'],
+          description: 'Output format.'
+        },
+        output_filename: {
+          type: 'string',
+          description: 'Output filename.'
+        }
+      },
+      additionalProperties: false
+    },
+    readOnlyHint: false,
+    handler: async (args) => {
+      const parsed = typeof args === 'string' ? JSON.parse(args) : args;
+      openNavDocTools();
+      if (parsed.use_sample_files) {
+        await loadSampleMergeFiles();
+      }
+      if (parsed.output_format) {
+        selectExportFormat(parsed.output_format);
+      }
+      if (parsed.output_filename) {
+        const fnInput = document.getElementById('merger-out-filename');
+        if (fnInput) fnInput.value = parsed.output_filename;
+      }
+      await executeDocumentMerge();
+      return {
+        status: lastMergedResult ? 'merged' : 'error',
+        result: lastMergedResult ? {
+          filename: lastMergedResult.filename,
+          page_count: lastMergedResult.page_count,
+          size_bytes: lastMergedResult.size_bytes
+        } : null
+      };
+    }
+  });
+
+  // 4. switch_theme
+  modelContext.registerTool({
+    name: 'switch_theme',
+    description: 'Switch application UI theme (dark/light) or screenshot window theme palette.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ui_theme: {
+          type: 'string',
+          enum: ['dark', 'light'],
+          description: 'Application UI theme mode.'
+        },
+        screenshot_theme: {
+          type: 'string',
+          enum: ['modern-dark', 'slate-grey', 'cyber-black', 'paper-warm', 'cobalt-blue'],
+          description: 'Terminal screenshot window theme palette.'
+        }
+      },
+      additionalProperties: false
+    },
+    readOnlyHint: false,
+    handler: async (args) => {
+      const parsed = typeof args === 'string' ? JSON.parse(args) : args;
+      if (parsed.ui_theme) {
+        applyAppTheme(parsed.ui_theme, true);
+      }
+      if (parsed.screenshot_theme) {
+        selectThemeFromSwatch(parsed.screenshot_theme);
+      }
+      return {
+        current_ui_theme: document.documentElement.getAttribute('data-theme') || 'dark',
+        current_screenshot_theme: document.getElementById('terminal-theme')?.value || 'modern-dark'
+      };
+    }
+  });
+
+  // 5. get_active_session
+  modelContext.registerTool({
+    name: 'get_active_session',
+    description: 'Retrieve current active lab session metadata, task solutions, and document links.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false
+    },
+    readOnlyHint: true,
+    untrustedContentHint: true,
+    handler: async () => {
+      return {
+        has_lab: !!currentLabData,
+        lab_title: currentLabData?.manual?.title || null,
+        filename: currentLabData?.filename || null,
+        tasks_count: currentLabData?.tasks?.length || 0,
+        pdf_download_url: currentLabData?.pdf_download_url || null,
+        docx_download_url: currentLabData?.download_url || null
+      };
+    }
+  });
+
+  console.info('[WebMCP] Registered 5 first-party LabGenius agent tools successfully.');
+}

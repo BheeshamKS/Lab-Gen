@@ -1,275 +1,286 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LabGenius — Autonomous Academic Lab Completer</title>
-  <meta name="description" content="Automated academic lab solver that generates realistic student code, executes on laptop, captures authentic Linux screenshots, and builds human-passing reports.">
+  <title>LabGenius Studio — Autonomous Academic Lab Completer</title>
+  <meta name="description" content="Autonomous academic lab engine that generates realistic student code, captures authentic terminal screenshots, and builds human-passing lab reports.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=2.1">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>▲</text></svg>">
+  <link rel="stylesheet" href="/static/style.css?v=3.0">
 </head>
 <body>
-  <div class="app-container">
-    <!-- Navbar / Header (Vercel Monochrome Developer Style) -->
-    <header class="navbar">
-      <div class="brand">
-        <div class="logo-badge" title="LabGenius Studio">▲</div>
-        <div class="brand-text">
-          <h1>LabGenius Studio <span class="badge-tag studio-tag">STUDIO</span></h1>
-          <p class="subtitle">Autonomous Lab Completer &amp; Academic Screenshot Studio</p>
+  <div class="app-shell" id="app-shell">
+    
+    <!-- Zone 1: Global Navigation Rail (64px fixed) -->
+    <nav class="app-rail" id="app-rail" aria-label="Main Navigation">
+      <div class="rail-top">
+        <div class="rail-logo" title="LabGenius Studio" onclick="returnToLabGeniusHome()">
+          <span class="logo-mark">▲</span>
+        </div>
+        
+        <div class="rail-nav-group">
+          <button type="button" class="rail-item active" id="rail-item-home" onclick="returnToLabGeniusHome()" data-tooltip="Lab Generator">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+              <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+            <span class="rail-label">Generate</span>
+          </button>
+          
+          <button type="button" class="rail-item" id="rail-item-doctools" onclick="openNavDocTools()" data-tooltip="Document Tools">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+            </svg>
+            <span class="rail-label">Doc Tools</span>
+          </button>
+          
+          <button type="button" class="rail-item" id="rail-item-playground" onclick="openNavPlayground()" data-tooltip="Code Playground">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="16 18 22 12 16 6"></polyline>
+              <polyline points="8 6 2 12 8 18"></polyline>
+            </svg>
+            <span class="rail-label">Playground</span>
+          </button>
         </div>
       </div>
-      <div class="navbar-actions">
-        <button class="nav-btn" id="btn-open-playground-nav" onclick="openNavPlayground()">
-          Playground
+
+      <div class="rail-bottom">
+        <button type="button" class="rail-item" id="rail-item-settings" onclick="toggleSidebarSettings('profile')" data-tooltip="Student Profile & AI">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          <span class="rail-label">Profile</span>
         </button>
-        <button class="nav-btn active-pill-highlight" id="btn-open-doctools-nav" onclick="openNavDocTools()" title="Document Utilities &amp; Multi-Format Merger">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
-          Doc Tools
+
+        <button type="button" class="rail-item" id="rail-item-theme-studio" onclick="toggleSidebarSettings('theme')" data-tooltip="Screenshot & Window Theme">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+            <circle cx="8" cy="8" r="1"></circle>
+            <circle cx="12" cy="8" r="1"></circle>
+            <circle cx="16" cy="8" r="1"></circle>
+            <path d="M7 14h10"></path>
+          </svg>
+          <span class="rail-label">Themes</span>
         </button>
-        <button class="nav-btn" id="btn-open-shortcuts" onclick="openShortcutsModal()">
-          <span class="kbd-hint">⌘K</span> Shortcuts
-        </button>
-        <button class="nav-btn app-theme-toggle-btn" id="btn-theme-toggle" onclick="toggleAppTheme()" title="Toggle UI Dark / Light Mode">
+
+        <button type="button" class="rail-item app-theme-toggle-btn" id="btn-theme-toggle" onclick="toggleAppTheme()" data-tooltip="Toggle Light / Dark UI">
           <span id="app-theme-icon">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+            </svg>
           </span>
-          <span id="app-theme-label">Dark</span>
+          <span class="rail-label" id="app-theme-label">Dark</span>
         </button>
-        <div class="user-profile-badge" title="Active Student Profile">
-          <span class="user-avatar-tag">DS</span>
-          <span>Data Science</span>
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+
+        <button type="button" class="rail-item" id="btn-open-shortcuts" onclick="openShortcutsModal()" data-tooltip="Shortcuts & Help (⌘K)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+          <span class="rail-label">Guide</span>
+        </button>
+
+        <div class="rail-status-dot" title="Core Engine Online: Local Sandbox Active">
+          <span class="pulse-indicator"></span>
         </div>
       </div>
-    </header>
+    </nav>
 
-    <!-- Main Content Layout -->
-    <main class="main-layout" id="main-layout-container">
-      <!-- Left Column: Navigation & Settings -->
-      <aside class="sidebar-panel" id="main-sidebar">
-        <!-- SaaS Navigation Menu (Matches reference image input_file_0.png) -->
-        <nav class="sidebar-saas-menu" id="sidebar-saas-menu">
-          <div class="sidebar-menu-group">
-            <a href="javascript:void(0)" class="sidebar-nav-item" id="sidebar-item-home" onclick="returnToLabGeniusHome()">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-              <span>Home</span>
-            </a>
-          </div>
+    <!-- Zone 2: Slide-Over Settings Drawer (340px) -->
+    <aside class="settings-drawer" id="settings-drawer" aria-hidden="true">
+      <div class="drawer-header">
+        <div class="drawer-title-group">
+          <h3>Studio Configuration</h3>
+          <p>Student Persona, AI Intelligence &amp; Themes</p>
+        </div>
+        <button type="button" class="btn-drawer-close" onclick="closeSidebarSettings()" title="Close Settings">✕</button>
+      </div>
 
-          <div class="sidebar-menu-group">
-            <span class="sidebar-group-title">LAB MANAGEMENT</span>
-            <a href="javascript:void(0)" class="sidebar-nav-item" id="sidebar-item-new-lab" onclick="closeAndStartNewLab()">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-              <span>New Lab</span>
-            </a>
-            <a href="javascript:void(0)" class="sidebar-nav-item" id="sidebar-item-my-labs" onclick="returnToLabGeniusHome()">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path></svg>
-              <span>My Labs</span>
-            </a>
-            <a href="javascript:void(0)" class="sidebar-nav-item" id="sidebar-item-settings" onclick="toggleSidebarSettings()">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-              <span>Settings</span>
-            </a>
-          </div>
+      <!-- Drawer Tabs -->
+      <div class="drawer-nav-tabs">
+        <button type="button" class="drawer-tab-btn active" id="dtab-profile" onclick="switchDrawerTab('profile')">Student</button>
+        <button type="button" class="drawer-tab-btn" id="dtab-ai" onclick="switchDrawerTab('ai')">Intelligence</button>
+        <button type="button" class="drawer-tab-btn" id="dtab-theme" onclick="switchDrawerTab('theme')">Screenshot Theme</button>
+      </div>
 
-          <div class="sidebar-menu-group">
-            <span class="sidebar-group-title">TOOLS</span>
-            <a href="javascript:void(0)" class="sidebar-nav-item active" id="sidebar-item-doctools" onclick="openNavDocTools()">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
-              <span>Doc Tools</span>
-            </a>
-            <a href="javascript:void(0)" class="sidebar-nav-item" id="sidebar-item-playground" onclick="openNavPlayground()">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
-              <span>Code Playground</span>
-            </a>
-            <a href="javascript:void(0)" class="sidebar-nav-item" id="sidebar-item-editor" onclick="switchMainView('doc')">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-              <span>Report Editor</span>
-            </a>
-          </div>
+      <div class="drawer-content">
+        <!-- 1. Profile Pane -->
+        <div class="drawer-pane active" id="drawer-pane-profile">
+          <div class="config-section">
+            <div class="section-badge-header">
+              <h4>Academic Identification</h4>
+              <span class="lock-pill">Cover Page</span>
+            </div>
+            
+            <div class="form-group">
+              <label for="student-name">Full Student Name</label>
+              <input type="text" id="student-name" value="Bheesham Kumar Sajnani" placeholder="Student name">
+            </div>
 
-          <div class="sidebar-menu-group">
-            <span class="sidebar-group-title">SUPPORT</span>
-            <a href="javascript:void(0)" class="sidebar-nav-item" id="sidebar-item-help" onclick="openShortcutsModal()">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-              <span>Help &amp; Docs</span>
-            </a>
-            <a href="javascript:void(0)" class="sidebar-nav-item" id="sidebar-item-about" onclick="openShortcutsModal()">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-              <span>About</span>
-            </a>
-          </div>
-
-          <div class="sidebar-bottom-status">
-            <div class="status-indicator-box">
-              <span class="pulse-dot-green"></span>
-              <div class="status-text-block">
-                <span class="status-online-title">System Online</span>
-                <span class="status-online-sub">All services operational</span>
+            <div class="form-row">
+              <div class="form-group flex-1">
+                <label for="roll-no">Roll Number</label>
+                <input type="text" id="roll-no" value="25F-DS-020" placeholder="e.g. 25F-DS-020">
+              </div>
+              <div class="form-group flex-1">
+                <label for="section-name">Section</label>
+                <input type="text" id="section-name" value="25F-DS" placeholder="e.g. 25F-DS">
               </div>
             </div>
-          </div>
-        </nav>
 
-        <!-- Generator Settings Container (Profile, AI, Terminal) -->
-        <div class="sidebar-generator-settings" id="sidebar-generator-settings">
-          <div class="card profile-card">
-          <div class="card-header">
-            <h3>Student Profile</h3>
-            <span class="lock-pill">Academic Tag</span>
-          </div>
-          <div class="form-group">
-            <label for="student-name">Full Name</label>
-            <input type="text" id="student-name" value="Bheesham Kumar Sajnani" placeholder="Enter student name">
-          </div>
-          <div class="form-row">
-            <div class="form-group flex-1">
-              <label for="roll-no">Roll Number</label>
-              <input type="text" id="roll-no" value="25F-DS-020" placeholder="e.g. 25F-DS-020">
+            <div class="form-group">
+              <label for="dept-name">Department</label>
+              <input type="text" id="dept-name" value="Data Science" placeholder="Department name">
             </div>
-            <div class="form-group flex-1">
-              <label for="section-name">Section</label>
-              <input type="text" id="section-name" value="25F-DS" placeholder="e.g. 25F-DS">
+
+            <div class="form-group instructor-group">
+              <div class="toggle-row">
+                <label class="toggle-label" for="toggle-instructor">
+                  <span>Include Instructor</span>
+                  <span class="hint-badge">Off by Default</span>
+                </label>
+                <label class="switch">
+                  <input type="checkbox" id="toggle-instructor">
+                  <span class="slider round"></span>
+                </label>
+              </div>
+              <div id="instructor-input-wrapper" style="display: none; margin-top: 10px;">
+                <input type="text" id="instructor-name" value="Rohail Shaikh" placeholder="Instructor Name">
+                <small class="hint-text">When toggled off, no mention of instructor will appear in the report.</small>
+              </div>
             </div>
-          </div>
-          <div class="form-group">
-            <label for="dept-name">Department</label>
-            <input type="text" id="dept-name" value="Data Science" placeholder="e.g. Data Science">
-          </div>
-          <div class="form-group instructor-group">
-            <div class="toggle-row">
-              <label class="toggle-label" for="toggle-instructor">
-                <span>Include Instructor</span>
-                <span class="hint-badge">Off by Default</span>
-              </label>
-              <label class="switch">
-                <input type="checkbox" id="toggle-instructor">
-                <span class="slider round"></span>
-              </label>
-            </div>
-            <div id="instructor-input-wrapper" style="display: none; margin-top: 10px;">
-              <input type="text" id="instructor-name" value="Rohail Shaikh" placeholder="Instructor Name (e.g. Rohail Shaikh)">
-              <small class="hint-text">When toggled off, no trace of instructor will appear in the report.</small>
-            </div>
-          </div>
-          <div class="form-group logo-toggle-group">
-            <div class="toggle-row">
-              <label class="toggle-label" for="toggle-uni-logo">
-                <span>Include University Logo</span>
-                <span class="hint-badge active-badge">On by Default</span>
-              </label>
-              <label class="switch">
-                <input type="checkbox" id="toggle-uni-logo" checked onchange="handleLogoToggleChange()">
-                <span class="slider round"></span>
-              </label>
-            </div>
-            <div id="logo-options-wrapper" style="margin-top: 10px;">
-              <label for="logo-choice-select" style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px; display: block;">Logo Selection</label>
-              <select id="logo-choice-select" onchange="handleLogoChoiceChange()">
-                <option value="dawood" selected>Dawood University Logo (Default)</option>
-                <option value="custom">Upload Custom Logo...</option>
-              </select>
-              <div id="custom-logo-upload-wrapper" style="display: none; margin-top: 8px;">
-                <div class="custom-logo-row" style="display: flex; align-items: center; gap: 10px;">
-                  <img id="custom-logo-preview" src="/static/university_logo.png" alt="Logo Preview" style="max-height: 38px; max-width: 60px; border-radius: 4px; border: 1px solid var(--border-color); background: #fff; padding: 2px;">
-                  <label for="custom-logo-file" class="btn btn-outline btn-small" style="cursor: pointer; margin: 0; padding: 4px 10px; font-size: 0.8rem;">
-                    Choose Image
-                    <input type="file" id="custom-logo-file" accept="image/png, image/jpeg, image/jpg" style="display: none;" onchange="handleCustomLogoSelected(event)">
-                  </label>
-                  <span id="custom-logo-status" style="font-size: 0.75rem; color: var(--text-muted); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 120px;">Default Dawood Logo</span>
+
+            <div class="form-group logo-toggle-group">
+              <div class="toggle-row">
+                <label class="toggle-label" for="toggle-uni-logo">
+                  <span>Include University Logo</span>
+                  <span class="hint-badge active-badge">On by Default</span>
+                </label>
+                <label class="switch">
+                  <input type="checkbox" id="toggle-uni-logo" checked onchange="handleLogoToggleChange()">
+                  <span class="slider round"></span>
+                </label>
+              </div>
+              <div id="logo-options-wrapper" style="margin-top: 10px;">
+                <label for="logo-choice-select" style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 4px; display: block;">Logo Selection</label>
+                <select id="logo-choice-select" onchange="handleLogoChoiceChange()">
+                  <option value="dawood" selected>Dawood University Logo (Default)</option>
+                  <option value="custom">Upload Custom Logo...</option>
+                </select>
+                <div id="custom-logo-upload-wrapper" style="display: none; margin-top: 8px;">
+                  <div class="custom-logo-row" style="display: flex; align-items: center; gap: 10px;">
+                    <img id="custom-logo-preview" src="/static/university_logo.png" alt="Logo Preview" style="max-height: 38px; max-width: 60px; border-radius: 4px; border: 1px solid var(--border-color); background: #fff; padding: 2px;">
+                    <label for="custom-logo-file" class="btn btn-outline btn-small" style="cursor: pointer; margin: 0; padding: 4px 10px; font-size: 0.8rem;">
+                      Choose Image
+                      <input type="file" id="custom-logo-file" accept="image/png, image/jpeg, image/jpg" style="display: none;" onchange="handleCustomLogoSelected(event)">
+                    </label>
+                    <span id="custom-logo-status" style="font-size: 0.75rem; color: var(--text-muted); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 120px;">Default Dawood Logo</span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div class="card ai-card">
-          <div class="card-header">
-            <h3>Intelligence &amp; Persona</h3>
-            <span class="active-pill" id="provider-badge">Gemini / Offline</span>
-          </div>
-          <div class="form-group">
-            <label for="ai-provider">Model &amp; Intelligence Tier</label>
-            <select id="ai-provider">
-              <option value="gemini-pro" selected>Google AI Pro — Gemini 2.5 Pro (Flagship / Best)</option>
-              <option value="groq">Groq Cloud (Llama 3.3 70B Versatile — Lightning Fast &amp; Free)</option>
-              <option value="groq-8b">Groq Cloud (Llama 3.1 8B Instant — Real-Time)</option>
-              <option value="gemini-flash">Google Gemini 2.5 Flash (Ultra Fast)</option>
-              <option value="gemini-1.5-pro">Google Gemini 1.5 Pro (2M Context)</option>
-              <option value="mock">Smart Offline Demo Mode (Instant &amp; Free)</option>
-              <option value="openai">OpenAI (GPT-4o-mini)</option>
-              <option value="ollama">Local Ollama (deepseek-r1 / qwen)</option>
-            </select>
-          </div>
-          <div class="form-group" id="api-key-group">
-            <label for="api-key">Google AI Studio API Key</label>
-            <div class="password-input-wrapper">
-              <input type="password" id="api-key" placeholder="Paste your Google AI API key here">
-              <button type="button" class="btn-toggle-pass" id="btn-toggle-pass" title="Show/Hide Key">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-              </button>
+        <!-- 2. AI Intelligence Pane -->
+        <div class="drawer-pane" id="drawer-pane-ai">
+          <div class="config-section">
+            <div class="section-badge-header">
+              <h4>Intelligence Engine</h4>
+              <span class="active-pill" id="provider-badge">Gemini / Offline</span>
             </div>
-            <small class="hint-text">From your Google AI Pro account via <a href="https://aistudio.google.com/" target="_blank">aistudio.google.com</a> (Get API Key). Or export GEMINI_API_KEY in terminal.</small>
-          </div>
-          <div class="anti-ai-shield">
-            <div class="shield-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+
+            <div class="form-group">
+              <label for="ai-provider">AI Model &amp; Intelligence Tier</label>
+              <select id="ai-provider">
+                <option value="gemini-pro" selected>Google AI Pro — Gemini 2.5 Pro (Flagship)</option>
+                <option value="groq">Groq Cloud (Llama 3.3 70B Versatile — Fast &amp; Free)</option>
+                <option value="groq-8b">Groq Cloud (Llama 3.1 8B Instant — Real-Time)</option>
+                <option value="gemini-flash">Google Gemini 2.5 Flash (Ultra Fast)</option>
+                <option value="gemini-1.5-pro">Google Gemini 1.5 Pro (2M Context)</option>
+                <option value="mock">Smart Offline Engine (Instant Local Fallback)</option>
+                <option value="openai">OpenAI (GPT-4o-mini)</option>
+                <option value="ollama">Local Ollama (deepseek-r1 / qwen)</option>
+              </select>
             </div>
-            <div class="shield-info">
-              <h4>Anti-AI Humanization Active</h4>
-              <p>Purges buzzwords ("delve", "crucial"), matches undergraduate coding patterns, and injects realistic Word edit duration.</p>
+
+            <div class="form-group" id="api-key-group">
+              <label for="api-key">Google AI Studio API Key</label>
+              <div class="password-input-wrapper">
+                <input type="password" id="api-key" placeholder="Paste your Google AI API key">
+                <button type="button" class="btn-toggle-pass" id="btn-toggle-pass" title="Show/Hide Key">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+              <small class="hint-text">Get a free key at <a href="https://aistudio.google.com/" target="_blank">aistudio.google.com</a> or export GEMINI_API_KEY in terminal.</small>
+            </div>
+
+            <div class="anti-ai-shield">
+              <div class="shield-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              </div>
+              <div class="shield-info">
+                <h5>Anti-AI Humanization Active</h5>
+                <p>Purges LLM clichés ("delve", "crucial"), enforces realistic student variable naming, and sets genuine document creation timestamps.</p>
+              </div>
             </div>
           </div>
         </div>
 
-        <div class="card sys-card theme-studio-card">
-          <div class="card-header">
-            <h3>Screenshot &amp; Terminal Theme</h3>
-            <span class="lock-pill" id="theme-active-badge">Midnight Modern</span>
-          </div>
-
-          <div id="secret-theme-indicator-wrapper" style="display: none;">
-            <div class="secret-env-indicator">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-              <span>Custom Signature Theme Active via .env</span>
+        <!-- 3. Screenshot Theme Pane -->
+        <div class="drawer-pane" id="drawer-pane-theme">
+          <div class="config-section">
+            <div class="section-badge-header">
+              <h4>Screenshot Window Theme</h4>
+              <span class="lock-pill" id="theme-active-badge">Midnight Modern</span>
             </div>
-          </div>
 
-          <div class="theme-swatches-container">
-            <div class="theme-swatches-label">
-              <span>Quick Themes</span>
-              <span style="font-size: 10px; color: var(--text-dim);">Screenshots &amp; Docs</span>
-            </div>
-            <div class="theme-swatches-grid">
-              <div class="theme-swatch-chip active" id="swatch-modern-dark" onclick="selectThemeFromSwatch('modern-dark')" title="Midnight Modern (Deep Dark Indigo)">
-                <span class="swatch-dot dot-modern-dark"></span>
-                <span class="swatch-name">Modern</span>
-              </div>
-              <div class="theme-swatch-chip" id="swatch-slate-grey" onclick="selectThemeFromSwatch('slate-grey')" title="Charcoal Slate (One Dark Matte Grey)">
-                <span class="swatch-dot dot-slate-grey"></span>
-                <span class="swatch-name">Slate Grey</span>
-              </div>
-              <div class="theme-swatch-chip" id="swatch-cyber-black" onclick="selectThemeFromSwatch('cyber-black')" title="Cyber OLED (Pitch Black High Contrast)">
-                <span class="swatch-dot dot-cyber-black"></span>
-                <span class="swatch-name">Cyber Black</span>
-              </div>
-              <div class="theme-swatch-chip" id="swatch-paper-warm" onclick="selectThemeFromSwatch('paper-warm')" title="Editorial Parchment (Warm Solarized Light)">
-                <span class="swatch-dot dot-paper-warm"></span>
-                <span class="swatch-name">Parchment</span>
-              </div>
-              <div class="theme-swatch-chip" id="swatch-cobalt-blue" onclick="selectThemeFromSwatch('cobalt-blue')" title="Deep Cobalt (Navy Nord Blue)">
-                <span class="swatch-dot dot-cobalt-blue"></span>
-                <span class="swatch-name">Cobalt</span>
+            <div id="secret-theme-indicator-wrapper" style="display: none;">
+              <div class="secret-env-indicator">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                <span>Custom Signature Environment Theme Active</span>
               </div>
             </div>
-          </div>
 
-          <div class="form-row">
-            <div class="form-group flex-1">
-              <label for="terminal-theme">Window Theme Palette</label>
+            <div class="theme-swatches-container">
+              <div class="theme-swatches-label">
+                <span>Select Window Palette</span>
+                <span style="font-size: 11px; color: var(--text-dim);">Live in Reports</span>
+              </div>
+              <div class="theme-swatches-grid">
+                <div class="theme-swatch-chip active" id="swatch-modern-dark" onclick="selectThemeFromSwatch('modern-dark')" title="Midnight Modern (Deep Dark Indigo)">
+                  <span class="swatch-dot dot-modern-dark"></span>
+                  <span class="swatch-name">Modern</span>
+                </div>
+                <div class="theme-swatch-chip" id="swatch-slate-grey" onclick="selectThemeFromSwatch('slate-grey')" title="Charcoal Slate (One Dark Matte Grey)">
+                  <span class="swatch-dot dot-slate-grey"></span>
+                  <span class="swatch-name">Slate Grey</span>
+                </div>
+                <div class="theme-swatch-chip" id="swatch-cyber-black" onclick="selectThemeFromSwatch('cyber-black')" title="Cyber OLED (Pitch Black High Contrast)">
+                  <span class="swatch-dot dot-cyber-black"></span>
+                  <span class="swatch-name">Cyber Black</span>
+                </div>
+                <div class="theme-swatch-chip" id="swatch-paper-warm" onclick="selectThemeFromSwatch('paper-warm')" title="Editorial Parchment (Warm Academic Light)">
+                  <span class="swatch-dot dot-paper-warm"></span>
+                  <span class="swatch-name">Parchment</span>
+                </div>
+                <div class="theme-swatch-chip" id="swatch-cobalt-blue" onclick="selectThemeFromSwatch('cobalt-blue')" title="Deep Cobalt (Navy Nord Blue)">
+                  <span class="swatch-dot dot-cobalt-blue"></span>
+                  <span class="swatch-name">Cobalt</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 14px;">
+              <label for="terminal-theme">Window Theme Preset</label>
               <select id="terminal-theme" onchange="onThemeChanged(this.value)">
                 <option value="modern-dark" selected>Midnight Modern (Dark Indigo)</option>
                 <option value="slate-grey">Charcoal Slate (Matte Grey)</option>
@@ -278,387 +289,848 @@
                 <option value="cobalt-blue">Deep Cobalt (Navy Blue)</option>
               </select>
             </div>
-          </div>
 
-          <!-- Live Mini-Terminal Screenshot Preview Window -->
-          <div class="mini-term-preview-wrap">
-            <div class="mini-term-preview-label">
-              <span>Live Terminal Preview</span>
-              <span id="mini-term-palette-name" style="font-size: 10px; color: var(--text-dim);">Midnight Modern</span>
-            </div>
-            <div class="mini-term-window" id="mini-term-window">
-              <div class="mini-term-bar" id="mini-term-bar">
-                <div class="mini-term-dots">
-                  <span class="mini-term-dot dot-red"></span>
-                  <span class="mini-term-dot dot-yellow"></span>
-                  <span class="mini-term-dot dot-green"></span>
-                </div>
-                <div class="mini-term-title" id="mini-term-title">student@linux: ~/workspace (bash)</div>
-                <div class="mini-term-dots" style="visibility: hidden;">
-                  <span class="mini-term-dot"></span>
-                </div>
+            <!-- Live Mini-Terminal Screenshot Preview Window -->
+            <div class="mini-term-preview-wrap">
+              <div class="mini-term-preview-label">
+                <span>Authentic Window Preview</span>
+                <span id="mini-term-palette-name" style="font-size: 10px; color: var(--text-dim);">Midnight Modern</span>
               </div>
-              <div class="mini-term-body" id="mini-term-body">
-                <div class="mini-term-prompt-line">
-                  <span class="mini-term-prompt-text" id="mini-term-prompt-display">student@linux:~/workspace$</span>
-                  <span class="mini-term-cmd-text" id="mini-term-cmd-display">./lab_task</span>
+              <div class="mini-term-window" id="mini-term-window">
+                <div class="mini-term-bar" id="mini-term-bar">
+                  <div class="mini-term-dots">
+                    <span class="mini-term-dot dot-red"></span>
+                    <span class="mini-term-dot dot-yellow"></span>
+                    <span class="mini-term-dot dot-green"></span>
+                  </div>
+                  <div class="mini-term-title" id="mini-term-title">student@linux: ~/workspace (bash)</div>
+                  <div class="mini-term-dots" style="visibility: hidden;">
+                    <span class="mini-term-dot"></span>
+                  </div>
                 </div>
-                <div class="mini-term-output" id="mini-term-output">[+] Query executed successfully.
+                <div class="mini-term-body" id="mini-term-body">
+                  <div class="mini-term-prompt-line">
+                    <span class="mini-term-prompt-text" id="mini-term-prompt-display">student@linux:~/workspace$</span>
+                    <span class="mini-term-cmd-text" id="mini-term-cmd-display">./lab_task</span>
+                  </div>
+                  <div class="mini-term-output" id="mini-term-output">[+] Query executed successfully.
 [✓] 15 rows returned. (Status: PASS)</div>
-                <div class="mini-term-meta-tag" id="mini-term-meta-tag">
-                  <span>Theme: Midnight Modern</span>
+                  <div class="mini-term-meta-tag" id="mini-term-meta-tag">
+                    <span>Theme: Midnight Modern</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div class="form-row" style="margin-top: 14px;">
-            <div class="form-group flex-1">
-              <label for="terminal-username">Terminal Username</label>
-              <input type="text" id="terminal-username" value="student" placeholder="username (e.g. student)" oninput="updateTerminalPromptSettings()">
+            <div class="form-row" style="margin-top: 14px;">
+              <div class="form-group flex-1">
+                <label for="terminal-username">Shell Username</label>
+                <input type="text" id="terminal-username" value="student" placeholder="username" oninput="updateTerminalPromptSettings()">
+              </div>
+              <div class="form-group flex-1">
+                <label for="terminal-hostname">PC Hostname</label>
+                <input type="text" id="terminal-hostname" value="linux" placeholder="hostname" oninput="updateTerminalPromptSettings()">
+              </div>
             </div>
-            <div class="form-group flex-1">
-              <label for="terminal-hostname">PC / Host Name</label>
-              <input type="text" id="terminal-hostname" value="linux" placeholder="hostname (e.g. linux)" oninput="updateTerminalPromptSettings()">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="terminal-prompt-preview">Active Shell Prompt</label>
+              <input type="text" id="terminal-prompt-preview" value="student@linux:~/workspace$" readonly class="readonly-input">
             </div>
-          </div>
-          <div class="form-group" style="margin-bottom: 0;">
-            <label for="terminal-prompt-preview">Active Shell Prompt</label>
-            <input type="text" id="terminal-prompt-preview" value="student@linux:~/workspace$" readonly class="readonly-input">
           </div>
         </div>
       </div>
     </aside>
+    
+    <div class="drawer-backdrop" id="drawer-backdrop" onclick="closeSidebarSettings()"></div>
 
-      <!-- Right Column: Workspace & Results -->
-      <section class="workspace-panel">
-        <!-- Upload & Launch Stage -->
-        <div class="card upload-card" id="upload-card">
-          <div class="drop-zone" id="drop-zone">
-            <div class="upload-icon">↑</div>
-            <h3>Drop your Lab Manual here</h3>
-            <p>Supports <strong>.docx</strong> (preserves professor's template), <strong>.pdf</strong>, <strong>.txt</strong>, or <strong>.md</strong></p>
-            <input type="file" id="file-input" accept=".docx,.pdf,.txt,.md" style="display: none;">
-            <div class="btn-row">
-              <button class="btn btn-secondary" id="btn-browse">Browse Manual File</button>
-              <button class="btn btn-outline" id="btn-sample-lab">Load Sample Data Science Lab 03</button>
+    <!-- Zone 3: Main Application Workspace -->
+    <div class="app-main">
+      <!-- Top Status Bar -->
+      <header class="app-topbar">
+        <div class="topbar-left">
+          <div class="topbar-brand">
+            <span class="topbar-brand-title">LabGenius Studio</span>
+            <span class="topbar-crumb-sep">/</span>
+            <span class="topbar-crumb-active" id="top-bar-view-title">Lab Generator</span>
+          </div>
+        </div>
+
+        <div class="topbar-center">
+          <div class="active-lab-pill" id="top-bar-lab-pill">
+            <span class="pulse-dot"></span>
+            <span id="top-bar-lab-name">Workspace Ready</span>
+          </div>
+        </div>
+
+        <div class="topbar-right">
+          <button type="button" class="btn-topbar-action" id="btn-quick-doctools" onclick="openNavDocTools()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+            <span>Doc Tools</span>
+          </button>
+          
+          <button type="button" class="btn-topbar-action" id="btn-quick-settings" onclick="toggleSidebarSettings('profile')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            <span>Config</span>
+          </button>
+
+          <div class="user-profile-badge" id="user-profile-badge" onclick="toggleSidebarSettings('profile')" title="Student Profile Settings">
+            <span class="user-avatar-tag">DS</span>
+            <span class="user-profile-text">Data Science</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Workspace Body: Discrete Page Views -->
+      <main class="workspace-viewport" id="workspace-viewport">
+
+        <!-- ================================================================ -->
+        <!-- VIEW 1: Generator & Ingestion Stage (#view-home) -->
+        <!-- ================================================================ -->
+        <div class="page-view active" id="view-home">
+          <div class="stage-container">
+            <div class="stage-header">
+              <div class="stage-title-wrap">
+                <h2>Autonomous Academic Lab Engine</h2>
+                <p>Upload any lab manual (.docx, .pdf, .txt, .md). LabGenius solves the problem statements, executes in your local sandbox, captures authentic terminal screenshots, and produces a submission-ready report.</p>
+              </div>
             </div>
-            <div id="selected-file-info" class="selected-file-info" style="display: none;">
-              <span class="file-badge" id="selected-filename">sample_lab.docx</span>
-              <button class="btn-remove-file" id="btn-remove-file">✕</button>
+
+            <!-- Upload Card -->
+            <div class="card upload-card" id="upload-card">
+              <div class="drop-zone" id="drop-zone">
+                <div class="upload-icon-box">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path><path d="M12 12v9"></path><path d="m8 16 4-4 4 4"></path></svg>
+                </div>
+                <h3>Drop your Lab Manual here</h3>
+                <p>Supports <strong>.docx</strong> (preserves professor's formatting), <strong>.pdf</strong>, <strong>.txt</strong>, or <strong>.md</strong></p>
+                <input type="file" id="file-input" accept=".docx,.pdf,.txt,.md" style="display: none;">
+                <div class="btn-row">
+                  <button class="btn btn-secondary" id="btn-browse">Browse Manual File</button>
+                  <button class="btn btn-outline" id="btn-sample-lab">Load Sample Data Science Lab 03</button>
+                </div>
+                <div id="selected-file-info" class="selected-file-info" style="display: none;">
+                  <span class="file-badge" id="selected-filename">sample_lab.docx</span>
+                  <button class="btn-remove-file" id="btn-remove-file">✕</button>
+                </div>
+              </div>
+
+              <div class="action-footer">
+                <!-- Subject / Course Selector -->
+                <div class="subject-selection-box" id="subject-selection-box">
+                  <div class="section-title-row">
+                    <label for="subject-select" class="section-label">
+                      Subject / Course Domain <span class="required-badge">Auto or Select</span>
+                    </label>
+                    <span class="hint-badge active-badge" id="subject-hint-badge">Auto-Detect</span>
+                  </div>
+                  <div class="subject-select-wrapper">
+                    <select id="subject-select" class="subject-select-dropdown" onchange="handleSubjectSelectChange()">
+                      <option value="auto" selected>✨ Auto-Detect from Manual (Recommended)</option>
+                      <option value="dbms">Database Systems (DBMS / SQL)</option>
+                      <option value="dsa">Data Structures &amp; Algorithms (DSA / C / Python)</option>
+                      <option value="other">Other Subject (Custom Domain)</option>
+                    </select>
+                  </div>
+                  <div id="other-subject-container" style="display: none; margin-top: 10px;">
+                    <input type="text" id="other-subject-input" class="form-input" placeholder="Enter Subject Name (e.g. Operating Systems, Networks, OOP)...">
+                    <small class="hint-text">LabGenius will analyze manual terminology and synthesize domain-accurate solutions.</small>
+                  </div>
+                </div>
+
+                <!-- Custom Instructions Section -->
+                <div class="instructions-section">
+                  <div class="section-title-row">
+                    <label for="custom-instructions">Custom Persona &amp; Coding Instructions (Optional)</label>
+                    <span class="hint-badge">Guided Solver</span>
+                  </div>
+                  <textarea id="custom-instructions" rows="3" placeholder="Instruct the engine: e.g. 'Add detailed inline comments explaining each step', 'Use Python 3.10 list comprehensions', 'Format output neatly', 'Keep answers concise under 2 sentences'..."></textarea>
+                  <div class="preset-chips">
+                    <span class="chip" onclick="addInstructionPreset('Add detailed step-by-step comments explaining the algorithm')">+ Detailed Comments</span>
+                    <span class="chip" onclick="addInstructionPreset('Use clean undergraduate style and keep code simple')">+ Clean &amp; Simple</span>
+                    <span class="chip" onclick="addInstructionPreset('Include Big-O time and space complexity in explanation')">+ Big-O Complexity</span>
+                    <span class="chip" onclick="addInstructionPreset('Format terminal output with clean headers and separators')">+ Clean Terminal Output</span>
+                    <span class="chip" onclick="addInstructionPreset('Strict adherence to academic grading rubric')">+ Rubric Strict</span>
+                  </div>
+                </div>
+
+                <!-- Export Formats Selection -->
+                <div class="formats-section">
+                  <label class="section-label">Export Formats to Generate:</label>
+                  <div class="format-checkboxes">
+                    <label class="format-pill">
+                      <input type="checkbox" id="fmt-pdf" checked>
+                      <span class="pill-badge">PDF</span>
+                      <span class="pill-desc">High-Res Print Ready</span>
+                    </label>
+                    <label class="format-pill">
+                      <input type="checkbox" id="fmt-docx" checked>
+                      <span class="pill-badge">Word (.docx)</span>
+                      <span class="pill-desc">Sanitized Academic</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="launch-btn-group">
+                  <button class="btn btn-primary btn-large btn-glow" id="btn-review-tasks" disabled>
+                    <span>✨ Inspect &amp; Review Extracted Tasks</span>
+                    <small>Review requirements &amp; analysis questions before generation</small>
+                  </button>
+                  <button class="btn btn-secondary btn-large" id="btn-run-all" disabled>
+                    <span>⚡ Direct 1-Click Solve</span>
+                    <small>Generate directly with smart automated defaults</small>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
+        </div>
 
-          <div class="action-footer">
-            <!-- Mandatory Subject / Course Selector -->
-            <div class="subject-selection-box" id="subject-selection-box">
-              <div class="section-title-row">
-                <label for="subject-select" class="section-label">
-                  Subject / Course <span class="required-badge">Auto or Select</span>
-                </label>
-                <span class="hint-badge active-badge" id="subject-hint-badge">Auto-Detect</span>
+        <!-- ================================================================ -->
+        <!-- VIEW 2: Wizard Step 2: Review & Modify Extracted Tasks (#view-wizard) -->
+        <!-- ================================================================ -->
+        <div class="page-view" id="view-wizard" style="display: none;">
+          <div class="card wizard-review-card" id="wizard-review-card">
+            <div class="review-header">
+              <div class="review-title-group">
+                <span class="step-indicator-pill">Step 2 of 4</span>
+                <h2>Review Extracted Manual Requirements</h2>
+                <p class="review-subtitle">Verify and edit detected problem statements, code tasks, and analysis questions before code execution begins.</p>
               </div>
-              <div class="subject-select-wrapper">
-                <select id="subject-select" class="subject-select-dropdown" onchange="handleSubjectSelectChange()">
-                  <option value="auto" selected>✨ Auto-Detect from Manual (Recommended)</option>
-                  <option value="dbms">Database Systems (DBMS)</option>
-                  <option value="dsa">Data Structures &amp; Algorithms (DSA)</option>
-                  <option value="other">Other Subject? (Custom)</option>
-                </select>
-              </div>
-              <div id="other-subject-container" style="display: none; margin-top: 10px;">
-                <input type="text" id="other-subject-input" class="form-input" placeholder="Enter Subject Name (e.g. Operating Systems, Computer Networks, OOP)...">
-                <small class="hint-text" style="display: block; margin-top: 4px; color: var(--text-muted); font-size: 11.5px;">LabGenius will analyze your manual and generate custom solutions tailored for this subject.</small>
+              <div class="review-meta-badges" id="review-meta-badges">
+                <span class="badge-tag" id="badge-detected-course">Data Science</span>
+                <span class="badge-tag" id="badge-task-count">1 Task</span>
+                <span class="badge-tag" id="badge-analysis-count">6 Questions</span>
               </div>
             </div>
 
-            <!-- Custom Instructions Section -->
-            <div class="instructions-section">
-              <div class="section-title-row">
-                <label for="custom-instructions">Custom Instructions &amp; Requirements (Optional)</label>
-                <span class="hint-badge">Guided Solver</span>
+            <div class="manual-overview-banner" id="manual-overview-banner">
+              <div class="overview-title" id="overview-lab-title">Lab Title</div>
+              <div class="overview-objectives" id="overview-lab-objectives"></div>
+            </div>
+
+            <!-- Extracted Coding Tasks -->
+            <div class="review-section">
+              <div class="review-section-header">
+                <h3>Lab Problem Tasks (<span id="review-tasks-count-num">1</span>)</h3>
+                <button type="button" class="btn btn-outline btn-sm" onclick="addNewReviewTask()">+ Add Missing Task</button>
               </div>
-              <textarea id="custom-instructions" rows="3" placeholder="Tell the solver how to make your lab: e.g. 'Add detailed inline comments explaining each step', 'Use Python 3.10+ list comprehension', 'Format output nicely', 'Keep explanations concise under 2 sentences'..."></textarea>
-              <div class="preset-chips">
-                <span class="chip" onclick="addInstructionPreset('Add detailed step-by-step comments explaining the algorithm')">+ Detailed Comments</span>
-                <span class="chip" onclick="addInstructionPreset('Use clean undergraduate style and keep code simple')">+ Clean &amp; Simple</span>
-                <span class="chip" onclick="addInstructionPreset('Include Big-O time and space complexity in explanation')">+ Big-O Complexity</span>
-                <span class="chip" onclick="addInstructionPreset('Format terminal output with clean headers and separators')">+ Clean Formatted Output</span>
-                <span class="chip" onclick="addInstructionPreset('Strict adherence to academic grading rubric')">+ Rubric Strict</span>
+              <div class="review-tasks-list" id="review-tasks-list">
+                <!-- Dynamically populated task review cards -->
               </div>
             </div>
 
-            <!-- Export Formats Selection (PDF and Word) -->
-            <div class="formats-section">
-              <label class="section-label">Export Formats to Generate:</label>
-              <div class="format-checkboxes">
-                <label class="format-pill">
-                  <input type="checkbox" id="fmt-pdf" checked>
-                  <span class="pill-badge">PDF</span>
-                  <span class="pill-desc">High-Res Print Ready</span>
-                </label>
-                <label class="format-pill">
-                  <input type="checkbox" id="fmt-docx" checked>
-                  <span class="pill-badge">Word (.docx)</span>
-                  <span class="pill-desc">Sanitized Academic</span>
-                </label>
+            <!-- Analysis Questions -->
+            <div class="review-section" id="review-analysis-section">
+              <div class="review-section-header">
+                <h3>Questions for Analysis &amp; Discussion (<span id="review-questions-count-num">6</span>)</h3>
+                <button type="button" class="btn btn-outline btn-sm" onclick="addNewReviewQuestion()">+ Add Question</button>
+              </div>
+              <p class="section-hint">Answers will be generated following undergraduate academic tone without AI clichés.</p>
+              <div class="review-questions-list" id="review-questions-list">
+                <!-- Dynamically populated question cards -->
               </div>
             </div>
 
-            <div class="launch-btn-group" style="display: flex; gap: 12px; margin-top: 18px; flex-wrap: wrap;">
-              <button class="btn btn-primary btn-large btn-glow" id="btn-review-tasks" disabled style="flex: 1.2; min-width: 260px;">
-                <span>✨ Inspect &amp; Review Extracted Tasks</span>
-                <small style="display: block; font-size: 0.75rem; opacity: 0.85; font-weight: normal; margin-top: 2px;">Review tasks &amp; analysis questions before generation</small>
+            <div class="review-footer-actions">
+              <button type="button" class="btn btn-outline btn-large" onclick="backToUploadStep()">
+                ← Back to Upload
               </button>
-              <button class="btn btn-secondary btn-large" id="btn-run-all" disabled style="flex: 1; min-width: 220px;">
-                <span>⚡ Direct 1-Click Solve</span>
-                <small style="display: block; font-size: 0.75rem; opacity: 0.85; font-weight: normal; margin-top: 2px;">Generate directly with smart defaults</small>
+              <button type="button" class="btn btn-primary btn-large btn-glow" id="btn-confirm-generate" onclick="generateFromConfirmedSession()">
+                Confirm Requirements &amp; Start Generation →
               </button>
             </div>
           </div>
         </div>
 
-        <!-- Wizard Step 2: Review & Modify Extracted Tasks -->
-        <div class="card wizard-review-card" id="wizard-review-card" style="display: none;">
-          <div class="review-header">
-            <div class="review-title-group">
-              <span class="step-indicator-pill">Step 2 of 4</span>
-              <h2>Review Extracted Manual Requirements</h2>
-              <p class="review-subtitle">
-                Verify and edit the detected tasks, requirements, and analysis questions before code generation begins.
-              </p>
+        <!-- ================================================================ -->
+        <!-- VIEW 3: Progress Tracker (#view-progress) -->
+        <!-- ================================================================ -->
+        <div class="page-view" id="view-progress" style="display: none;">
+          <div class="card progress-card" id="progress-card">
+            <div class="progress-header">
+              <div class="progress-title-block">
+                <h3 id="progress-step-title">Processing Lab Manual...</h3>
+                <p id="progress-step-desc">Executing tasks locally and capturing authentic terminal windows...</p>
+              </div>
+              <span class="timer-badge" id="elapsed-timer">00:00</span>
             </div>
-            <div class="review-meta-badges" id="review-meta-badges">
-              <span class="badge-tag" id="badge-detected-course">Data Science</span>
-              <span class="badge-tag" id="badge-task-count">1 Task</span>
-              <span class="badge-tag" id="badge-analysis-count">6 Questions</span>
+            <div class="progress-bar-container">
+              <div class="progress-bar-fill" id="progress-bar-fill"></div>
             </div>
-          </div>
-
-          <div class="manual-overview-banner" id="manual-overview-banner">
-            <div class="overview-title" id="overview-lab-title">Lab Title</div>
-            <div class="overview-objectives" id="overview-lab-objectives"></div>
-          </div>
-
-          <!-- Section: Extracted Coding Tasks -->
-          <div class="review-section">
-            <div class="review-section-header">
-              <h3>Lab Problem Tasks (<span id="review-tasks-count-num">1</span>)</h3>
-              <button type="button" class="btn btn-outline btn-sm" onclick="addNewReviewTask()">+ Add Missing Task</button>
+            <div class="steps-flow">
+              <div class="step-node active" id="step-1"><span>1</span> Parse Manual</div>
+              <div class="step-node" id="step-2"><span>2</span> Persona Solver</div>
+              <div class="step-node" id="step-3"><span>3</span> Laptop Execution</div>
+              <div class="step-node" id="step-4"><span>4</span> Linux Screenshots</div>
+              <div class="step-node" id="step-5"><span>5</span> Anti-AI Sanitizer</div>
             </div>
-            <div class="review-tasks-list" id="review-tasks-list">
-              <!-- Dynamically populated task review cards -->
-            </div>
-          </div>
-
-          <!-- Section: Analysis Questions -->
-          <div class="review-section" id="review-analysis-section">
-            <div class="review-section-header">
-              <h3>Questions for Analysis (<span id="review-questions-count-num">6</span>)</h3>
-              <button type="button" class="btn btn-outline btn-sm" onclick="addNewReviewQuestion()">+ Add Question</button>
-            </div>
-            <p class="section-hint" style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;">Answers will be generated following undergraduate academic tone without AI clichés.</p>
-            <div class="review-questions-list" id="review-questions-list">
-              <!-- Dynamically populated question cards -->
-            </div>
-          </div>
-
-          <div class="review-footer-actions">
-            <button type="button" class="btn btn-outline btn-large" onclick="backToUploadStep()">
-              ← Back to Upload
-            </button>
-            <button type="button" class="btn btn-primary btn-large btn-glow" id="btn-confirm-generate" onclick="generateFromConfirmedSession()">
-              Confirm Requirements &amp; Start Generation →
-            </button>
           </div>
         </div>
 
-        <!-- Progress Tracker Bar (Hidden until run) -->
-        <div class="card progress-card" id="progress-card" style="display: none;">
-          <div class="progress-header">
-            <div class="progress-title-block">
-              <h3 id="progress-step-title">Processing Lab Manual...</h3>
-              <p id="progress-step-desc">Executing tasks locally and capturing terminal windows...</p>
+        <!-- ================================================================ -->
+        <!-- VIEW 4: Results Showcase & Output Studio (#view-results) -->
+        <!-- ================================================================ -->
+        <div class="page-view" id="view-results" style="display: none;">
+          <div id="results-container">
+            <!-- Quality Gate Validation Banner -->
+            <div class="card quality-gate-card" id="quality-gate-banner">
+              <div class="gate-status-row">
+                <div class="gate-badge-wrap">
+                  <span class="gate-icon" id="gate-icon">✓</span>
+                  <div>
+                    <h3 id="gate-title">Quality Gate Passed</h3>
+                    <p id="gate-desc">0 Execution errors • Strict undergraduate anti-AI tone • Verified output screenshots</p>
+                  </div>
+                </div>
+                <div class="gate-metrics" id="gate-metrics">
+                  <span class="meta-pill meta-safe" id="gate-pill-status">Verified Valid</span>
+                </div>
+              </div>
+              <div id="gate-warnings-box" style="display: none; margin-top: 12px; padding: 10px; background: rgba(234, 179, 8, 0.1); border: 1px solid rgba(234, 179, 8, 0.3); border-radius: 6px;">
+                <ul id="gate-warnings-list" style="margin: 0; padding-left: 20px; font-size: 0.85rem; color: #eab308;"></ul>
+              </div>
             </div>
-            <span class="timer-badge" id="elapsed-timer">00:00</span>
-          </div>
-          <div class="progress-bar-container">
-            <div class="progress-bar-fill" id="progress-bar-fill"></div>
-          </div>
-          <div class="steps-flow">
-            <div class="step-node active" id="step-1"><span>1</span> Parse Manual</div>
-            <div class="step-node" id="step-2"><span>2</span> Persona Solver</div>
-            <div class="step-node" id="step-3"><span>3</span> Laptop Execution</div>
-            <div class="step-node" id="step-4"><span>4</span> Linux Screenshots</div>
-            <div class="step-node" id="step-5"><span>5</span> Anti-AI Sanitizer</div>
-          </div>
-        </div>
 
-        <!-- Results Showcase (Hidden until run finishes) -->
-        <div id="results-container" style="display: none;">
-          <!-- Quality Gate Validation Banner -->
-          <div class="card quality-gate-card" id="quality-gate-banner">
-            <div class="gate-status-row">
-              <div class="gate-badge-wrap">
-                <span class="gate-icon" id="gate-icon">✓</span>
+            <!-- Completion Header / Download Card -->
+            <div class="card download-card">
+              <div class="download-left">
+                <div class="success-icon">✓</div>
                 <div>
-                  <h3 id="gate-title">Quality Gate Passed</h3>
-                  <p id="gate-desc">0 Execution errors • Strict undergraduate anti-AI tone • Verified output screenshots</p>
+                  <h2>Lab Report Built Successfully</h2>
+                  <p id="doc-title-text">Completed_Lab_03_25F-DS-020.docx</p>
+                  <div class="meta-pills">
+                    <span class="meta-pill" id="meta-author">Author: Bheesham Kumar Sajnani</span>
+                    <span class="meta-pill" id="meta-time">Edit Time: 78 mins</span>
+                    <span class="meta-pill" id="meta-rev">Revision: 6</span>
+                    <span class="meta-pill meta-safe" id="meta-clean">Zero AI Fingerprints</span>
+                    <span class="meta-pill" id="meta-engine" style="display: none;">Engine: Smart Offline</span>
+                    <span class="meta-pill" id="meta-custom-inst" style="display: none; border-color: var(--primary); color: var(--primary);">Instructions Active</span>
+                  </div>
                 </div>
               </div>
-              <div class="gate-metrics" id="gate-metrics">
-                <span class="meta-pill meta-safe" id="gate-pill-status">Verified Valid</span>
-              </div>
-            </div>
-            <div id="gate-warnings-box" style="display: none; margin-top: 12px; padding: 10px; background: rgba(234, 179, 8, 0.1); border: 1px solid rgba(234, 179, 8, 0.3); border-radius: 6px;">
-              <ul id="gate-warnings-list" style="margin: 0; padding-left: 20px; font-size: 0.85rem; color: #eab308;"></ul>
-            </div>
-          </div>
-
-          <!-- Completion Header / Download Card -->
-          <div class="card download-card">
-            <div class="download-left">
-              <div class="success-icon">✓</div>
-              <div>
-                <h2>Lab Manual Completed Successfully!</h2>
-                <p id="doc-title-text">Completed_Lab_03_25F-DS-020.docx</p>
-                <div class="meta-pills">
-                  <span class="meta-pill" id="meta-author">Author: Bheesham Kumar Sajnani</span>
-                  <span class="meta-pill" id="meta-time">Edit Time: 78 mins</span>
-                  <span class="meta-pill" id="meta-rev">Revision: 6</span>
-                  <span class="meta-pill meta-safe" id="meta-clean">Zero AI Fingerprints</span>
-                  <span class="meta-pill" id="meta-engine" style="display: none;">Engine: Smart Offline</span>
-                  <span class="meta-pill" id="meta-custom-inst" style="display: none; border-color: #ffffff; color: #ffffff;">Instructions Active</span>
+              <div class="download-right">
+                <div class="download-btn-group">
+                  <a href="#" class="btn btn-primary" id="btn-download-pdf" download>
+                    Download PDF
+                  </a>
+                  <a href="#" class="btn btn-secondary" id="btn-download-docx" download>
+                    Download Word (.docx)
+                  </a>
+                  <button type="button" class="btn btn-outline" id="btn-close-current-lab" onclick="closeAndStartNewLab()" title="Close current lab and upload new manual">
+                    ✕ Close &amp; New Lab
+                  </button>
                 </div>
               </div>
             </div>
-            <div class="download-right">
-              <div class="download-btn-group">
-                <a href="#" class="btn btn-primary" id="btn-download-pdf" download>
-                  Download PDF
-                </a>
-                <a href="#" class="btn btn-secondary" id="btn-download-docx" download>
-                  Download Word (.docx)
-                </a>
-                <button type="button" class="btn btn-outline" id="btn-close-current-lab" onclick="closeAndStartNewLab()" title="Close current document and upload a new lab manual">
-                  ✕ Close &amp; New Lab
+
+            <!-- Interactive Refinement & AI Edit Bar -->
+            <div class="card refine-card" id="refine-card">
+              <div class="refine-header">
+                <div class="refine-title">
+                  <h3>Refine &amp; Adjust via Instructions</h3>
+                </div>
+                <span class="lock-pill">Natural Language Refinement</span>
+              </div>
+              <p class="refine-subtitle">Need adjustments? Provide follow-up instructions to refine student code, change formatting, or re-run specific tasks.</p>
+              <div class="refine-form">
+                <div class="refine-controls">
+                  <select id="refine-target-task">
+                    <option value="all">Scope: Entire Lab Report</option>
+                  </select>
+                  <input type="text" id="refine-input" placeholder="e.g. In Task 2, rewrite with while loop and add step comments..." />
+                  <button class="btn btn-primary" id="btn-apply-refine">
+                    <span id="refine-btn-text">Apply &amp; Re-generate</span>
+                    <span class="spinner" id="refine-spinner" style="display:none;">⏳</span>
+                  </button>
+                </div>
+                <div class="quick-refine-chips">
+                  <span class="chip" onclick="setRefinePrompt('Add detailed inline comments explaining the logic step-by-step')">+ Add More Comments</span>
+                  <span class="chip" onclick="setRefinePrompt('Simplify implementation to basic undergraduate style')">+ Simplify Code</span>
+                  <span class="chip" onclick="setRefinePrompt('Format terminal outputs with clean dividers and spacing')">+ Clean Terminal Layout</span>
+                  <span class="chip" onclick="setRefinePrompt('Expand the explanation and discussion answers with more detail')">+ Expand Discussion</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Dual-View Switcher Bar -->
+            <div class="view-switcher-bar">
+              <div class="view-tabs">
+                <button class="view-tab-btn active" id="btn-view-pdf" onclick="switchMainView('pdf')">
+                  High-Res PDF Viewer
+                </button>
+                <button class="view-tab-btn" id="btn-view-doc" onclick="switchMainView('doc')">
+                  Document Canvas &amp; Editor
+                </button>
+                <button class="view-tab-btn" id="btn-view-scratchpad" onclick="switchMainView('scratchpad')">
+                  Live Code Playground
+                </button>
+                <button class="view-tab-btn" id="btn-view-tasks" onclick="switchMainView('tasks')">
+                  Task Cards
+                </button>
+                <button class="view-tab-btn" id="btn-view-doctools" onclick="switchMainView('doctools')">
+                  Doc Tools
                 </button>
               </div>
+              <div class="preview-actions">
+                <button class="btn btn-sm btn-primary" id="btn-save-canvas" onclick="saveDocumentCanvasEdits()">Save Edits (Ctrl+S)</button>
+                <button class="btn btn-sm btn-outline" id="btn-bundle-download" onclick="downloadSubmissionBundle()">Download ZIP</button>
+                <button class="btn btn-sm btn-outline" id="btn-print-doc" onclick="printDocumentPreview()">Print PDF</button>
+                <a href="#" target="_blank" class="btn btn-sm btn-outline" id="btn-open-new-tab">New Tab ↗</a>
+              </div>
+            </div>
+
+            <!-- 1. Embedded High-Res PDF View Container -->
+            <div class="view-container" id="view-pdf-container">
+              <div class="pdf-frame-wrapper">
+                <iframe id="pdf-embed-frame" src="" width="100%" height="850px" style="border:none; border-radius: 4px;"></iframe>
+              </div>
+            </div>
+
+            <!-- 2. Full Document View Container with Inline Text Editor -->
+            <div class="view-container" id="view-doc-container" style="display: none;">
+              <div class="doc-editor-toolbar" id="doc-editor-toolbar">
+                <div class="toolbar-group">
+                  <span class="editor-mode-badge" id="editor-status-indicator">● Edit Mode Active</span>
+                  <span class="hint-pill">Click any text or table cell to edit directly</span>
+                </div>
+                <div class="toolbar-group">
+                  <button class="format-btn" onclick="execFormat('bold')" title="Bold (Ctrl+B)"><b>B</b></button>
+                  <button class="format-btn" onclick="execFormat('italic')" title="Italic (Ctrl+I)"><i>I</i></button>
+                  <button class="format-btn" onclick="execFormat('underline')" title="Underline (Ctrl+U)"><u>U</u></button>
+                  <button class="format-btn" onclick="wrapSelectionCode()" title="Inline Code (Ctrl+E)"><code>&lt;/&gt;</code></button>
+                  <button class="format-btn" onclick="execFormat('formatBlock', '<h2>')" title="Heading 2">H2</button>
+                  <button class="format-btn" onclick="execFormat('formatBlock', '<h3>')" title="Heading 3">H3</button>
+                  <button class="format-btn" onclick="execFormat('insertUnorderedList')" title="Bullet List">• List</button>
+                </div>
+                <div class="toolbar-group">
+                  <button class="btn btn-xs btn-outline" onclick="openCoverEditModal()">Edit Cover Details</button>
+                  <span class="canvas-save-status" id="canvas-save-status">✓ All Edits Saved</span>
+                </div>
+              </div>
+
+              <div class="doc-canvas" id="doc-canvas">
+                <!-- Dynamically rendered editable document preview -->
+              </div>
+            </div>
+
+            <!-- 3. In-Browser Live Code Playground & Terminal Drawer -->
+            <div class="view-container" id="view-scratchpad-container" style="display: none;">
+              <div class="playground-layout">
+                <div class="playground-editor-pane">
+                  <div class="pane-header">
+                    <div class="pane-title">
+                      <button class="btn btn-outline btn-sm" id="btn-back-to-doc" onclick="switchMainView('doc')" title="Switch back to Document Preview">
+                        ← Document Preview
+                      </button>
+                      <span>Live Code Playground</span>
+                    </div>
+                    <div class="pane-controls">
+                      <select id="scratch-lang" onchange="onScratchLangChange()">
+                        <option value="python" selected>Python 3 (DSA, NumPy)</option>
+                        <option value="c">C (gcc -lm)</option>
+                        <option value="sql">SQL (SQLite)</option>
+                      </select>
+                      <select id="scratch-template-select" onchange="loadSelectedTemplate()">
+                        <option value="">Starter Templates...</option>
+                        <option value="py-dsa-bst">DSA: Binary Search Tree (BST)</option>
+                        <option value="py-dsa-linkedlist">DSA: Singly Linked List</option>
+                        <option value="py-dsa-quicksort">DSA: QuickSort Algorithm</option>
+                        <option value="c-pointers-malloc">C: Pointers &amp; Malloc</option>
+                        <option value="c-prime-numbers">C: Prime Numbers (1-300)</option>
+                      </select>
+                      <button class="btn btn-primary btn-sm" id="btn-run-scratchpad-top" onclick="runPlaygroundCode()">
+                        <span>▶ Run Code</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="code-editor-container">
+                    <textarea id="scratch-code" rows="12" class="scratch-textarea" spellcheck="false" placeholder="// Write or paste your C, Python, or SQL code here..."></textarea>
+                  </div>
+                  <div class="stdin-container">
+                    <label for="scratch-stdin"><span class="terminal-prompt">&gt;</span> Standard Input (stdin):</label>
+                    <input type="text" id="scratch-stdin" placeholder="e.g. sample user input to be passed to scanf / input()" />
+                  </div>
+                  <div class="playground-actions">
+                    <button class="btn btn-primary" id="btn-run-scratchpad" onclick="runPlaygroundCode()">
+                      <span id="scratch-run-text">▶ Run Code (Ctrl+Enter)</span>
+                      <span class="spinner" id="scratch-spinner" style="display:none;"></span>
+                    </button>
+                    <button class="btn btn-outline" onclick="copyPlaygroundCode()">Copy Code</button>
+                    <button class="btn btn-outline" onclick="clearPlayground()">Clear</button>
+                  </div>
+                </div>
+
+                <div class="playground-terminal-pane">
+                  <div class="terminal-window">
+                    <div class="terminal-header">
+                      <div class="terminal-dots">
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                      </div>
+                      <span class="terminal-title" id="terminal-pane-title">terminal — Linux Terminal</span>
+                      <div class="terminal-metrics" id="scratch-metrics">Ready</div>
+                    </div>
+                    <div class="terminal-body" id="scratch-terminal-body">
+                      <div class="term-line prompt-line">
+                        <span class="term-user" id="term-user-prompt">student@linux</span>:<span class="term-path">~/workspace</span>$ <span class="term-cmd" id="term-cmd-display">ready</span>
+                      </div>
+                      <pre class="term-output" id="scratch-stdout">Click "▶ Run Code" to execute Python, C, or SQL locally and view authentic terminal output in real time.</pre>
+                      <pre class="term-error" id="scratch-stderr" style="display: none;"></pre>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 4. Task Cards Studio View -->
+            <div class="view-container" id="view-tasks-container" style="display: none;">
+              <div class="tasks-feed" id="tasks-feed">
+                <!-- Dynamically populated task cards -->
+              </div>
             </div>
           </div>
+        </div>
 
-          <!-- Interactive Refinement & AI Edit Bar -->
-          <div class="card refine-card" id="refine-card">
-            <div class="refine-header">
-              <div class="refine-title">
-                <h3>Refine &amp; Edit via Instructions</h3>
+        <!-- ================================================================ -->
+        <!-- VIEW 5: Dedicated Document Tools Studio (#view-doctools) -->
+        <!-- ================================================================ -->
+        <div class="page-view" id="view-doctools" style="display: none;">
+          <div id="doctools-workspace" class="doctools-workspace">
+            <div class="doctools-layout">
+              <div class="doc-tools-header">
+                <div class="doc-tools-header-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                </div>
+                <div class="doc-tools-header-text">
+                  <h2>Document Tools Studio</h2>
+                  <p>Combine, convert, split, and inspect your documents locally with complete data privacy and structural fidelity.</p>
+                </div>
               </div>
-              <span class="lock-pill">Natural Language Refinement</span>
-            </div>
-            <p class="refine-subtitle">Want to modify something? Give follow-up instructions to refine code, tweak formatting, or re-run tasks.</p>
-            <div class="refine-form">
-              <div class="refine-controls">
-                <select id="refine-target-task">
-                  <option value="all">Scope: Entire Lab Report</option>
-                  <!-- Dynamically populated with task options -->
-                </select>
-                <input type="text" id="refine-input" placeholder="e.g. In Task 2, rewrite using a while loop and add inline comments..." />
-                <button class="btn btn-primary" id="btn-apply-refine">
-                  <span id="refine-btn-text">Apply &amp; Re-generate</span>
-                  <span class="spinner" id="refine-spinner" style="display:none;">⏳</span>
+
+              <!-- Secondary Tool Tabs Navigation -->
+              <div class="doc-tools-tabs-nav" role="tablist">
+                <button type="button" class="doc-tab-btn active" id="tab-btn-merger" role="tab" aria-selected="true" onclick="switchDocTool('merger')">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+                  <span>Document Merger</span>
+                </button>
+                <button type="button" class="doc-tab-btn" id="tab-btn-converter" role="tab" aria-selected="false" onclick="switchDocTool('converter')">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m16 3 4 4-4 4"></path><path d="M20 7H4"></path><path d="m8 21-4-4 4-4"></path><path d="M4 17h16"></path></svg>
+                  <span>Format Converter</span>
+                </button>
+                <button type="button" class="doc-tab-btn" id="tab-btn-splitter" role="tab" aria-selected="false" onclick="switchDocTool('splitter')">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><line x1="20" y1="4" x2="8.12" y2="15.88"></line><line x1="14.47" y1="14.48" x2="20" y2="20"></line><line x1="8.12" y1="8.12" x2="12" y2="12"></line></svg>
+                  <span>Page Splitter</span>
+                </button>
+                <button type="button" class="doc-tab-btn" id="tab-btn-extractor" role="tab" aria-selected="false" onclick="switchDocTool('extractor')">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><circle cx="11.5" cy="14.5" r="2.5"></circle><path d="m13.5 16.5 2.5 2.5"></path></svg>
+                  <span>Text &amp; Info Inspector</span>
                 </button>
               </div>
-              <div class="quick-refine-chips">
-                <span class="chip" onclick="setRefinePrompt('Add detailed inline comments explaining the logic step-by-step')">+ Add More Comments</span>
-                <span class="chip" onclick="setRefinePrompt('Simplify implementation to basic undergraduate style')">+ Simplify Code</span>
-                <span class="chip" onclick="setRefinePrompt('Format terminal outputs with clean dividers and spacing')">+ Clean Terminal Layout</span>
-                <span class="chip" onclick="setRefinePrompt('Expand the explanation and discussion answers with more detail')">+ Expand Discussion</span>
+
+              <!-- Tool 1: Document Merger -->
+              <div class="doctool-panel active" id="panel-doc-merger" role="tabpanel">
+                <div class="card merger-main-card">
+                  <div class="merger-card-header">
+                    <div class="merger-card-header-left">
+                      <div class="merger-icon-box">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                      </div>
+                      <div>
+                        <h3>Document Merger</h3>
+                        <p>Combine multiple PDF and/or Word (.docx) documents into a unified file.</p>
+                      </div>
+                    </div>
+                    <div class="merger-card-header-right">
+                      <div class="format-pills-row">
+                        <span class="fmt-pill">PDF</span>
+                        <span class="fmt-pill">DOCX</span>
+                        <span class="fmt-pill">TXT</span>
+                      </div>
+                      <div class="merger-limit-meta">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                        <span>Max 100MB per file</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 3-Step Stepper Bar -->
+                  <div class="merger-stepper-bar">
+                    <div class="merger-step-node active" id="step-node-1" onclick="focusMergerStep(1)">
+                      <span class="merger-step-circle" id="step-circle-1">1</span>
+                      <span class="merger-step-label">Add Documents</span>
+                    </div>
+                    <div class="merger-step-connector" id="step-conn-1"></div>
+                    <div class="merger-step-node" id="step-node-2" onclick="focusMergerStep(2)">
+                      <span class="merger-step-circle" id="step-circle-2">2</span>
+                      <span class="merger-step-label">Arrange Order</span>
+                    </div>
+                    <div class="merger-step-connector" id="step-conn-2"></div>
+                    <div class="merger-step-node" id="step-node-3" onclick="focusMergerStep(3)">
+                      <span class="merger-step-circle" id="step-circle-3">3</span>
+                      <span class="merger-step-label">Configure &amp; Export</span>
+                    </div>
+                  </div>
+
+                  <!-- 2-Column Merger Workspace -->
+                  <div class="merger-two-col-grid">
+                    <div class="merger-content-col">
+                      <div class="merger-dropzone-box" id="merger-dropzone" onclick="document.getElementById('merger-file-input').click()">
+                        <div class="drop-cloud-icon">
+                          <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path><path d="M12 12v9"></path><path d="m8 16 4-4 4 4"></path></svg>
+                        </div>
+                        <h4>Drag &amp; drop your files here</h4>
+                        <p class="drop-sub">or click to browse from your computer</p>
+                        <p class="drop-specs">Supports PDF, DOCX, TXT • Max 100MB per file • Up to 20 files</p>
+                        <input type="file" id="merger-file-input" multiple accept=".pdf,.docx,.txt" style="display: none;" onchange="handleMergerFilesSelected(event)">
+                        <div class="drop-actions-row" onclick="event.stopPropagation()">
+                          <button type="button" class="btn-browse-primary" onclick="document.getElementById('merger-file-input').click()">
+                            Browse Files
+                          </button>
+                          <button type="button" class="btn-sample-outline" onclick="loadSampleMergeFiles()">
+                            Use Sample Files
+                          </button>
+                        </div>
+                      </div>
+
+                      <div class="selected-files-section">
+                        <div class="selected-files-header">
+                          <h4>Selected Files (<span id="merger-selected-count">0</span>)</h4>
+                          <button type="button" class="btn-clear-queue" id="btn-clear-queue" onclick="clearMergerQueue()" style="display: none;">Clear All</button>
+                        </div>
+                        <div class="selected-files-list" id="merger-selected-files-list"></div>
+                      </div>
+                    </div>
+
+                    <div class="merger-summary-col">
+                      <div class="summary-panel-card">
+                        <div class="summary-panel-header">
+                          <h3>Merge Summary</h3>
+                        </div>
+                        <div class="summary-metrics-block">
+                          <div class="metric-count" id="summary-file-count">0 files selected</div>
+                          <div class="metric-size" id="summary-total-size">Total size: 0 KB</div>
+                        </div>
+
+                        <div class="summary-format-section">
+                          <span class="summary-section-label">Output Format</span>
+                          <div class="format-radio-cards">
+                            <div class="format-radio-card active" id="format-card-pdf" onclick="selectExportFormat('pdf')">
+                              <div class="radio-circle"></div>
+                              <div class="format-card-details">
+                                <strong>PDF (Recommended)</strong>
+                                <span>Best for printing and sharing</span>
+                              </div>
+                            </div>
+                            <div class="format-radio-card" id="format-card-docx" onclick="selectExportFormat('docx')">
+                              <div class="radio-circle"></div>
+                              <div class="format-card-details">
+                                <strong>DOCX</strong>
+                                <span>Editable Word document</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="summary-order-section">
+                          <span class="summary-section-label">File Order</span>
+                          <div class="summary-order-list" id="summary-file-order-list">
+                            <div class="empty-order-hint">Add documents to arrange order</div>
+                          </div>
+                        </div>
+
+                        <div class="summary-filename-section">
+                          <input type="text" id="merger-out-filename" value="Merged_Lab_Submission" placeholder="Output filename" class="summary-filename-input" />
+                        </div>
+
+                        <div class="summary-action-wrap">
+                          <button type="button" class="btn-merge-action" id="btn-execute-merge" onclick="executeDocumentMerge()">
+                            <span id="btn-merge-text">Merge Documents &gt;</span>
+                            <span class="spinner" id="merger-spinner" style="display: none;"></span>
+                          </button>
+                        </div>
+
+                        <div class="merger-result-box" id="merger-result-card" style="display: none;">
+                          <div class="result-box-top">
+                            <span class="result-check">✓</span>
+                            <h4 id="result-title">Merged Successfully</h4>
+                          </div>
+                          <div class="result-meta-row">
+                            <span class="meta-tag" id="result-filename-pill">Merged_Lab_Submission.pdf</span>
+                            <span class="meta-tag" id="result-size-pill">1.2 MB</span>
+                            <span class="meta-tag" id="result-pages-pill">4 Pages</span>
+                          </div>
+                          <div class="result-btns-row">
+                            <a href="#" class="btn-res-download" id="btn-download-merged" download>Download</a>
+                            <button type="button" class="btn-res-preview" id="btn-preview-merged" onclick="previewMergedDocument()">Preview ↗</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tool 2: Format Converter -->
+              <div class="doctool-panel" id="panel-doc-converter" role="tabpanel" style="display: none;">
+                <div class="card doctool-card">
+                  <div class="converter-box">
+                    <div class="tool-panel-header">
+                      <div>
+                        <h3>Quick Format Converter</h3>
+                        <p>Convert Word (.docx) to PDF or PDF to Word (.docx) with structural fidelity.</p>
+                      </div>
+                    </div>
+                    
+                    <div class="converter-mode-selector">
+                      <button type="button" class="btn btn-secondary active" id="btn-mode-docx2pdf" onclick="setConverterMode('docx2pdf')">
+                        Word (.docx) ➔ PDF
+                      </button>
+                      <button type="button" class="btn btn-secondary" id="btn-mode-pdf2docx" onclick="setConverterMode('pdf2docx')">
+                        PDF ➔ Word (.docx)
+                      </button>
+                    </div>
+
+                    <div class="converter-upload-area" onclick="document.getElementById('converter-file-input').click()">
+                      <div class="tool-upload-icon">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3 4 7l4 4"></path><path d="M4 7h16"></path><path d="m16 21 4-4-4-4"></path><path d="M20 17H4"></path></svg>
+                      </div>
+                      <h4 id="converter-drop-title">Select Word (.docx) file to convert to PDF</h4>
+                      <p>Click or drag and drop document here</p>
+                      <input type="file" id="converter-file-input" accept=".docx" style="display: none;" onchange="handleConverterFileSelected(event)">
+                      <div id="converter-selected-file" class="selected-file-pill" style="display: none;"></div>
+                    </div>
+
+                    <div class="converter-actions">
+                      <button type="button" class="btn btn-primary" id="btn-run-convert" onclick="runDocumentConvert()" disabled>
+                        <span>Convert Document</span>
+                        <span class="spinner" id="converter-spinner" style="display: none;"></span>
+                      </button>
+                    </div>
+
+                    <div class="converter-result-box" id="converter-result-box" style="display: none;">
+                      <div class="result-message-wrap">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span id="converter-result-text">Converted successfully!</span>
+                      </div>
+                      <a href="#" class="btn btn-primary btn-sm" id="btn-download-converted" download>Download Converted File</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tool 3: PDF Page Splitter -->
+              <div class="doctool-panel" id="panel-doc-splitter" role="tabpanel" style="display: none;">
+                <div class="card doctool-card">
+                  <div class="splitter-box">
+                    <div class="tool-panel-header">
+                      <div>
+                        <h3>PDF Page Splitter &amp; Range Extractor</h3>
+                        <p>Extract specific pages or page ranges from a PDF manual into a clean standalone document.</p>
+                      </div>
+                    </div>
+
+                    <div class="splitter-upload-area" onclick="document.getElementById('splitter-file-input').click()">
+                      <div class="tool-upload-icon">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><line x1="20" y1="4" x2="8.12" y2="15.88"></line><line x1="14.47" y1="14.48" x2="20" y2="20"></line><line x1="8.12" y1="8.12" x2="12" y2="12"></line></svg>
+                      </div>
+                      <h4>Select PDF Document to Split</h4>
+                      <p>Click or drag and drop PDF file here</p>
+                      <input type="file" id="splitter-file-input" accept=".pdf" style="display: none;" onchange="handleSplitterFileSelected(event)">
+                      <div id="splitter-selected-file" class="selected-file-pill" style="display: none;"></div>
+                    </div>
+
+                    <div class="splitter-controls" id="splitter-controls" style="display: none; margin-top: 20px;">
+                      <div class="form-group">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                          <label for="splitter-range-input">Page Range to Extract (1-indexed)</label>
+                          <span class="meta-pill" style="font-size: 11px;">Total Pages: <strong id="splitter-total-pages" style="color: var(--primary);">0</strong></span>
+                        </div>
+                        <input type="text" id="splitter-range-input" placeholder="e.g. 1-3, 5, 8-10" value="1-2">
+                        <small class="hint-text">Specify comma-separated pages or hyphenated ranges (e.g. 1-3, 5, 8-10).</small>
+                      </div>
+
+                      <button type="button" class="btn btn-primary" id="btn-run-split" onclick="runDocumentSplit()">
+                        <span>Extract Specified Pages</span>
+                        <span class="spinner" id="splitter-spinner" style="display: none;"></span>
+                      </button>
+                    </div>
+
+                    <div class="splitter-result-box" id="splitter-result-box" style="display: none;">
+                      <div class="result-message-wrap">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span id="splitter-result-text">Pages extracted successfully!</span>
+                      </div>
+                      <a href="#" class="btn btn-primary btn-sm" id="btn-download-split" download>Download Extracted PDF</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tool 4: Text & Metadata Inspector -->
+              <div class="doctool-panel" id="panel-doc-extractor" role="tabpanel" style="display: none;">
+                <div class="card doctool-card">
+                  <div class="inspector-box">
+                    <div class="tool-panel-header">
+                      <div>
+                        <h3>Document Text &amp; Metadata Inspector</h3>
+                        <p>Analyze word count, character count, page count, and extract plain text from any PDF or Word document.</p>
+                      </div>
+                    </div>
+
+                    <div class="inspector-upload-area" onclick="document.getElementById('inspector-file-input').click()">
+                      <div class="tool-upload-icon">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><circle cx="11.5" cy="14.5" r="2.5"></circle><path d="m13.5 16.5 2.5 2.5"></path></svg>
+                      </div>
+                      <h4>Select PDF or DOCX file to inspect</h4>
+                      <p>Click or drag and drop document here</p>
+                      <input type="file" id="inspector-file-input" accept=".pdf,.docx" style="display: none;" onchange="handleInspectorFileSelected(event)">
+                    </div>
+
+                    <div class="inspector-results" id="inspector-results" style="display: none; margin-top: 20px;">
+                      <div class="meta-pills" style="margin-bottom: 15px;">
+                        <span class="meta-pill" id="inspect-filename">File: manual.pdf</span>
+                        <span class="meta-pill" id="inspect-words">0 Words</span>
+                        <span class="meta-pill" id="inspect-chars">0 Characters</span>
+                        <span class="meta-pill" id="inspect-pages">0 Pages</span>
+                        <span class="meta-pill" id="inspect-size">0 KB</span>
+                      </div>
+
+                      <div class="form-group">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                          <label for="inspect-text-content">Extracted Text Content</label>
+                          <button type="button" class="btn btn-outline btn-sm" onclick="copyInspectedText()">
+                            <span>Copy Text</span>
+                          </button>
+                        </div>
+                        <textarea id="inspect-text-content" rows="11" readonly class="code-editor-area" style="font-family: 'Fira Code', monospace; font-size: 12px; line-height: 1.6;"></textarea>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
+        </div>
 
-          <!-- Dual-View Switcher & Document Preview Controls -->
-          <!-- Vercel Monochrome Tabs Switcher -->
-          <div class="view-switcher-bar">
-            <div class="view-tabs">
-              <button class="view-tab-btn active" id="btn-view-pdf" onclick="switchMainView('pdf')">
-                High-Res PDF Viewer
-              </button>
-              <button class="view-tab-btn" id="btn-view-doc" onclick="switchMainView('doc')">
-                Document Canvas &amp; Editor
-              </button>
-              <button class="view-tab-btn" id="btn-view-scratchpad" onclick="switchMainView('scratchpad')">
-                Live Code Playground
-              </button>
-              <button class="view-tab-btn" id="btn-view-tasks" onclick="switchMainView('tasks')">
-                Task Cards
-              </button>
-              <button class="view-tab-btn" id="btn-view-doctools" onclick="switchMainView('doctools')">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 2px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
-                Doc Tools
-              </button>
-            </div>
-            <div class="preview-actions">
-              <button class="btn btn-sm btn-primary" id="btn-save-canvas" onclick="saveDocumentCanvasEdits()">Save Edits (Ctrl+S)</button>
-              <button class="btn btn-sm btn-outline" id="btn-bundle-download" onclick="downloadSubmissionBundle()">Download ZIP</button>
-              <button class="btn btn-sm btn-outline" id="btn-print-doc" onclick="printDocumentPreview()">Print PDF</button>
-              <a href="#" target="_blank" class="btn btn-sm btn-outline" id="btn-open-new-tab">New Tab ↗</a>
-            </div>
-          </div>
-
-          <!-- 1. Embedded High-Res PDF View Container (Default View) -->
-          <div class="view-container" id="view-pdf-container">
-            <div class="pdf-frame-wrapper">
-              <iframe id="pdf-embed-frame" src="" width="100%" height="850px" style="border:none; border-radius: 4px;"></iframe>
-            </div>
-          </div>
-
-          <!-- 2. Full Document View Container with Inline Text Editor -->
-          <div class="view-container" id="view-doc-container" style="display: none;">
-            <!-- Inline Text Editor Formatting Toolbar -->
-            <div class="doc-editor-toolbar" id="doc-editor-toolbar">
-              <div class="toolbar-group">
-                <span class="editor-mode-badge" id="editor-status-indicator">● Edit Mode Active</span>
-                <span class="hint-pill">Click any text or table cell to edit directly</span>
-              </div>
-              <div class="toolbar-group">
-                <button class="format-btn" onclick="execFormat('bold')" title="Bold (Ctrl+B)"><b>B</b></button>
-                <button class="format-btn" onclick="execFormat('italic')" title="Italic (Ctrl+I)"><i>I</i></button>
-                <button class="format-btn" onclick="execFormat('underline')" title="Underline (Ctrl+U)"><u>U</u></button>
-                <button class="format-btn" onclick="wrapSelectionCode()" title="Inline Code (Ctrl+E)"><code>&lt;/&gt;</code></button>
-                <button class="format-btn" onclick="execFormat('formatBlock', '<h2>')" title="Heading 2">H2</button>
-                <button class="format-btn" onclick="execFormat('formatBlock', '<h3>')" title="Heading 3">H3</button>
-                <button class="format-btn" onclick="execFormat('insertUnorderedList')" title="Bullet List">• List</button>
-              </div>
-              <div class="toolbar-group">
-                <button class="btn btn-xs btn-outline" onclick="openCoverEditModal()">Edit Cover Details</button>
-                <span class="canvas-save-status" id="canvas-save-status">✓ All Edits Saved</span>
-              </div>
-            </div>
-
-            <div class="doc-canvas" id="doc-canvas">
-              <!-- Full Document Preview will be dynamically rendered here with contenteditable -->
-            </div>
-          </div>
-
-          <!-- 3. In-Browser Live Code Playground & Terminal Drawer -->
-          <div class="view-container" id="view-scratchpad-container" style="display: none;">
+        <!-- ================================================================ -->
+        <!-- VIEW 6: Standalone Live Code Playground (#view-playground) -->
+        <!-- ================================================================ -->
+        <div class="page-view" id="view-playground" style="display: none;">
+          <div class="stage-container" style="max-width: 1400px;">
             <div class="playground-layout">
               <div class="playground-editor-pane">
                 <div class="pane-header">
                   <div class="pane-title">
-                    <button class="btn btn-outline btn-sm" id="btn-back-to-doc" onclick="switchMainView('doc')" title="Switch back to Document Preview">
-                      ← Document Preview
-                    </button>
-                    <span>Live Code Playground</span>
+                    <span>Live Code IDE &amp; Sandbox</span>
                   </div>
                   <div class="pane-controls">
-                    <select id="scratch-lang" onchange="onScratchLangChange()">
-                      <option value="python" selected>Python 3 (DSA, NumPy)</option>
+                    <select id="scratch-lang-standalone" onchange="syncScratchLang(this.value)">
+                      <option value="python" selected>Python 3 (NumPy, SciPy)</option>
                       <option value="c">C (gcc -lm)</option>
-                      <option value="sql">SQL (SQLite)</option>
+                      <option value="sql">SQL (SQLite 3)</option>
                     </select>
-                    <select id="scratch-template-select" onchange="loadSelectedTemplate()">
+                    <select id="scratch-template-standalone" onchange="syncScratchTemplate(this.value)">
                       <option value="">Starter Templates...</option>
                       <option value="py-dsa-bst">DSA: Binary Search Tree (BST)</option>
                       <option value="py-dsa-linkedlist">DSA: Singly Linked List</option>
@@ -666,22 +1138,21 @@
                       <option value="c-pointers-malloc">C: Pointers &amp; Malloc</option>
                       <option value="c-prime-numbers">C: Prime Numbers (1-300)</option>
                     </select>
-                    <button class="btn btn-primary btn-sm" id="btn-run-scratchpad-top" onclick="runPlaygroundCode()">
+                    <button class="btn btn-primary btn-sm" onclick="runPlaygroundCode()">
                       <span>▶ Run Code</span>
                     </button>
                   </div>
                 </div>
                 <div class="code-editor-container">
-                  <textarea id="scratch-code" rows="12" class="scratch-textarea" spellcheck="false" placeholder="// Write or paste your C, Python, or SQL code here..."></textarea>
+                  <textarea id="scratch-code-standalone" rows="18" class="scratch-textarea" spellcheck="false" placeholder="// Write or paste your C, Python, or SQL code here..." oninput="syncCodeTextareas(this.value)"></textarea>
                 </div>
                 <div class="stdin-container">
-                  <label for="scratch-stdin"><span class="terminal-prompt">&gt;</span> Standard Input (stdin) for programs expecting input:</label>
-                  <input type="text" id="scratch-stdin" placeholder="e.g. sample user input to be passed to scanf / input()" />
+                  <label for="scratch-stdin-standalone"><span class="terminal-prompt">&gt;</span> Standard Input (stdin):</label>
+                  <input type="text" id="scratch-stdin-standalone" placeholder="e.g. sample input to stdin" oninput="syncStdinInputs(this.value)" />
                 </div>
                 <div class="playground-actions">
-                  <button class="btn btn-primary" id="btn-run-scratchpad" onclick="runPlaygroundCode()">
-                    <span id="scratch-run-text">▶ Run Code (Ctrl+Enter)</span>
-                    <span class="spinner" id="scratch-spinner" style="display:none;"></span>
+                  <button class="btn btn-primary" onclick="runPlaygroundCode()">
+                    <span>▶ Run Code (Ctrl+Enter)</span>
                   </button>
                   <button class="btn btn-outline" onclick="copyPlaygroundCode()">Copy Code</button>
                   <button class="btn btn-outline" onclick="clearPlayground()">Clear</button>
@@ -696,378 +1167,28 @@
                       <span class="dot"></span>
                       <span class="dot"></span>
                     </div>
-                    <span class="terminal-title" id="terminal-pane-title">terminal — Linux Terminal</span>
-                    <div class="terminal-metrics" id="scratch-metrics">Ready</div>
+                    <span class="terminal-title">terminal — Linux Terminal</span>
+                    <div class="terminal-metrics">Ready</div>
                   </div>
-                  <div class="terminal-body" id="scratch-terminal-body">
+                  <div class="terminal-body">
                     <div class="term-line prompt-line">
-                      <span class="term-user" id="term-user-prompt">student@linux</span>:<span class="term-path">~/workspace</span>$ <span class="term-cmd" id="term-cmd-display">ready</span>
+                      <span class="term-user">student@linux</span>:<span class="term-path">~/workspace</span>$ <span class="term-cmd">ready</span>
                     </div>
-                    <pre class="term-output" id="scratch-stdout">Click "▶ Run Code" to execute Python, C, or SQL locally and view authentic terminal output in real time.</pre>
-                    <pre class="term-error" id="scratch-stderr" style="display: none;"></pre>
+                    <pre class="term-output" id="scratch-stdout-standalone">Click "▶ Run Code" to execute Python, C, or SQL locally and view authentic terminal output in real time.</pre>
+                    <pre class="term-error" id="scratch-stderr-standalone" style="display: none;"></pre>
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-
-          <!-- 4. Task Cards Studio View -->
-          <div class="view-container" id="view-tasks-container" style="display: none;">
-            <div class="tasks-feed" id="tasks-feed">
-              <!-- Dynamic task cards will be rendered here -->
             </div>
           </div>
         </div>
 
-        <!-- Dedicated Doc Tools Studio Workspace -->
-        <div id="doctools-workspace" class="doctools-workspace" style="display: none;">
-          <div class="doctools-layout">
-
-            <!-- Workspace Header (Matches reference image input_file_0.png) -->
-            <div class="doc-tools-header">
-              <div class="doc-tools-header-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                  <polyline points="14 2 14 8 20 8"></polyline>
-                  <line x1="16" y1="13" x2="8" y2="13"></line>
-                  <line x1="16" y1="17" x2="8" y2="17"></line>
-                </svg>
-              </div>
-              <div class="doc-tools-header-text">
-                <h2>Document Tools Studio</h2>
-                <p>Work with your documents using powerful tools: merge, convert, split, or inspect files. All operations are local, fast and secure.</p>
-              </div>
-            </div>
-
-            <!-- Secondary Tool Tabs Navigation (Matches reference image input_file_0.png) -->
-            <div class="doc-tools-tabs-nav" role="tablist">
-              <button type="button" class="doc-tab-btn active" id="tab-btn-merger" role="tab" aria-selected="true" onclick="switchDocTool('merger')">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
-                <span>Document Merger</span>
-              </button>
-              <button type="button" class="doc-tab-btn" id="tab-btn-converter" role="tab" aria-selected="false" onclick="switchDocTool('converter')">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"></path><path d="M20 7H4"></path><path d="m8 21-4-4 4-4"></path><path d="M4 17h16"></path></svg>
-                <span>Format Converter</span>
-              </button>
-              <button type="button" class="doc-tab-btn" id="tab-btn-splitter" role="tab" aria-selected="false" onclick="switchDocTool('splitter')">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><line x1="20" y1="4" x2="8.12" y2="15.88"></line><line x1="14.47" y1="14.48" x2="20" y2="20"></line><line x1="8.12" y1="8.12" x2="12" y2="12"></line></svg>
-                <span>Page Splitter</span>
-              </button>
-              <button type="button" class="doc-tab-btn" id="tab-btn-extractor" role="tab" aria-selected="false" onclick="switchDocTool('extractor')">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><circle cx="11.5" cy="14.5" r="2.5"></circle><path d="m13.5 16.5 2.5 2.5"></path></svg>
-                <span>Text &amp; Info Inspector</span>
-              </button>
-            </div>
-
-            <!-- Tool 1: Document Merger -->
-            <div class="doctool-panel active" id="panel-doc-merger" role="tabpanel">
-              <div class="card merger-main-card">
-                <!-- Merger Card Header -->
-                <div class="merger-card-header">
-                  <div class="merger-card-header-left">
-                    <div class="merger-icon-box">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
-                    </div>
-                    <div>
-                      <h3>Document Merger</h3>
-                      <p>Combine multiple PDF and/or Word (.docx) documents into a single unified file.</p>
-                    </div>
-                  </div>
-                  <div class="merger-card-header-right">
-                    <div class="format-pills-row">
-                      <span class="fmt-pill">PDF</span>
-                      <span class="fmt-pill">DOCX</span>
-                      <span class="fmt-pill">TXT</span>
-                    </div>
-                    <div class="merger-limit-meta">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                      <span>Max 100MB per file</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- 3-Step Stepper Bar -->
-                <div class="merger-stepper-bar">
-                  <div class="merger-step-node active" id="step-node-1" onclick="focusMergerStep(1)">
-                    <span class="merger-step-circle" id="step-circle-1">1</span>
-                    <span class="merger-step-label">Add Documents</span>
-                  </div>
-                  <div class="merger-step-connector" id="step-conn-1"></div>
-                  <div class="merger-step-node" id="step-node-2" onclick="focusMergerStep(2)">
-                    <span class="merger-step-circle" id="step-circle-2">2</span>
-                    <span class="merger-step-label">Arrange Order</span>
-                  </div>
-                  <div class="merger-step-connector" id="step-conn-2"></div>
-                  <div class="merger-step-node" id="step-node-3" onclick="focusMergerStep(3)">
-                    <span class="merger-step-circle" id="step-circle-3">3</span>
-                    <span class="merger-step-label">Configure &amp; Export</span>
-                  </div>
-                </div>
-
-                <!-- 2-COLUMN MERGER WORKSPACE -->
-                <div class="merger-two-col-grid">
-                  <!-- LEFT COLUMN: Upload Dropzone + Selected Files -->
-                  <div class="merger-content-col">
-                    <!-- Drag & Drop Upload Area -->
-                    <div class="merger-dropzone-box" id="merger-dropzone" onclick="document.getElementById('merger-file-input').click()">
-                      <div class="drop-cloud-icon">
-                        <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path><path d="M12 12v9"></path><path d="m8 16 4-4 4 4"></path></svg>
-                      </div>
-                      <h4>Drag &amp; drop your files here</h4>
-                      <p class="drop-sub">or click to browse from your computer</p>
-                      <p class="drop-specs">Supports PDF, DOCX, TXT • Max 100MB per file • Up to 20 files</p>
-                      <input type="file" id="merger-file-input" multiple accept=".pdf,.docx,.txt" style="display: none;" onchange="handleMergerFilesSelected(event)">
-                      <div class="drop-actions-row" onclick="event.stopPropagation()">
-                        <button type="button" class="btn-browse-primary" onclick="document.getElementById('merger-file-input').click()">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                          Browse Files
-                        </button>
-                        <button type="button" class="btn-sample-outline" onclick="loadSampleMergeFiles()">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="m10 15 2 2 4-4"></path></svg>
-                          Use Sample Files
-                        </button>
-                      </div>
-                    </div>
-
-                    <!-- Selected Files List -->
-                    <div class="selected-files-section">
-                      <div class="selected-files-header">
-                        <h4>Selected Files (<span id="merger-selected-count">0</span>)</h4>
-                        <button type="button" class="btn-clear-queue" id="btn-clear-queue" onclick="clearMergerQueue()" style="display: none;">Clear All</button>
-                      </div>
-                      <div class="selected-files-list" id="merger-selected-files-list">
-                        <!-- Dynamically populated file rows -->
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- RIGHT COLUMN: Merge Summary Panel -->
-                  <div class="merger-summary-col">
-                    <div class="summary-panel-card">
-                      <div class="summary-panel-header">
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
-                        <h3>Merge Summary</h3>
-                      </div>
-
-                      <!-- Dynamic Metrics -->
-                      <div class="summary-metrics-block">
-                        <div class="metric-count" id="summary-file-count">0 files selected</div>
-                        <div class="metric-size" id="summary-total-size">Total size: 0 KB</div>
-                      </div>
-
-                      <!-- Output Format Selection -->
-                      <div class="summary-format-section">
-                        <span class="summary-section-label">Output Format</span>
-                        <div class="format-radio-cards">
-                          <div class="format-radio-card active" id="format-card-pdf" onclick="selectExportFormat('pdf')">
-                            <div class="radio-circle"></div>
-                            <div class="format-card-details">
-                              <strong>PDF (Recommended)</strong>
-                              <span>Best for sharing and printing</span>
-                            </div>
-                          </div>
-
-                          <div class="format-radio-card" id="format-card-docx" onclick="selectExportFormat('docx')">
-                            <div class="radio-circle"></div>
-                            <div class="format-card-details">
-                              <strong>DOCX</strong>
-                              <span>Editable Word document</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <!-- File Order -->
-                      <div class="summary-order-section">
-                        <span class="summary-section-label">File Order</span>
-                        <div class="summary-order-list" id="summary-file-order-list">
-                          <div class="empty-order-hint">Add documents to arrange order</div>
-                        </div>
-                      </div>
-
-                      <!-- Optional Output Filename -->
-                      <div class="summary-filename-section" style="margin-top: 4px;">
-                        <input type="text" id="merger-out-filename" value="Merged_Lab_Submission" placeholder="Output filename" class="summary-filename-input" />
-                      </div>
-
-                      <!-- Execute Action Button -->
-                      <div class="summary-action-wrap">
-                        <button type="button" class="btn-merge-action" id="btn-execute-merge" onclick="executeDocumentMerge()">
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                          <span id="btn-merge-text">Merge Documents &gt;</span>
-                          <span class="spinner" id="merger-spinner" style="display: none;"></span>
-                        </button>
-                      </div>
-
-                      <!-- Result Card Showcase -->
-                      <div class="merger-result-box" id="merger-result-card" style="display: none;">
-                        <div class="result-box-top">
-                          <span class="result-check">✓</span>
-                          <h4 id="result-title">Merged Successfully</h4>
-                        </div>
-                        <div class="result-meta-row">
-                          <span class="meta-tag" id="result-filename-pill">Merged_Lab_Submission.pdf</span>
-                          <span class="meta-tag" id="result-size-pill">1.2 MB</span>
-                          <span class="meta-tag" id="result-pages-pill">4 Pages</span>
-                        </div>
-                        <div class="result-btns-row">
-                          <a href="#" class="btn-res-download" id="btn-download-merged" download>Download</a>
-                          <button type="button" class="btn-res-preview" id="btn-preview-merged" onclick="previewMergedDocument()">Preview ↗</button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Tool 2: Format Converter -->
-            <div class="doctool-panel" id="panel-doc-converter" role="tabpanel" style="display: none;">
-              <div class="card doctool-card">
-                <div class="converter-box">
-                  <div class="tool-panel-header">
-                    <div>
-                      <h3>Quick Format Converter</h3>
-                      <p>Convert any Word (.docx) document to PDF or any PDF to editable Word (.docx) document with full structure fidelity.</p>
-                    </div>
-                  </div>
-                  
-                  <div class="converter-mode-selector">
-                    <button type="button" class="btn btn-secondary active" id="btn-mode-docx2pdf" onclick="setConverterMode('docx2pdf')">
-                      Word (.docx) ➔ PDF
-                    </button>
-                    <button type="button" class="btn btn-secondary" id="btn-mode-pdf2docx" onclick="setConverterMode('pdf2docx')">
-                      PDF ➔ Word (.docx)
-                    </button>
-                  </div>
-
-                  <div class="converter-upload-area" onclick="document.getElementById('converter-file-input').click()">
-                    <div class="tool-upload-icon">
-                      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3 4 7l4 4"></path><path d="M4 7h16"></path><path d="m16 21 4-4-4-4"></path><path d="M20 17H4"></path></svg>
-                    </div>
-                    <h4 id="converter-drop-title">Select Word (.docx) file to convert to PDF</h4>
-                    <p>Click or drag and drop document here</p>
-                    <input type="file" id="converter-file-input" accept=".docx" style="display: none;" onchange="handleConverterFileSelected(event)">
-                    <div id="converter-selected-file" class="selected-file-pill" style="display: none;"></div>
-                  </div>
-
-                  <div class="converter-actions">
-                    <button type="button" class="btn btn-primary" id="btn-run-convert" onclick="runDocumentConvert()" disabled>
-                      <span>Convert Document</span>
-                      <span class="spinner" id="converter-spinner" style="display: none;"></span>
-                    </button>
-                  </div>
-
-                  <div class="converter-result-box" id="converter-result-box" style="display: none;">
-                    <div class="result-message-wrap">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                      <span id="converter-result-text">Converted successfully!</span>
-                    </div>
-                    <a href="#" class="btn btn-primary btn-sm" id="btn-download-converted" download>Download Converted File</a>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Tool 3: PDF Page Splitter / Extractor -->
-            <div class="doctool-panel" id="panel-doc-splitter" role="tabpanel" style="display: none;">
-              <div class="card doctool-card">
-                <div class="splitter-box">
-                  <div class="tool-panel-header">
-                    <div>
-                      <h3>PDF Page Splitter &amp; Extractor</h3>
-                      <p>Extract specific pages or page ranges from a PDF manual or assignment into a clean standalone document.</p>
-                    </div>
-                  </div>
-
-                  <div class="splitter-upload-area" onclick="document.getElementById('splitter-file-input').click()">
-                    <div class="tool-upload-icon">
-                      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><line x1="20" y1="4" x2="8.12" y2="15.88"></line><line x1="14.47" y1="14.48" x2="20" y2="20"></line><line x1="8.12" y1="8.12" x2="12" y2="12"></line></svg>
-                    </div>
-                    <h4>Select PDF Document to Split</h4>
-                    <p>Click or drag and drop PDF file here</p>
-                    <input type="file" id="splitter-file-input" accept=".pdf" style="display: none;" onchange="handleSplitterFileSelected(event)">
-                    <div id="splitter-selected-file" class="selected-file-pill" style="display: none;"></div>
-                  </div>
-
-                  <div class="splitter-controls" id="splitter-controls" style="display: none; margin-top: 20px;">
-                    <div class="form-group">
-                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                        <label for="splitter-range-input">Page Range to Extract (1-indexed)</label>
-                        <span class="meta-pill" style="font-size: 11px;">Total Pages: <strong id="splitter-total-pages" style="color: #ffffff;">0</strong></span>
-                      </div>
-                      <input type="text" id="splitter-range-input" placeholder="e.g. 1-3, 5, 8-10" value="1-2">
-                      <small class="hint-text">Specify comma-separated pages or hyphenated ranges (e.g. 1-3, 5, 8-10).</small>
-                    </div>
-
-                    <button type="button" class="btn btn-primary" id="btn-run-split" onclick="runDocumentSplit()">
-                      <span>Extract Specified Pages</span>
-                      <span class="spinner" id="splitter-spinner" style="display: none;"></span>
-                    </button>
-                  </div>
-
-                  <div class="splitter-result-box" id="splitter-result-box" style="display: none;">
-                    <div class="result-message-wrap">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                      <span id="splitter-result-text">Pages extracted successfully!</span>
-                    </div>
-                    <a href="#" class="btn btn-primary btn-sm" id="btn-download-split" download>Download Extracted PDF</a>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Tool 4: Text & Metadata Inspector -->
-            <div class="doctool-panel" id="panel-doc-extractor" role="tabpanel" style="display: none;">
-              <div class="card doctool-card">
-                <div class="inspector-box">
-                  <div class="tool-panel-header">
-                    <div>
-                      <h3>Document Text &amp; Metadata Inspector</h3>
-                      <p>Inspect word count, character count, page count, and extract plain text from any PDF or Word document.</p>
-                    </div>
-                  </div>
-
-                  <div class="inspector-upload-area" onclick="document.getElementById('inspector-file-input').click()">
-                    <div class="tool-upload-icon">
-                      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><circle cx="11.5" cy="14.5" r="2.5"></circle><path d="m13.5 16.5 2.5 2.5"></path></svg>
-                    </div>
-                    <h4>Select PDF or DOCX file to inspect</h4>
-                    <p>Click or drag and drop document here</p>
-                    <input type="file" id="inspector-file-input" accept=".pdf,.docx" style="display: none;" onchange="handleInspectorFileSelected(event)">
-                  </div>
-
-                  <div class="inspector-results" id="inspector-results" style="display: none; margin-top: 20px;">
-                    <div class="meta-pills" style="margin-bottom: 15px;">
-                      <span class="meta-pill" id="inspect-filename">File: manual.pdf</span>
-                      <span class="meta-pill" id="inspect-words">0 Words</span>
-                      <span class="meta-pill" id="inspect-chars">0 Characters</span>
-                      <span class="meta-pill" id="inspect-pages">0 Pages</span>
-                      <span class="meta-pill" id="inspect-size">0 KB</span>
-                    </div>
-
-                    <div class="form-group">
-                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                        <label for="inspect-text-content">Extracted Text Content</label>
-                        <button type="button" class="btn btn-outline btn-sm" onclick="copyInspectedText()">
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>
-                          <span>Copy Text</span>
-                        </button>
-                      </div>
-                      <textarea id="inspect-text-content" rows="11" readonly class="code-editor-area" style="font-family: 'Fira Code', monospace; font-size: 12px; line-height: 1.6;"></textarea>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </section>
-    </main>
+      </main>
+    </div>
   </div>
 
-  <!-- Direct Edit Modal -->
+  <!-- Modals -->
+  <!-- 1. Task Direct Edit Modal -->
   <div class="modal-overlay" id="edit-modal-overlay">
     <div class="modal-content edit-modal-content">
       <div class="modal-header">
@@ -1094,7 +1215,7 @@
     </div>
   </div>
 
-  <!-- Cover Page Edit Modal -->
+  <!-- 2. Cover Page Edit Modal -->
   <div class="modal-overlay" id="edit-cover-modal-overlay">
     <div class="modal-content edit-modal-content">
       <div class="modal-header">
@@ -1126,7 +1247,7 @@
           <label for="edit-cover-lab-title">Lab Title</label>
           <input type="text" id="edit-cover-lab-title" placeholder="e.g. Lab #3: DDL and DML Commands in MySQL">
         </div>
-        <div class="form-group instructor-group" style="margin-top: 15px; padding: 14px; background: #0a0a0a; border: 1px solid var(--border-color); border-radius: 4px;">
+        <div class="form-group instructor-group" style="margin-top: 15px; padding: 14px; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 4px;">
           <div class="toggle-row">
             <label class="toggle-label" for="edit-cover-toggle-inst">
               <span>Include Instructor</span>
@@ -1139,7 +1260,7 @@
           </div>
           <div id="edit-cover-inst-wrapper" style="display: none; margin-top: 10px;">
             <input type="text" id="edit-cover-instructor" placeholder="Instructor Name (e.g. Rohail Shaikh)">
-            <small class="hint-text" style="font-size: 11px; color: #888888; display: block; margin-top: 4px;">When toggled off, no trace of instructor will appear in the report.</small>
+            <small class="hint-text" style="font-size: 11px; color: var(--text-muted); display: block; margin-top: 4px;">When toggled off, no mention of instructor appears in the report.</small>
           </div>
         </div>
       </div>
@@ -1152,16 +1273,16 @@
     </div>
   </div>
 
-  <!-- Image Lightbox Modal -->
+  <!-- 3. Image Lightbox Modal -->
   <div class="modal-overlay" id="modal-overlay">
     <div class="modal-content">
-      <button class="modal-close" id="modal-close">✕</button>
+      <button class="modal-close" id="modal-close" onclick="closeModal()">✕</button>
       <img id="modal-image" src="" alt="Screenshot Preview">
       <div class="modal-caption" id="modal-caption"></div>
     </div>
   </div>
 
-  <!-- Keyboard Shortcuts Modal -->
+  <!-- 4. Keyboard Shortcuts Modal -->
   <div class="modal-overlay" id="shortcuts-modal-overlay">
     <div class="modal-content shortcuts-modal-content">
       <div class="modal-header">
@@ -1176,7 +1297,7 @@
           <div class="shortcut-row"><span class="sc-key">Ctrl + B / ⌘B</span><span class="sc-desc">Bold selected text in the document editor</span></div>
           <div class="shortcut-row"><span class="sc-key">Ctrl + I / ⌘I</span><span class="sc-desc">Italicize selected text in the document editor</span></div>
           <div class="shortcut-row"><span class="sc-key">Ctrl + E</span><span class="sc-desc">Format selected text as inline code</span></div>
-          <div class="shortcut-row"><span class="sc-key">Esc</span><span class="sc-desc">Close any open modal or drawer</span></div>
+          <div class="shortcut-row"><span class="sc-key">Esc</span><span class="sc-desc">Close any open modal or settings drawer</span></div>
         </div>
       </div>
       <div class="modal-footer">
@@ -1185,6 +1306,9 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=2.1"></script>
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="/static/app.js?v=3.0"></script>
 </body>
 </html>

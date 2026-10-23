@@ -30,12 +30,18 @@
 - **⚡ High-Speed Groq Cloud API Support**:
   - Direct, lightning-fast inference using Groq Cloud's flagship **Llama 3.3 70B Versatile** and ultra-fast **Llama 3.1 8B Instant** models.
   - Seamlessly switch between Google Gemini Pro, Groq Cloud, OpenAI, or Smart Offline Mode.
-- **🖤 Vercel / VS Code Monochrome Dark Studio UI**:
-  - High-contrast pure black and white aesthetic with sharp 6px/8px corners, subtle borders, and clean typography.
-  - **Inline WYSIWYG Editable Document Canvas**: Click any paragraph, table cell, or header in the live preview and edit text directly. Use the formatting toolbar (Bold, Italic, Code, Headings, Lists) and hit `Ctrl+S` to save.
-  - **Real-Time Document Recompilation**: Live canvas edits are automatically persisted back to `.docx` and `.pdf` builds.
-  - **Live Code Playground**: Test and run C, Python, SQL, or Bash code on the fly with a simulated interactive terminal window.
-  - **Fresh Screenshot Rendering**: Real-time cache busting guarantees that newly executed tasks immediately show their unique terminal screenshots without stale browser memory caching.
+- **🖤 3-Zone Anti-Slop Studio Architecture (v3.0)**:
+  - **Zone 1: Global Navigation Icon Rail (64px)**: Quick switching between Lab Generator, Document Tools Studio, Code Playground, Settings, and Theme Switcher.
+  - **Zone 2: Slide-Over Settings Drawer (360px)**: Dedicated slide-in drawer for Student Profile, AI Intelligence tiers, and Screenshot Theme Studio.
+  - **Zone 3: Main Workspace**: Structured page views for Ingestion (`#view-home`), Requirements Review Wizard (`#view-wizard`), 5-Stage Pipeline (`#view-progress`), Output Studio (`#view-results`), Document Tools (`#view-doctools`), and Code Playground (`#view-playground`).
+- **🎨 Modular Theme Engine & Secret Environment Isolation**:
+  - **UI Light / Dark Mode**: One-click reactive toggle with instant CSS token transitions and `localStorage` persistence.
+  - **5 Public Window Themes**: `modern-dark` (Midnight Modern), `slate-grey` (Charcoal Slate), `cyber-black` (Cyber OLED), `paper-warm` (Editorial Parchment Light), `cobalt-blue` (Deep Cobalt).
+  - **Secret Signature Theme (`bheeshamks`)**: Configured privately via `.env` (`LABGENIUS_SCREENSHOT_THEME=bheeshamks`). Strictly excluded from all public UI pickers and API listings while displaying an active signature indicator.
+  - **Live Mini-Terminal Preview**: Dynamic real-time preview of terminal window styling, title, prompt, and command output.
+- **🤖 First-Party WebMCP Agent Tools**:
+  - Full agent discovery and invocation via `navigator.modelContext || document.modelContext`.
+  - Exposes `generate_lab`, `execute_code`, `merge_documents`, `switch_theme`, and `get_active_session` with closed JSON schemas.
 - **📦 Clean Academic Export Formats**:
   - Focused strictly on university submission formats: `.docx` (Sanitized Word) and `.pdf` (Print-Ready PDF via LibreOffice).
   - **1-Click Submission ZIP**: Downloads a complete submission bundle containing the final `.docx`, `.pdf`, raw source code files (`.c`, `.py`, `.sql`), and high-resolution terminal screenshots (`.png`).
