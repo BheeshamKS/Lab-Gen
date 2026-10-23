@@ -19,6 +19,7 @@ from .config import Config
 from .parser import LabManual
 from .solver import TaskSolution
 from .runner import ExecutionResult
+from .themes import get_theme
 
 
 class DocumentBuilder:
@@ -39,6 +40,7 @@ class DocumentBuilder:
     ) -> Path:
         """Generate the completed lab document (.docx) matching user's completed lab format."""
         output_path.parent.mkdir(parents=True, exist_ok=True)
+        theme = get_theme(getattr(self.config.terminal, "theme", None))
         doc = docx.Document()
 
         # Set 1.0 inch standard margins
@@ -401,6 +403,7 @@ class DocumentBuilder:
     ) -> Path:
         """Generates a structured, clean Markdown report of the lab submission."""
         output_path.parent.mkdir(parents=True, exist_ok=True)
+        theme = get_theme(getattr(self.config.terminal, "theme", None))
         lines = []
 
         section_val = getattr(self.student, "section", "")
@@ -514,20 +517,27 @@ class DocumentBuilder:
     ) -> Path:
         """Generates a standalone, print-ready HTML report with embedded styles and images."""
         output_path.parent.mkdir(parents=True, exist_ok=True)
+        theme = get_theme(getattr(self.config.terminal, "theme", None))
 
         tasks_html = []
         for idx, task in enumerate(manual.tasks):
+            try:
+                task_num = int(str(task.task_id).replace("task_", "").replace("task", "").strip())
+                task_id_disp = f"{task_num:02d}"
+            except Exception:
+                task_id_disp = str(task.task_id)
+
             sol = next((s for s in solutions if s.task_id == task.task_id), solutions[idx] if idx < len(solutions) else None)
             res = next((r for r in exec_results if r.task_id == task.task_id), exec_results[idx] if idx < len(exec_results) else None)
             code_img, out_img = task_screenshots[idx] if idx < len(task_screenshots) else (None, None)
 
             code_src = ""
             if code_img and code_img.exists():
-                code_src = self._img_to_data_uri(code_img) if embed_base64 else f"/workspace/task_{task.task_id:02d}/{code_img.name}"
+                code_src = self._img_to_data_uri(code_img) if embed_base64 else f"/workspace/task_{task_id_disp}/{code_img.name}"
 
             out_src = ""
             if out_img and out_img.exists():
-                out_src = self._img_to_data_uri(out_img) if embed_base64 else f"/workspace/task_{task.task_id:02d}/{out_img.name}"
+                out_src = self._img_to_data_uri(out_img) if embed_base64 else f"/workspace/task_{task_id_disp}/{out_img.name}"
 
             prefix = "Query" if task.language == "sql" else "Program"
             code_val = html.escape(sol.code) if sol and sol.code else ""
@@ -544,7 +554,7 @@ class DocumentBuilder:
 
             tasks_html.append(f"""
             <section class="report-page">
-              <h2 class="prog-heading">{prefix} {task.task_id:02d}: {html.escape(task.title)}</h2>
+              <h2 class="prog-heading">{prefix} {task_id_disp}: {html.escape(task.title)}</h2>
               {f"<p class='prog-desc'>{html.escape(task.description)}</p>" if task.description else ""}
 
               <h3 class="section-label">{"QUERY:" if task.language == 'sql' else "CODE:"}</h3>
@@ -667,6 +677,13 @@ class DocumentBuilder:
   <meta charset="UTF-8">
   <title>{html.escape(lab_title_val)} - {html.escape(self.student.name)}</title>
   <style>
+    :root {{
+      --doc-theme-bg: {theme.bg_hex};
+      --doc-theme-text: {theme.text_hex};
+      --doc-theme-border: #{theme.border_color[0]:02x}{theme.border_color[1]:02x}{theme.border_color[2]:02x};
+      --doc-theme-header: #{theme.header_bg[0]:02x}{theme.header_bg[1]:02x}{theme.header_bg[2]:02x};
+      --doc-theme-prompt: #{theme.prompt_color[0]:02x}{theme.prompt_color[1]:02x}{theme.prompt_color[2]:02x};
+    }}
     @page {{
       size: letter;
       margin: 1.0in;
@@ -678,6 +695,45 @@ class DocumentBuilder:
       line-height: 1.5;
       margin: 0;
       padding: 24px;
+    }}
+    .theme-toolbar {{
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+      margin-bottom: 16px;
+      padding: 8px 14px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }}
+    .theme-toolbar span {{
+      font-size: 11px;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-right: 4px;
+    }}
+    .theme-btn {{
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 500;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      background: #f8fafc;
+      color: #334155;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }}
+    .theme-btn:hover {{
+      background: #0f172a;
+      color: #ffffff;
+      border-color: #0f172a;
+    }}
+    @media print {{
+      .no-print {{ display: none !important; }}
     }}
     .document-wrapper {{
       max-width: 850px;
@@ -765,21 +821,23 @@ class DocumentBuilder:
       box-shadow: 0 2px 6px rgba(0,0,0,0.06);
     }}
     .code-box {{
-      background: #f1f5f9;
-      border: 1px solid #e2e8f0;
+      background: var(--doc-theme-bg, #f1f5f9);
+      color: var(--doc-theme-text, #0f172a);
+      border: 1px solid var(--doc-theme-border, #e2e8f0);
       border-radius: 6px;
-      padding: 12px 16px;
-      font-family: 'Fira Code', 'Consolas', monospace;
+      padding: 14px 18px;
+      font-family: 'Fira Code', 'DejaVu Sans Mono', 'Consolas', monospace;
       font-size: 10pt;
       overflow-x: auto;
       margin-bottom: 16px;
     }}
     .console-box {{
-      background: #0f172a;
-      color: #f8fafc;
+      background: var(--doc-theme-bg, #0f172a);
+      color: var(--doc-theme-text, #f8fafc);
+      border: 1px solid var(--doc-theme-border, #334155);
       border-radius: 6px;
-      padding: 12px 16px;
-      font-family: 'Fira Code', 'Consolas', monospace;
+      padding: 14px 18px;
+      font-family: 'Fira Code', 'DejaVu Sans Mono', 'Consolas', monospace;
       font-size: 9.5pt;
       overflow-x: auto;
       margin-bottom: 16px;
@@ -826,6 +884,14 @@ class DocumentBuilder:
   </style>
 </head>
 <body>
+  <div class="theme-toolbar no-print" style="max-width: 850px; margin: 0 auto 16px;">
+    <span>Document Theme:</span>
+    <button type="button" class="theme-btn" onclick="setDocTheme('#161821', '#d2d7de', '#2d3142')">Midnight Dark</button>
+    <button type="button" class="theme-btn" onclick="setDocTheme('#282c34', '#abb2bf', '#3c424e')">Charcoal Slate</button>
+    <button type="button" class="theme-btn" onclick="setDocTheme('#0a0c10', '#e6edf3', '#30363d')">Cyber OLED</button>
+    <button type="button" class="theme-btn" onclick="setDocTheme('#f5f1e9', '#2e3440', '#d8cfbc')">Editorial Parchment</button>
+    <button type="button" class="theme-btn" onclick="setDocTheme('#ffffff', '#0f172a', '#e2e8f0')">Academic Light</button>
+  </div>
   <div class="document-wrapper">
     <div class="cover-page">
 {logo_html}
@@ -862,6 +928,13 @@ class DocumentBuilder:
     {analysis_html}
     {viva_html}
   </div>
+  <script>
+    function setDocTheme(bg, text, border) {{
+      document.documentElement.style.setProperty('--doc-theme-bg', bg);
+      document.documentElement.style.setProperty('--doc-theme-text', text);
+      document.documentElement.style.setProperty('--doc-theme-border', border);
+    }}
+  </script>
 </body>
 </html>
 """

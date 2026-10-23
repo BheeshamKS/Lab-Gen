@@ -477,6 +477,32 @@ class ReferenceCorpus:
                 assumptions_and_limitations="DELETE statements without WHERE clauses truncate entire table contents.",
                 verified=True,
             ),
+            # -------------------------------------------------------------
+            # DBMS LAB 06: SQL Filtering, Logical Operators & Projections
+            # -------------------------------------------------------------
+            ReferenceTask(
+                lab_id="DBMS_LAB06",
+                task_id=1,
+                title="SQL Filtering and Conditional Data Retrieval",
+                original_task_statement="Filter records from relational tables using WHERE clause, SELECT DISTINCT, AND/OR/NOT logical operators, BETWEEN ranges, and <> comparison operators.",
+                subject="dbms",
+                topic="SQL Filtering and Conditional Retrieval",
+                keywords=["where", "distinct", "and", "or", "not", "between", "not equal", "filtering", "conditional retrieval", "parentheses"],
+                solution_approach="Standard relational algebra selection and projection. Use SELECT DISTINCT for unique column values, BETWEEN for inclusive ranges, <> for inequality, and parentheses to control operator precedence when combining AND with OR.",
+                code_pattern=(
+                    "-- 1. Filter by equality\n"
+                    "SELECT * FROM Hospital WHERE Department = 'Cardiology';\n\n"
+                    "-- 2. Unique values\n"
+                    "SELECT DISTINCT BloodGroup FROM Hospital;\n\n"
+                    "-- 3. Range filtering\n"
+                    "SELECT * FROM Hospital WHERE BillAmount BETWEEN 20000 AND 80000;\n\n"
+                    "-- 4. Compound logical condition with parentheses\n"
+                    "SELECT * FROM Hospital WHERE Age > 50 AND (Department = 'Cardiology' OR Department = 'Neurology');"
+                ),
+                explanation_depth="Explains relational selection conditions (sigma) and projection (pi), Boolean logic evaluation, and operator precedence.",
+                assumptions_and_limitations="BETWEEN includes both boundary endpoints; parentheses must be used when combining AND with OR.",
+                verified=True,
+            ),
         ]
 
     def save(self):

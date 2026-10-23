@@ -30,7 +30,7 @@ ai:
   scrub_buzzwords: true
 
 terminal_capture:
-  theme: "linux-dark" # 'linux-dark', 'cosmic-dark', 'ubuntu-yaru', 'vscode-dark'
+  theme: "modern-dark" # 'modern-dark', 'slate-grey', 'cyber-black', 'paper-warm', 'cobalt-blue'
   font_family: "Fira Mono, DejaVu Sans Mono, monospace"
   font_size: 13
   window_width: 820

@@ -9,7 +9,9 @@ let cachedTemplates = [];
 let isCanvasDirty = false;
 
 document.addEventListener('DOMContentLoaded', () => {
+  initAppTheme();
   initProfile();
+  initScreenshotThemeSystem();
   setupDropZone();
   setupEventListeners();
   setupPlayground();
@@ -52,6 +54,246 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 });
+
+// ============================================================================
+// APP UI THEME (Dark / Light Mode)
+// ============================================================================
+function initAppTheme() {
+  const savedTheme = localStorage.getItem('labgenius_app_theme') || 'dark';
+  applyAppTheme(savedTheme, false);
+}
+
+function toggleAppTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = current === 'dark' ? 'light' : 'dark';
+  applyAppTheme(next, true);
+}
+
+function applyAppTheme(theme, notify = false) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('labgenius_app_theme', theme);
+
+  const iconEl = document.getElementById('app-theme-icon');
+  const labelEl = document.getElementById('app-theme-label');
+  const btnEl = document.getElementById('btn-theme-toggle');
+
+  if (theme === 'light') {
+    if (iconEl) {
+      iconEl.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
+    }
+    if (labelEl) labelEl.textContent = 'Light';
+    if (btnEl) btnEl.title = 'Switch to Dark Mode';
+    if (notify) showToast('☀️ Switched to Light mode');
+  } else {
+    if (iconEl) {
+      iconEl.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>`;
+    }
+    if (labelEl) labelEl.textContent = 'Dark';
+    if (btnEl) btnEl.title = 'Switch to Light Mode';
+    if (notify) showToast('🌙 Switched to Dark mode');
+  }
+}
+
+// ============================================================================
+// SCREENSHOT & DOCUMENT THEME STUDIO
+// ============================================================================
+const THEME_PRESETS = {
+  'modern-dark': {
+    name: 'Midnight Modern',
+    bg: '#161821',
+    headerBg: '#1f232b',
+    border: '#2d3142',
+    text: '#d2d7de',
+    promptColor: '#b48ead',
+    cmdColor: '#ededed',
+    outColor: '#abb2bf',
+  },
+  'slate-grey': {
+    name: 'Charcoal Slate (Grey)',
+    bg: '#282c34',
+    headerBg: '#21252b',
+    border: '#3c424e',
+    text: '#abb2bf',
+    promptColor: '#61afef',
+    cmdColor: '#98c379',
+    outColor: '#abb2bf',
+  },
+  'cyber-black': {
+    name: 'Cyber OLED (Pitch Black)',
+    bg: '#0a0c10',
+    headerBg: '#10141a',
+    border: '#30363d',
+    text: '#e6edf3',
+    promptColor: '#3fb950',
+    cmdColor: '#58a6ff',
+    outColor: '#8b949e',
+  },
+  'paper-warm': {
+    name: 'Editorial Parchment (Warm Light)',
+    bg: '#f5f1e9',
+    headerBg: '#ece6dc',
+    border: '#d8cfbc',
+    text: '#2e3440',
+    promptColor: '#856621',
+    cmdColor: '#b58900',
+    outColor: '#4c566a',
+  },
+  'cobalt-blue': {
+    name: 'Deep Cobalt (Navy)',
+    bg: '#0f172a',
+    headerBg: '#1e293b',
+    border: '#334155',
+    text: '#e2e8f0',
+    promptColor: '#38bdf8',
+    cmdColor: '#818cf8',
+    outColor: '#cbd5e1',
+  },
+};
+
+let activeScreenshotTheme = 'modern-dark';
+let isSecretEnvActive = false;
+
+async function initScreenshotThemeSystem() {
+  try {
+    const res = await fetch('/api/themes');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success) {
+        isSecretEnvActive = !!data.is_custom_env;
+        const secretWrap = document.getElementById('secret-theme-indicator-wrapper');
+        if (secretWrap) {
+          secretWrap.style.display = isSecretEnvActive ? 'block' : 'none';
+        }
+
+        const selectEl = document.getElementById('terminal-theme');
+        if (selectEl && Array.isArray(data.themes)) {
+          selectEl.innerHTML = '';
+          if (isSecretEnvActive) {
+            const envOpt = document.createElement('option');
+            envOpt.value = 'env_default';
+            envOpt.textContent = '✨ Signature Theme (.env Active)';
+            envOpt.selected = true;
+            selectEl.appendChild(envOpt);
+          }
+          data.themes.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t.id;
+            opt.textContent = `${t.name}`;
+            if (!isSecretEnvActive && t.id === (data.active_theme || 'modern-dark')) {
+              opt.selected = true;
+            }
+            selectEl.appendChild(opt);
+          });
+        }
+
+        const savedUserTheme = localStorage.getItem('lg_screenshot_theme');
+        if (savedUserTheme && !isSecretEnvActive) {
+          onThemeChanged(savedUserTheme, false);
+        } else if (!isSecretEnvActive) {
+          onThemeChanged(data.active_theme || 'modern-dark', false);
+        } else {
+          updateMiniTerminalPreview('modern-dark', true);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Could not load themes from API, using client presets', err);
+    onThemeChanged('modern-dark', false);
+  }
+}
+
+function selectThemeFromSwatch(themeId) {
+  const selectEl = document.getElementById('terminal-theme');
+  if (selectEl) {
+    selectEl.value = themeId;
+  }
+  onThemeChanged(themeId, true);
+}
+
+function onThemeChanged(themeId, notify = true) {
+  if (themeId === 'env_default') {
+    updateMiniTerminalPreview('modern-dark', true);
+    if (notify) showToast('✨ Signature theme from .env activated');
+    return;
+  }
+
+  activeScreenshotTheme = themeId;
+  localStorage.setItem('lg_screenshot_theme', themeId);
+
+  // Update active swatch chip
+  document.querySelectorAll('.theme-swatch-chip').forEach(chip => {
+    chip.classList.remove('active');
+  });
+  const activeSwatch = document.getElementById(`swatch-${themeId}`);
+  if (activeSwatch) {
+    activeSwatch.classList.add('active');
+  }
+
+  // Update theme active badge in header
+  const preset = THEME_PRESETS[themeId] || THEME_PRESETS['modern-dark'];
+  const badge = document.getElementById('theme-active-badge');
+  if (badge) {
+    badge.textContent = preset.name.split(' (')[0];
+  }
+
+  // Update Live Mini Terminal Preview
+  updateMiniTerminalPreview(themeId, false);
+
+  if (notify) {
+    showToast(`Screenshot theme set to ${preset.name.split(' (')[0]}`);
+  }
+}
+
+function updateMiniTerminalPreview(themeId, isSecret = false) {
+  const preset = THEME_PRESETS[themeId] || THEME_PRESETS['modern-dark'];
+  const win = document.getElementById('mini-term-window');
+  const bar = document.getElementById('mini-term-bar');
+  const body = document.getElementById('mini-term-body');
+  const promptEl = document.getElementById('mini-term-prompt-display');
+  const cmdEl = document.getElementById('mini-term-cmd-display');
+  const outEl = document.getElementById('mini-term-output');
+  const paletteName = document.getElementById('mini-term-palette-name');
+  const metaTag = document.getElementById('mini-term-meta-tag');
+
+  const user = document.getElementById('terminal-username')?.value.trim() || 'student';
+  const host = document.getElementById('terminal-hostname')?.value.trim() || 'linux';
+
+  if (promptEl) {
+    promptEl.textContent = `${user}@${host}:~/workspace$`;
+    promptEl.style.color = preset.promptColor;
+  }
+
+  if (cmdEl) {
+    cmdEl.style.color = preset.cmdColor;
+  }
+
+  if (outEl) {
+    outEl.style.color = preset.outColor;
+  }
+
+  if (win) {
+    win.style.borderColor = preset.border;
+    win.style.background = preset.bg;
+  }
+
+  if (bar) {
+    bar.style.background = preset.headerBg;
+    bar.style.borderBottomColor = preset.border;
+  }
+
+  if (body) {
+    body.style.background = preset.bg;
+    body.style.color = preset.text;
+  }
+
+  if (paletteName) {
+    paletteName.textContent = isSecret ? 'Custom .env Override' : preset.name.split(' (')[0];
+  }
+
+  if (metaTag) {
+    metaTag.textContent = isSecret ? '⚡ Active: .env Signature Theme' : `Theme: ${preset.name.split(' (')[0]}`;
+  }
+}
 
 function initProfile() {
   const savedName = localStorage.getItem('lg_student_name');
@@ -140,6 +382,16 @@ function updateTerminalPromptSettings() {
   const promptPreview = document.getElementById('terminal-prompt-preview');
   if (promptPreview) {
     promptPreview.value = `${user}@${host}:~/workspace$`;
+  }
+
+  // Update live mini terminal preview prompt and title
+  const miniPrompt = document.getElementById('mini-term-prompt-display');
+  if (miniPrompt) {
+    miniPrompt.textContent = `${user}@${host}:~/workspace$`;
+  }
+  const miniTitle = document.getElementById('mini-term-title');
+  if (miniTitle) {
+    miniTitle.textContent = `${user}@${host}: ~/workspace (bash)`;
   }
 
   // Update navbar user pill
@@ -2513,11 +2765,14 @@ function openNavDocTools() {
 function toggleSidebarSettings() {
   const genSettings = document.getElementById('sidebar-generator-settings');
   if (genSettings) {
-    const isVisible = genSettings.style.display !== 'none';
-    genSettings.style.display = isVisible ? 'none' : 'block';
+    const isVisible = window.getComputedStyle(genSettings).display !== 'none';
     if (!isVisible) {
+      genSettings.style.display = 'block';
       genSettings.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      showToast('Opened Student Profile Settings');
+      showToast('Opened Profile & Theme Settings');
+    } else {
+      genSettings.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      showToast('Settings & Theme Studio');
     }
   }
 }

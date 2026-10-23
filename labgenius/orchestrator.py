@@ -4,6 +4,7 @@ Coordinates requirement tracking, AI provider dispatching, local execution,
 and validation gating for student lab reports.
 """
 
+import os
 from typing import Any, Dict, List, Optional, Tuple
 
 from .config import Config
@@ -31,7 +32,12 @@ class TaskOrchestrator:
 
     def _init_provider(self) -> BaseAIProvider:
         prov_name = getattr(self.config.ai, "provider", "offline").lower()
-        if prov_name == "gemini":
+        has_gemini_key = bool(
+            self.config.ai.api_key
+            or os.environ.get(getattr(self.config.ai, "api_key_env", "GEMINI_API_KEY"))
+            or os.environ.get("GEMINI_API_KEY")
+        )
+        if prov_name == "gemini" and has_gemini_key:
             try:
                 return GeminiProvider(self.config)
             except Exception:
@@ -57,6 +63,16 @@ class TaskOrchestrator:
         session.status = "generating"
         solutions: List[TaskSolution] = []
         exec_results: List[ExecutionResult] = []
+
+        # 0. Pre-initialize relational database schema if SQL tasks or table schema context is present
+        has_sql = any(getattr(t, "language", "").lower() == "sql" for t in manual.tasks) or "database" in (manual.course_name or "").lower() or "dbms" in (manual.course_name or "").lower()
+        if has_sql:
+            try:
+                from .synthesizer import DynamicSQLSynthesizer
+                shared_db = (self.runner.base_workspace / "dbms_lab.db").resolve()
+                DynamicSQLSynthesizer.prepare_database(shared_db, getattr(manual, "context", "") or "", tasks=manual.tasks)
+            except Exception:
+                pass
 
         # 1. Generate Solutions for all tasks
         for task in manual.tasks:

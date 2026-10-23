@@ -37,6 +37,7 @@ from labgenius.state import (
     ManualInfo,
     SessionArtifacts,
 )
+from labgenius.themes import get_theme, list_public_themes
 import labgenius.doc_tools as doc_tools
 
 app = FastAPI(title="LabGenius Web App", version="1.0.0")
@@ -207,6 +208,18 @@ async def get_sample_manual():
         "success": True,
         "filename": sample_file.name,
         "path": str(sample_file.resolve()),
+    }
+
+
+@app.get("/api/themes")
+async def get_available_themes():
+    """Returns the list of public screenshot and document themes."""
+    active = get_theme()
+    return {
+        "success": True,
+        "active_theme": active.id if not active.is_secret else "modern-dark",
+        "is_custom_env": active.is_secret,
+        "themes": list_public_themes(),
     }
 
 
@@ -442,7 +455,16 @@ async def run_lab(
         if api_key:
             cfg.ai.api_key = api_key
         if theme:
-            cfg.terminal.theme = theme
+            if theme == "env_default":
+                cfg.terminal.theme = get_theme().id
+            else:
+                cfg.terminal.theme = theme
+        else:
+            cfg.terminal.theme = get_theme().id
+
+        # Graceful fallback to Smart Offline if Groq is requested without an API key
+        if cfg.ai.provider == "groq" and not (cfg.ai.api_key or os.environ.get("GROQ_API_KEY")):
+            cfg.ai.provider = "offline"
 
         # Validate AI provider key if Groq selected
         if cfg.ai.provider == "groq":
@@ -928,7 +950,16 @@ async def generate_from_session(payload: dict = Body(...)):
         if api_key:
             cfg.ai.api_key = api_key
         if theme:
-            cfg.terminal.theme = theme
+            if theme == "env_default":
+                cfg.terminal.theme = get_theme().id
+            else:
+                cfg.terminal.theme = theme
+        else:
+            cfg.terminal.theme = get_theme().id
+
+        # Graceful fallback to Smart Offline if Groq is requested without an API key
+        if cfg.ai.provider == "groq" and not (cfg.ai.api_key or os.environ.get("GROQ_API_KEY")):
+            cfg.ai.provider = "offline"
 
         if not lab_manual:
             file_path = sess.manual_info.file_path

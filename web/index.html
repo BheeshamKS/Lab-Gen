@@ -32,10 +32,11 @@
         <button class="nav-btn" id="btn-open-shortcuts" onclick="openShortcutsModal()">
           <span class="kbd-hint">⌘K</span> Shortcuts
         </button>
-        <button class="nav-btn" id="btn-theme-toggle" onclick="showToast('Dark theme active (Vercel Monochrome)')" title="Theme Selector">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>
-          Dark
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        <button class="nav-btn app-theme-toggle-btn" id="btn-theme-toggle" onclick="toggleAppTheme()" title="Toggle UI Dark / Light Mode">
+          <span id="app-theme-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>
+          </span>
+          <span id="app-theme-label">Dark</span>
         </button>
         <div class="user-profile-badge" title="Active Student Profile">
           <span class="user-avatar-tag">DS</span>
@@ -114,7 +115,7 @@
         </nav>
 
         <!-- Generator Settings Container (Profile, AI, Terminal) -->
-        <div class="sidebar-generator-settings" id="sidebar-generator-settings" style="display: none;">
+        <div class="sidebar-generator-settings" id="sidebar-generator-settings">
           <div class="card profile-card">
           <div class="card-header">
             <h3>Student Profile</h3>
@@ -224,12 +225,94 @@
           </div>
         </div>
 
-        <div class="card sys-card">
+        <div class="card sys-card theme-studio-card">
           <div class="card-header">
-            <h3>Terminal &amp; Environment</h3>
-            <span class="lock-pill">Custom Prompt</span>
+            <h3>Screenshot &amp; Terminal Theme</h3>
+            <span class="lock-pill" id="theme-active-badge">Midnight Modern</span>
           </div>
+
+          <div id="secret-theme-indicator-wrapper" style="display: none;">
+            <div class="secret-env-indicator">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <span>Custom Signature Theme Active via .env</span>
+            </div>
+          </div>
+
+          <div class="theme-swatches-container">
+            <div class="theme-swatches-label">
+              <span>Quick Themes</span>
+              <span style="font-size: 10px; color: var(--text-dim);">Screenshots &amp; Docs</span>
+            </div>
+            <div class="theme-swatches-grid">
+              <div class="theme-swatch-chip active" id="swatch-modern-dark" onclick="selectThemeFromSwatch('modern-dark')" title="Midnight Modern (Deep Dark Indigo)">
+                <span class="swatch-dot dot-modern-dark"></span>
+                <span class="swatch-name">Modern</span>
+              </div>
+              <div class="theme-swatch-chip" id="swatch-slate-grey" onclick="selectThemeFromSwatch('slate-grey')" title="Charcoal Slate (One Dark Matte Grey)">
+                <span class="swatch-dot dot-slate-grey"></span>
+                <span class="swatch-name">Slate Grey</span>
+              </div>
+              <div class="theme-swatch-chip" id="swatch-cyber-black" onclick="selectThemeFromSwatch('cyber-black')" title="Cyber OLED (Pitch Black High Contrast)">
+                <span class="swatch-dot dot-cyber-black"></span>
+                <span class="swatch-name">Cyber Black</span>
+              </div>
+              <div class="theme-swatch-chip" id="swatch-paper-warm" onclick="selectThemeFromSwatch('paper-warm')" title="Editorial Parchment (Warm Solarized Light)">
+                <span class="swatch-dot dot-paper-warm"></span>
+                <span class="swatch-name">Parchment</span>
+              </div>
+              <div class="theme-swatch-chip" id="swatch-cobalt-blue" onclick="selectThemeFromSwatch('cobalt-blue')" title="Deep Cobalt (Navy Nord Blue)">
+                <span class="swatch-dot dot-cobalt-blue"></span>
+                <span class="swatch-name">Cobalt</span>
+              </div>
+            </div>
+          </div>
+
           <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="terminal-theme">Window Theme Palette</label>
+              <select id="terminal-theme" onchange="onThemeChanged(this.value)">
+                <option value="modern-dark" selected>Midnight Modern (Dark Indigo)</option>
+                <option value="slate-grey">Charcoal Slate (Matte Grey)</option>
+                <option value="cyber-black">Cyber OLED (Pitch Black)</option>
+                <option value="paper-warm">Editorial Parchment (Warm Light)</option>
+                <option value="cobalt-blue">Deep Cobalt (Navy Blue)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Live Mini-Terminal Screenshot Preview Window -->
+          <div class="mini-term-preview-wrap">
+            <div class="mini-term-preview-label">
+              <span>Live Terminal Preview</span>
+              <span id="mini-term-palette-name" style="font-size: 10px; color: var(--text-dim);">Midnight Modern</span>
+            </div>
+            <div class="mini-term-window" id="mini-term-window">
+              <div class="mini-term-bar" id="mini-term-bar">
+                <div class="mini-term-dots">
+                  <span class="mini-term-dot dot-red"></span>
+                  <span class="mini-term-dot dot-yellow"></span>
+                  <span class="mini-term-dot dot-green"></span>
+                </div>
+                <div class="mini-term-title" id="mini-term-title">student@linux: ~/workspace (bash)</div>
+                <div class="mini-term-dots" style="visibility: hidden;">
+                  <span class="mini-term-dot"></span>
+                </div>
+              </div>
+              <div class="mini-term-body" id="mini-term-body">
+                <div class="mini-term-prompt-line">
+                  <span class="mini-term-prompt-text" id="mini-term-prompt-display">student@linux:~/workspace$</span>
+                  <span class="mini-term-cmd-text" id="mini-term-cmd-display">./lab_task</span>
+                </div>
+                <div class="mini-term-output" id="mini-term-output">[+] Query executed successfully.
+[✓] 15 rows returned. (Status: PASS)</div>
+                <div class="mini-term-meta-tag" id="mini-term-meta-tag">
+                  <span>Theme: Midnight Modern</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row" style="margin-top: 14px;">
             <div class="form-group flex-1">
               <label for="terminal-username">Terminal Username</label>
               <input type="text" id="terminal-username" value="student" placeholder="username (e.g. student)" oninput="updateTerminalPromptSettings()">
@@ -239,20 +322,9 @@
               <input type="text" id="terminal-hostname" value="linux" placeholder="hostname (e.g. linux)" oninput="updateTerminalPromptSettings()">
             </div>
           </div>
-          <div class="form-row">
-            <div class="form-group flex-1">
-              <label for="terminal-theme">Window Theme</label>
-              <select id="terminal-theme">
-                <option value="pop-os-dark" selected>Linux Dark</option>
-                <option value="cosmic-dark">Linux Native</option>
-                <option value="ubuntu-yaru">Ubuntu Yaru</option>
-                <option value="vscode-dark">VS Code Terminal</option>
-              </select>
-            </div>
-            <div class="form-group flex-1">
-              <label for="terminal-prompt-preview">Active Shell Prompt</label>
-              <input type="text" id="terminal-prompt-preview" value="student@linux:~/workspace$" readonly class="readonly-input">
-            </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="terminal-prompt-preview">Active Shell Prompt</label>
+            <input type="text" id="terminal-prompt-preview" value="student@linux:~/workspace$" readonly class="readonly-input">
           </div>
         </div>
       </div>

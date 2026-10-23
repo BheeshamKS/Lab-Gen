@@ -34,6 +34,88 @@ def format_table(headers, rows):
     return "\n".join(res)
 
 
+def _auto_provision_missing_table(conn: sqlite3.Connection, table_name: str, db_path: Path, sql_path: Path, drop_existing: bool = False) -> bool:
+    """Auto-provisions missing tables from workspace schema.sql, session.json, or dynamic synthesizer."""
+    if drop_existing:
+        try:
+            conn.execute(f"DROP TABLE IF EXISTS {table_name};")
+            conn.commit()
+        except Exception:
+            pass
+
+    try:
+        from .synthesizer import DynamicSQLSynthesizer
+    except Exception:
+        try:
+            from labgenius.synthesizer import DynamicSQLSynthesizer
+        except Exception:
+            return False
+
+    # Check candidates for schema.sql
+    candidates = [
+        db_path.parent / "schema.sql",
+        sql_path.parent / "schema.sql",
+        sql_path.parent.parent / "schema.sql",
+    ]
+    for c in candidates:
+        if c.exists():
+            try:
+                with open(c, "r", encoding="utf-8") as f:
+                    content = f.read()
+                if table_name.lower() in content.lower():
+                    conn.executescript(content)
+                    conn.commit()
+                    return True
+            except Exception:
+                pass
+
+    # Check candidates for session.json
+    s_candidates = [
+        db_path.parent / "session.json",
+        sql_path.parent.parent / "session.json",
+    ]
+    for sc in s_candidates:
+        if sc.exists():
+            try:
+                import json
+                with open(sc, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                ctx = data.get("manual", {}).get("context", "")
+                if ctx and table_name.lower() in ctx.lower():
+                    tasks_data = data.get("manual", {}).get("tasks", [])
+                    class DummyTask:
+                        def __init__(self, t, d):
+                            self.title = t
+                            self.description = d
+                    tasks_objs = [DummyTask(t.get("title", ""), t.get("description", "")) for t in tasks_data]
+                    schema = DynamicSQLSynthesizer.extract_schema(ctx, tasks=tasks_objs)
+                    seed_sql = DynamicSQLSynthesizer.generate_seed_sql(schema)
+                    conn.executescript(seed_sql)
+                    conn.commit()
+                    return True
+            except Exception:
+                pass
+
+    # Fallback to dynamic schema synthesis by table name and scanning workspace queries
+    try:
+        extra_text = f"Table: {table_name}\n"
+        search_dirs = [db_path.parent, sql_path.parent, sql_path.parent.parent]
+        for sdir in search_dirs:
+            if sdir.exists():
+                for qf in sdir.glob("**/*.sql"):
+                    try:
+                        extra_text += "\n" + qf.read_text(encoding="utf-8", errors="ignore")
+                    except Exception:
+                        pass
+        schema = DynamicSQLSynthesizer.extract_schema(extra_text)
+        seed_sql = DynamicSQLSynthesizer.generate_seed_sql(schema)
+        conn.executescript(seed_sql)
+        conn.commit()
+        return True
+    except Exception:
+        return False
+
+
 def execute_sql_file(sql_path: Path, db_path: Path, student_name: str, roll_no: str) -> str:
     """Executes a SQL file and returns clean console output."""
     output_lines = []
@@ -111,7 +193,27 @@ def execute_sql_file(sql_path: Path, db_path: Path, student_name: str, roll_no: 
                         output_lines.append(format_table(headers, rows))
                         had_output = True
                 else:
-                    cursor.execute(stmt)
+                    try:
+                        cursor.execute(stmt)
+                    except Exception as exec_err:
+                        err_str = str(exec_err)
+                        if "no such table" in err_str.lower():
+                            m_tbl = re.search(r"no such table:\s*([a-zA-Z0-9_]+)", err_str, re.IGNORECASE)
+                            missing_tbl = m_tbl.group(1) if m_tbl else None
+                            if missing_tbl and _auto_provision_missing_table(conn, missing_tbl, db_path, sql_path):
+                                cursor.execute(stmt)
+                            else:
+                                raise exec_err
+                        elif "no such column" in err_str.lower():
+                            m_tbl = re.search(r"\bFROM\s+([a-zA-Z0-9_]+)", stmt, re.IGNORECASE)
+                            target_tbl = m_tbl.group(1) if m_tbl else None
+                            if target_tbl and _auto_provision_missing_table(conn, target_tbl, db_path, sql_path, drop_existing=True):
+                                cursor.execute(stmt)
+                            else:
+                                raise exec_err
+                        else:
+                            raise exec_err
+
                     rows = cursor.fetchall()
                     headers = [d[0] for d in cursor.description] if cursor.description else []
                     if rows:
@@ -155,7 +257,26 @@ def execute_sql_file(sql_path: Path, db_path: Path, student_name: str, roll_no: 
         # 4. Standard DDL / DML (CREATE TABLE, DROP TABLE, INSERT, UPDATE, etc.)
         else:
             try:
-                cursor.execute(stmt)
+                try:
+                    cursor.execute(stmt)
+                except Exception as dml_err:
+                    err_str = str(dml_err)
+                    if "no such table" in err_str.lower():
+                        m_tbl = re.search(r"no such table:\s*([a-zA-Z0-9_]+)", err_str, re.IGNORECASE)
+                        missing_tbl = m_tbl.group(1) if m_tbl else None
+                        if missing_tbl and _auto_provision_missing_table(conn, missing_tbl, db_path, sql_path):
+                            cursor.execute(stmt)
+                        else:
+                            raise dml_err
+                    elif "no such column" in err_str.lower():
+                        m_tbl = re.search(r"\b(?:INTO|UPDATE|FROM)\s+([a-zA-Z0-9_]+)", stmt, re.IGNORECASE)
+                        target_tbl = m_tbl.group(1) if m_tbl else None
+                        if target_tbl and _auto_provision_missing_table(conn, target_tbl, db_path, sql_path, drop_existing=True):
+                            cursor.execute(stmt)
+                        else:
+                            raise dml_err
+                    else:
+                        raise dml_err
                 conn.commit()
                 executed_count += 1
 

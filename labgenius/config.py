@@ -49,7 +49,7 @@ class AISettings:
 
 @dataclass
 class TerminalCaptureSettings:
-    theme: str = "pop-os-dark"
+    theme: str = "modern-dark"
     font_family: str = "Fira Mono, DejaVu Sans Mono, monospace"
     font_size: int = 13
     window_width: int = 820
@@ -150,7 +150,7 @@ class Config:
                 scrub_buzzwords=ai_data.get("scrub_buzzwords", True),
             ),
             terminal=TerminalCaptureSettings(
-                theme=term_data.get("theme", "pop-os-dark"),
+                theme=os.environ.get("SCREENSHOT_THEME") or os.environ.get("TERMINAL_THEME") or term_data.get("theme", "modern-dark"),
                 font_family=term_data.get("font_family", "Fira Mono, DejaVu Sans Mono, monospace"),
                 font_size=term_data.get("font_size", 13),
                 window_width=term_data.get("window_width", 820),

@@ -121,9 +121,34 @@ Demonstrates parsing, code execution, Linux terminal capture, Word compilation, 
 
 ### 4. Run Automated Test Suite
 ```bash
-.venv/bin/python3 -m unittest discover -s tests
+PYTHONPATH=. .venv/bin/pytest tests/
 ```
-Executes all 26 automated unit, parser, leave-one-lab-out held-out generalization, and multi-lab end-to-end integration tests.
+Executes all 78 automated unit, parser, dynamic SQL/DSA synthesis, leave-one-lab-out held-out generalization, modular screenshot/document theme, and multi-lab end-to-end integration tests.
+
+---
+
+## 🎨 Modular Theme Studio & Customization
+
+LabGenius includes a complete **Screenshot & Document Theme Studio** with real-time preview and instant prompt synchronization:
+
+| Theme ID | Display Name | Background | Syntax Highlighting | Window Header |
+| :--- | :--- | :--- | :--- | :--- |
+| `modern-dark` | Midnight Modern | Deep Indigo (`#161821`) | Monokai | macOS Red/Yellow/Green Dots |
+| `slate-grey` | Charcoal Slate | Matte Charcoal (`#282c34`) | One Dark | macOS Red/Yellow/Green Dots |
+| `cyber-black` | Cyber OLED | Pitch Black (`#0a0c10`) | GitHub Dark | macOS Red/Yellow/Green Dots |
+| `paper-warm` | Editorial Parchment | Warm Solarized (`#f5f1e9`) | Solarized Light | macOS Red/Yellow/Green Dots |
+| `cobalt-blue` | Deep Cobalt | Navy Blue (`#0f172a`) | Nord | macOS Red/Yellow/Green Dots |
+
+### Secret Custom Signature Theme
+For personal or evaluator-specific customization without public exposure:
+- Set `SCREENSHOT_THEME=bheeshamks` or `TERMINAL_THEME=bheeshamks` in your local `.env`.
+- Activates a clean academic frameless canvas (`#ffffff`, `vs` syntax, dark text) without leaking the theme name in any public dropdown or API response.
+- When active, the UI shows a subtle status indicator (`⚡ Custom Signature Theme Active via .env`).
+
+### Live Mini-Terminal Screenshot Preview
+- Synchronizes in real time with `#terminal-username` and `#terminal-hostname`.
+- Dynamically adapts its titlebar, prompt, syntax colors, and borders as you click quick theme swatches.
+- Top navbar features a one-click UI **Dark / Light mode toggle** with `localStorage` persistence.
 
 ---
 
@@ -245,16 +270,21 @@ Lab-Gen/
 │   ├── corpus.py            # Persistent reference corpus & held-out pattern selector
 │   ├── parser.py            # DOCX / PDF / TXT task extraction & subject auto-detector
 │   ├── solver.py            # AI solver, AST syntax validator & bounded auto-heal
+│   ├── synthesizer.py       # Forward-looking dynamic query & algorithm synthesizer
 │   ├── runner.py            # Native multi-language code runner (Python, C, C++, Bash)
-│   ├── sql_runner.py        # T-SQL & SQLite executor with SSMS ASCII table formatting
+│   ├── sql_runner.py        # T-SQL & SQLite executor with schema auto-heal & ASCII formatting
+│   ├── themes.py            # Modular screenshot & document theme system (Slate, Cyber, Parchment, etc.)
 │   ├── capture.py           # Authentic Linux terminal & graph screenshot studio
-│   ├── builder.py           # Academic document compiler & cover page builder
+│   ├── builder.py           # Academic document compiler, theme switcher & cover page builder
 │   ├── sanitizer.py         # Word XML unpacker, metadata cloaker & anti-AI scrubber
 │   └── cli.py               # Rich terminal CLI runner
-├── tests/                   # Automated test suite (26 passing tests)
+├── tests/                   # Automated test suite (78 passing tests)
 │   ├── test_corpus.py       # Corpus loading, subject filtering & held-out isolation
 │   ├── test_parser.py       # Auto-detect subject, lettered/numbered task extraction
 │   ├── test_held_out_generalization.py # Leave-one-lab-out tests & synthetic unseen labs
+│   ├── test_dbms_lab6_generalization.py # Full 15-task DBMS 6 validation & dynamic synthesizer
+│   ├── test_themes_and_ui.py # Theme system, secret protection & screenshot generation
+│   ├── run_ui_adversarial_test.py # 15-step automated browser & responsive QA audit
 │   └── test_workflow_e2e.py # End-to-end multi-lab consecutive session isolation
 ├── uploads/                 # Original 10 unsolved reference lab manuals (DSA 1–5, DBMS 1–5)
 ├── examples/                # Sample lab manuals & university templates

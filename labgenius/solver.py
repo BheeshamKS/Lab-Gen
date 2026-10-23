@@ -999,26 +999,37 @@ class TaskSolver:
             "temperature": 0.3,
             "response_format": {"type": "json_object"}
         }
-        try:
-            resp = requests.post(url, headers=headers, json=payload, timeout=35)
-            if resp.status_code == 200:
-                data = resp.json()
-                content = data["choices"][0]["message"]["content"]
-                parsed = self._extract_json(content)
-                if parsed and "code" in parsed:
-                    return TaskSolution(
-                        task_id=task.task_id,
-                        language=task.language,
-                        code=self._strip_code_fences(parsed["code"]),
-                        explanation=parsed.get("explanation", ""),
-                        discussion_answers=parsed.get("answers", {}),
-                        file_name=parsed.get("filename", f"task_{task.task_id:02d}.{self._get_extension(task.language)}"),
-                        is_gui_or_plot=task.requires_plot,
-                    )
-            else:
-                print(f"[!] {provider.upper()} API returned HTTP {resp.status_code}: {resp.text}")
-        except Exception as e:
-            print(f"[!] {provider.upper()} API error during request: {e}")
+        import time
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            try:
+                resp = requests.post(url, headers=headers, json=payload, timeout=35)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    content = data["choices"][0]["message"]["content"]
+                    parsed = self._extract_json(content)
+                    if parsed and "code" in parsed:
+                        return TaskSolution(
+                            task_id=task.task_id,
+                            language=task.language,
+                            code=self._strip_code_fences(parsed["code"]),
+                            explanation=parsed.get("explanation", ""),
+                            discussion_answers=parsed.get("answers", {}),
+                            file_name=parsed.get("filename", f"task_{task.task_id:02d}.{self._get_extension(task.language)}"),
+                            is_gui_or_plot=task.requires_plot,
+                        )
+                elif resp.status_code == 429 and attempt < max_retries:
+                    time.sleep(2 * (attempt + 1))
+                    continue
+                else:
+                    print(f"[!] {provider.upper()} API returned HTTP {resp.status_code}: {resp.text}")
+                    break
+            except Exception as e:
+                if attempt < max_retries:
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                print(f"[!] {provider.upper()} API error during request: {e}")
+                break
         return None
 
     _solve_with_openai = _solve_with_openai_compatible
@@ -3670,107 +3681,10 @@ class TaskSolver:
                 exp = "Executed INNER JOIN query across Members, Loans, and Books reporting active borrowing transactions."
                 return TaskSolution(task.task_id, "sql", code, exp, {}, f"query_{task.task_id:02d}.sql")
 
-        # Generic schema extraction for arbitrary SQL tables
-        tbl_match = re.search(r"(?:table\s+(?:named\s+)?([a-zA-Z0-9_]+)|([a-zA-Z0-9_]+)\s+table)", desc + " " + ctx)
-        tbl_name = "Records"
-        if tbl_match:
-            cand = (tbl_match.group(1) or tbl_match.group(2) or "").strip().capitalize()
-            if cand.lower() not in ["and", "the", "a", "an", "new", "following", "given", "appropriate", "both", "all", "relational"]:
-                tbl_name = cand
-        if tbl_name == "Records":
-            from_m = re.search(r"from\s+([a-zA-Z0-9_]+)", desc + " " + ctx)
-            if from_m:
-                tbl_name = from_m.group(1).capitalize()
-            else:
-                for cand_n in ["employee", "student", "course", "department", "customer", "product", "order"]:
-                    if cand_n in desc or cand_n in ctx:
-                        tbl_name = cand_n.capitalize()
-                        break
-
-        if "create database" in desc:
-            db_m = re.search(r"database\s+(?:named\s+)?([a-zA-Z0-9_]+)", desc)
-            db_name = db_m.group(1) if db_m else "LabDatabase"
-            code = f"CREATE DATABASE {db_name};\n"
-            exp = f"Created database {db_name} in SQL Server."
-        elif "alter database" in desc or "drop database" in desc:
-            code = "ALTER DATABASE LabDatabase SET MULTI_USER;\n"
-            exp = "Executed database administrative DDL statement."
-        elif "create" in desc and "table" in desc:
-            code = (
-                f"CREATE TABLE IF NOT EXISTS {tbl_name} (\n"
-                f"    ID INT PRIMARY KEY,\n"
-                f"    Title VARCHAR(50) NOT NULL,\n"
-                f"    Category VARCHAR(30) DEFAULT 'General',\n"
-                f"    Amount DECIMAL(10,2) CHECK (Amount >= 0)\n"
-                f");\n\n"
-                f"INSERT OR IGNORE INTO {tbl_name} VALUES (1, 'Alpha', 'Hardware', 150.00), (2, 'Beta', 'Software', 200.00);\n"
-                f"SELECT * FROM {tbl_name};\n"
-            )
-            exp = f"Created {tbl_name} table enforcing PRIMARY KEY, NOT NULL, DEFAULT, and CHECK constraints."
-        elif "insert" in desc:
-            code = (
-                f"INSERT INTO {tbl_name} (ID, Title, Category, Amount)\n"
-                f"VALUES (1, 'Item Alpha', 'Hardware', 120.50),\n"
-                f"       (2, 'Item Beta', 'Software', 85.00);\n\n"
-                f"SELECT * FROM {tbl_name};\n"
-            )
-            exp = f"Inserted sample records into {tbl_name} and verified stored data with a SELECT statement."
-        elif "update" in desc:
-            code = (
-                f"UPDATE {tbl_name}\n"
-                f"SET Amount = Amount * 1.10\n"
-                f"WHERE Category = 'Hardware';\n\n"
-                f"SELECT * FROM {tbl_name};\n"
-            )
-            exp = f"Conditionally updated records in {tbl_name} and verified updated values with a SELECT query."
-        elif "delete" in desc:
-            code = (
-                f"DELETE FROM {tbl_name}\n"
-                f"WHERE ID = 2;\n\n"
-                f"SELECT * FROM {tbl_name};\n"
-            )
-            exp = f"Conditionally removed records from {tbl_name} using DELETE with a WHERE clause."
-        elif "alter table" in desc or ("alter" in desc and "column" in desc):
-            code = (
-                f"ALTER TABLE {tbl_name}\n"
-                f"ADD Status VARCHAR(20) DEFAULT 'Active';\n\n"
-                f"SELECT * FROM {tbl_name};\n"
-            )
-            exp = f"Modified structure of table {tbl_name} using ALTER TABLE."
-        elif "drop" in desc and "table" in desc:
-            code = f"DROP TABLE {tbl_name};\n"
-            exp = f"Dropped table {tbl_name} using DROP TABLE statement."
-        elif any(k in desc for k in ["join", "inner join", "left join"]):
-            code = (
-                f"CREATE TABLE IF NOT EXISTS {tbl_name} (ID INT PRIMARY KEY, Title VARCHAR(50), DeptID INT);\n"
-                f"CREATE TABLE IF NOT EXISTS Department (DeptID INT PRIMARY KEY, DepartmentName VARCHAR(50));\n"
-                f"INSERT OR IGNORE INTO Department VALUES (1, 'Computer Science'), (2, 'Information Tech');\n"
-                f"INSERT OR IGNORE INTO {tbl_name} VALUES (101, 'Project Alpha', 1), (102, 'Project Beta', 2);\n\n"
-                f"SELECT a.ID, a.Title, b.DepartmentName\n"
-                f"FROM {tbl_name} a\n"
-                f"INNER JOIN Department b ON a.DeptID = b.DeptID;\n"
-            )
-            exp = "Executed INNER JOIN query combining relational attributes across linked tables."
-        elif any(k in desc for k in ["group by", "having", "count", "sum", "avg"]):
-            code = (
-                f"CREATE TABLE IF NOT EXISTS {tbl_name} (ID INT PRIMARY KEY, Category VARCHAR(30), Amount DECIMAL(10,2));\n"
-                f"INSERT OR IGNORE INTO {tbl_name} VALUES (1, 'Electronics', 350.00), (2, 'Electronics', 150.00), (3, 'Books', 45.00);\n\n"
-                f"SELECT Category, COUNT(*) AS TotalCount, AVG(Amount) AS AvgAmount\n"
-                f"FROM {tbl_name}\n"
-                f"GROUP BY Category\n"
-                f"HAVING COUNT(*) >= 1;\n"
-            )
-            exp = "Aggregated records using GROUP BY and filtered partitioned groups with HAVING clause."
-        else:
-            code = (
-                f"CREATE TABLE IF NOT EXISTS {tbl_name} (ID INT PRIMARY KEY, Name VARCHAR(50));\n"
-                f"INSERT OR IGNORE INTO {tbl_name} VALUES (1, 'Item 1'), (2, 'Item 2');\n"
-                f"SELECT * FROM {tbl_name}\n"
-                f"WHERE ID >= 1\n"
-                f"ORDER BY ID ASC;\n"
-            )
-            exp = f"Retrieved and projected ordered rows from table {tbl_name} matching filter criteria."
-
+        # Forward-Looking Dynamic Schema-Aware SQL Synthesizer
+        from .synthesizer import DynamicSQLSynthesizer
+        schema = DynamicSQLSynthesizer.extract_schema(lab_context or "", tasks=[task])
+        code, exp = DynamicSQLSynthesizer.synthesize_task_solution(task, schema=schema, lab_context=lab_context or "")
         return TaskSolution(task.task_id, "sql", code, exp, {}, f"query_{task.task_id:02d}.sql")
 
     def _solve_offline_generalized_dsa(self, task: LabTask, lab_context: Optional[str] = None) -> TaskSolution:
@@ -4368,52 +4282,9 @@ class TaskSolver:
             exp = "Implemented Binary Search algorithm on a sorted list, demonstrating logarithmic O(log n) search performance."
             return TaskSolution(task.task_id, "python", code, exp, {}, f"task_{task.task_id:02d}_bsearch.py")
 
-        # 10. Default general algorithmic task
+        # 10. Forward-looking Dynamic DSA Synthesis (Task-tailored, never repeated)
         else:
-            if task.language in ["cpp", "c++"]:
-                code = (
-                    "#include <iostream>\n"
-                    "#include <vector>\n"
-                    "#include <numeric>\n\n"
-                    "int main() {\n"
-                    "    std::vector<int> data = {18, 42, 29, 65, 87, 33, 51, 94};\n"
-                    "    int sum = std::accumulate(data.begin(), data.end(), 0);\n"
-                    "    double avg = static_cast<double>(sum) / data.size();\n"
-                    "    std::cout << \"Input elements: \";\n"
-                    "    for (int x : data) std::cout << x << \" \";\n"
-                    "    std::cout << \"\\nComputed Average: \" << avg << std::endl;\n"
-                    "    return 0;\n"
-                    "}\n"
-                )
-                exp = f"Executed C++ algorithmic solution for {task.title}."
-                return TaskSolution(task.task_id, "cpp", code, exp, {}, f"task_{task.task_id:02d}.cpp")
-            elif task.language == "c":
-                code = (
-                    "#include <stdio.h>\n\n"
-                    "int main() {\n"
-                    "    int data[] = {18, 42, 29, 65, 87, 33, 51, 94};\n"
-                    "    int n = sizeof(data) / sizeof(data[0]);\n"
-                    "    int sum = 0;\n"
-                    "    for (int i = 0; i < n; i++) sum += data[i];\n"
-                    "    printf(\"Computed Average: %.2f\\n\", (double)sum / n);\n"
-                    "    return 0;\n"
-                    "}\n"
-                )
-                exp = f"Executed C algorithmic solution for {task.title}."
-                return TaskSolution(task.task_id, "c", code, exp, {}, f"task_{task.task_id:02d}.c")
-            else:
-                code = (
-                    "def process_data_stream(data):\n"
-                    "    stats = {'count': len(data), 'min': min(data), 'max': max(data), 'sum': sum(data)}\n"
-                    "    stats['avg'] = round(stats['sum'] / stats['count'], 2)\n"
-                    "    filtered = [x for x in data if x >= stats['avg']]\n"
-                    "    return stats, filtered\n\n"
-                    "if __name__ == '__main__':\n"
-                    "    sample_input = [18, 42, 29, 65, 87, 33, 51, 94]\n"
-                    "    print(f'Input Sequence: {sample_input}')\n"
-                    "    summary, above_avg = process_data_stream(sample_input)\n"
-                    "    print(f'Computed Metrics: {summary}')\n"
-                    "    print(f'Elements >= Average ({summary[\"avg\"]}): {above_avg}')\n"
-                )
-                exp = f"Executed data processing routine for {task.title}, analyzing elements and filtering against distribution metrics."
-                return TaskSolution(task.task_id, "python", code, exp, {}, f"task_{task.task_id:02d}.py")
+            from .synthesizer import DynamicDSASynthesizer
+            code, exp, resolved_lang = DynamicDSASynthesizer.synthesize_task_solution(task, lab_context=lab_context or "")
+            ext = "c" if resolved_lang == "c" else "cpp" if resolved_lang in ["cpp", "c++"] else "py"
+            return TaskSolution(task.task_id, resolved_lang, code, exp, {}, f"task_{task.task_id:02d}.{ext}")
