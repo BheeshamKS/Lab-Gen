@@ -28,6 +28,7 @@ def test_index_html_contains_new_3zone_layout():
     assert 'id="rail-item-home"' in html
     assert 'id="rail-item-doctools"' in html
     assert 'id="rail-item-playground"' in html
+    assert 'id="rail-item-humanwriter"' in html
     assert 'id="btn-theme-toggle"' in html
     assert 'class="rail-logo"' not in html
 
@@ -51,6 +52,7 @@ def test_index_html_contains_new_3zone_layout():
     assert 'id="view-results"' in html
     assert 'id="view-doctools"' in html
     assert 'id="view-playground"' in html
+    assert 'id="view-humanwriter"' in html
 
 
 def test_theme_system_public_themes_and_secret_privacy():

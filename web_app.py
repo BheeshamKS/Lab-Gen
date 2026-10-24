@@ -10,8 +10,9 @@ import json
 import re
 import tempfile
 import uuid
+from datetime import datetime
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import uvicorn
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
 from fastapi.responses import FileResponse, HTMLResponse
@@ -39,6 +40,8 @@ from labgenius.state import (
 )
 from labgenius.themes import get_theme, list_public_themes, resolve_theme_info
 import labgenius.doc_tools as doc_tools
+from labgenius.human_writer import HumanWriterService
+from dataclasses import asdict
 
 app = FastAPI(title="LabGenius Web App", version="1.0.0")
 
@@ -2016,6 +2019,119 @@ async def api_get_doc_tools_sample_files():
                 "size_formatted": doc_tools._format_size(os.path.getsize(sample_txt)),
             }
         ]
+    }
+
+
+# ==============================================================================
+# Human Writer Studio Endpoints
+# ==============================================================================
+
+@app.post("/api/human-writer/analyze")
+async def api_human_writer_analyze(
+    file: Optional[UploadFile] = File(None),
+    filepath: Optional[str] = Form(None),
+):
+    """Analyzes a document for AI mannerisms, structure, and code references."""
+    temp_dir = Path(tempfile.mkdtemp(prefix="labgen_hw_upload_"))
+    try:
+        if file and file.filename:
+            safe_name = Path(file.filename).name
+            dest_path = temp_dir / safe_name
+            with open(dest_path, "wb") as buf:
+                shutil.copyfileobj(file.file, buf)
+            target_path = dest_path
+        elif filepath and Path(filepath).exists():
+            target_path = Path(filepath)
+        else:
+            raise HTTPException(status_code=400, detail="No file or valid filepath provided.")
+
+        analysis = HumanWriterService.analyze_document(target_path)
+        return {
+            "success": True,
+            "analysis": {
+                "filename": analysis.filename,
+                "total_words": analysis.total_words,
+                "total_paragraphs": analysis.total_paragraphs,
+                "cover_page_detected": analysis.cover_page_detected,
+                "overall_ai_score": analysis.overall_ai_score,
+                "authenticity_score": round(100.0 - analysis.overall_ai_score, 1),
+                "classification": analysis.classification,
+                "code_references_found": analysis.code_references_found,
+                "segments": [asdict(s) for s in analysis.segments],
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+@app.post("/api/human-writer/humanize")
+async def api_human_writer_humanize(payload: Dict[str, Any] = Body(...)):
+    """Humanizes document segments, strictly protecting cover page blocks."""
+    try:
+        segments = payload.get("segments", [])
+        profile = payload.get("profile", "academic_student")
+        custom_instructions = payload.get("custom_instructions", "")
+
+        cfg = Config.load()
+        if payload.get("api_key"):
+            cfg.ai.api_key = payload["api_key"]
+        if payload.get("provider"):
+            cfg.ai.provider = payload["provider"]
+
+        result = HumanWriterService.humanize_document(
+            segments_data=segments,
+            profile=profile,
+            custom_instructions=custom_instructions,
+            cfg=cfg,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/human-writer/export")
+async def api_human_writer_export(payload: Dict[str, Any] = Body(...)):
+    """Assembles and exports a sanitized Word (.docx) or PDF document."""
+    try:
+        segments = payload.get("segments", [])
+        out_fmt = payload.get("format", "docx").lower()
+        author_name = payload.get("author_name") or "Student"
+        doc_title = payload.get("title") or "Academic Laboratory Report"
+
+        timestamp = int(datetime.now().timestamp())
+        out_filename = f"Humanized_{timestamp}.{out_fmt}"
+        out_path = OUTPUT_DIR / out_filename
+
+        final_path = HumanWriterService.build_exported_document(
+            segments=segments,
+            output_format=out_fmt,
+            output_path=out_path,
+            author_name=author_name,
+            document_title=doc_title,
+        )
+
+        return {
+            "success": True,
+            "filename": final_path.name,
+            "download_url": f"/api/download/{final_path.name}",
+            "format": out_fmt,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/human-writer/sample")
+async def api_human_writer_sample():
+    """Generates and returns the path to an authentic AI-contaminated sample lab document."""
+    sample_file = EXAMPLES_DIR / "sample_ai_lab_report.docx"
+    HumanWriterService.get_or_create_sample_doc(sample_file)
+    return {
+        "success": True,
+        "filename": sample_file.name,
+        "path": str(sample_file.resolve()),
+        "url": f"/api/download/{sample_file.name}" if (OUTPUT_DIR / sample_file.name).exists() else None,
     }
 
 

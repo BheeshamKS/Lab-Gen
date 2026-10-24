@@ -1349,7 +1349,7 @@ function updateNavState(hasLab) {
 // ============================================================================
 
 function navigateToView(viewName) {
-  const views = ['home', 'wizard', 'progress', 'results', 'doctools', 'playground'];
+  const views = ['home', 'wizard', 'progress', 'results', 'doctools', 'playground', 'humanwriter'];
   views.forEach(v => {
     const el = document.getElementById(`view-${v}`);
     if (el) {
@@ -1404,7 +1404,8 @@ function navigateToView(viewName) {
     'progress': 'Pipeline Execution',
     'results': 'Output Studio',
     'doctools': 'Document Tools',
-    'playground': 'Code Playground'
+    'playground': 'Code Playground',
+    'humanwriter': 'Human Writer Studio'
   };
   const titleEl = document.getElementById('top-bar-view-title');
   if (titleEl && titleMap[viewName]) {
@@ -1415,14 +1416,21 @@ function navigateToView(viewName) {
   const railHome = document.getElementById('rail-item-home');
   const railDoc = document.getElementById('rail-item-doctools');
   const railPlay = document.getElementById('rail-item-playground');
+  const railHW = document.getElementById('rail-item-humanwriter');
   if (railHome) railHome.classList.remove('active');
   if (railDoc) railDoc.classList.remove('active');
   if (railPlay) railPlay.classList.remove('active');
+  if (railHW) railHW.classList.remove('active');
 
   if (viewName === 'home' || viewName === 'wizard' || viewName === 'progress' || viewName === 'results') {
     if (railHome) railHome.classList.add('active');
   } else if (viewName === 'doctools') {
     if (railDoc) railDoc.classList.add('active');
+  } else if (viewName === 'playground') {
+    if (railPlay) railPlay.classList.add('active');
+  } else if (viewName === 'humanwriter') {
+    if (railHW) railHW.classList.add('active');
+  }
   } else if (viewName === 'playground') {
     if (railPlay) railPlay.classList.add('active');
   }
@@ -1494,6 +1502,11 @@ function openNavPlayground() {
   if (codeStandalone && !codeStandalone.value && codeMain) {
     codeStandalone.value = codeMain;
   }
+}
+
+function openNavHumanWriter() {
+  closeSidebarSettings();
+  navigateToView('humanwriter');
 }
 
 function openNavTemplates() {
@@ -4293,4 +4306,303 @@ function registerWebMCPTools() {
   });
 
   console.info('[WebMCP] Registered 5 first-party LabGenius agent tools successfully.');
+}
+
+// ==============================================================================
+// Human Writer Studio Client Engine
+// ==============================================================================
+
+let currentHumanWriterData = null;
+let currentHumanWriterProfile = 'academic_student';
+let isHumanWriterDiffMode = true;
+
+async function handleHumanWriterFileSelect(files) {
+  if (!files || !files[0]) return;
+  const file = files[0];
+  const formData = new FormData();
+  formData.append('file', file);
+
+  showToast(`Analyzing ${file.name} for AI and structure...`);
+  try {
+    const res = await fetch('/api/human-writer/analyze', {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await res.json();
+    if (!data.success) {
+      alert('Analysis error: ' + (data.error || 'Failed to parse document'));
+      return;
+    }
+    currentHumanWriterData = data.analysis;
+    renderHumanWriterAnalysis(data.analysis);
+  } catch (err) {
+    console.error('Error analyzing document:', err);
+    alert('Network error while analyzing document: ' + err);
+  }
+}
+
+async function loadHumanWriterSample() {
+  showToast('Loading sample AI-dense lab document...');
+  try {
+    const sRes = await fetch('/api/human-writer/sample');
+    const sData = await sRes.json();
+    if (!sData.success) {
+      alert('Could not load sample document');
+      return;
+    }
+    const formData = new FormData();
+    formData.append('filepath', sData.path);
+
+    const aRes = await fetch('/api/human-writer/analyze', {
+      method: 'POST',
+      body: formData,
+    });
+    const aData = await aRes.json();
+    if (!aData.success) {
+      alert('Analysis error on sample: ' + (aData.error || 'Unknown error'));
+      return;
+    }
+    currentHumanWriterData = aData.analysis;
+    renderHumanWriterAnalysis(aData.analysis);
+    showToast('Sample loaded and analyzed successfully');
+  } catch (err) {
+    console.error('Error loading sample:', err);
+    alert('Error loading sample: ' + err);
+  }
+}
+
+function renderHumanWriterAnalysis(analysis) {
+  const ws = document.getElementById('hw-workspace');
+  const diffBench = document.getElementById('hw-diff-workbench');
+  if (ws) ws.style.display = 'flex';
+  if (diffBench) diffBench.style.display = 'none';
+
+  // Metrics
+  const aiScoreEl = document.getElementById('hw-val-ai-score');
+  const aiStatusEl = document.getElementById('hw-badge-ai-status');
+  const aiDescEl = document.getElementById('hw-desc-ai-status');
+  const leaksEl = document.getElementById('hw-val-code-leaks');
+  const leaksDescEl = document.getElementById('hw-desc-code-leaks');
+  const wordsEl = document.getElementById('hw-val-words');
+  const parasEl = document.getElementById('hw-val-paras');
+
+  if (aiScoreEl) aiScoreEl.textContent = `${analysis.overall_ai_score}%`;
+  if (aiStatusEl) {
+    aiStatusEl.textContent = analysis.classification;
+    aiStatusEl.className = 'hw-metric-badge ' + (analysis.overall_ai_score >= 60 ? 'badge-red' : analysis.overall_ai_score >= 35 ? 'badge-amber' : 'badge-green');
+  }
+  if (aiDescEl) aiDescEl.textContent = `Based on ${analysis.total_paragraphs} structural segments`;
+  if (leaksEl) leaksEl.textContent = String(analysis.code_references_found.length);
+  if (leaksDescEl) leaksDescEl.textContent = analysis.code_references_found.slice(0, 3).join(', ') || 'No raw variable leaks';
+  if (wordsEl) wordsEl.textContent = String(analysis.total_words);
+  if (parasEl) parasEl.textContent = `${analysis.total_paragraphs} structural segments`;
+
+  // Render Left Stream (Original)
+  const origStream = document.getElementById('hw-orig-segments-stream');
+  if (origStream) {
+    origStream.innerHTML = '';
+    analysis.segments.forEach(seg => {
+      const card = document.createElement('div');
+      let cardClass = 'hw-segment-card ';
+      let pillHtml = '';
+      if (seg.is_cover_page) {
+        cardClass += 'card-cover';
+        pillHtml = '<span class="hw-seg-pill badge-blue">🛡️ Cover Page (Protected)</span>';
+      } else if (seg.is_ai) {
+        cardClass += 'card-ai';
+        pillHtml = `<span class="hw-seg-pill badge-amber">⚡ AI Detected (${Math.round(seg.ai_score * 100)}%)</span>`;
+      } else {
+        cardClass += 'card-human';
+        pillHtml = '<span class="hw-seg-pill badge-green">✓ Authentic Human</span>';
+      }
+      card.className = cardClass;
+
+      let reasonsHtml = '';
+      if (seg.reasons && seg.reasons.length > 0) {
+        reasonsHtml = '<div class="hw-seg-reasons-list">' +
+          seg.reasons.map(r => `<span class="hw-reason-tag">${escapeHtml(r)}</span>`).join('') +
+          '</div>';
+      }
+
+      card.innerHTML = `
+        <div class="hw-seg-topbar">
+          <span style="font-weight: 600; color: var(--text-dim);">#${seg.id} &bull; ${seg.type.toUpperCase()}</span>
+          ${pillHtml}
+        </div>
+        <div class="hw-seg-text">${escapeHtml(seg.text)}</div>
+        ${reasonsHtml}
+      `;
+      origStream.appendChild(card);
+    });
+  }
+
+  ws.scrollIntoView({ behavior: 'smooth' });
+}
+
+function selectHumanWriterProfile(profileId) {
+  currentHumanWriterProfile = profileId;
+  document.querySelectorAll('.hw-profile-chip').forEach(chip => chip.classList.remove('active'));
+  const activeChip = document.getElementById(`hw-prof-${profileId}`);
+  if (activeChip) activeChip.classList.add('active');
+  showToast(`Profile set to ${profileId.replace('_', ' ').toUpperCase()}`);
+}
+
+async function runHumanWriterTransform() {
+  if (!currentHumanWriterData || !currentHumanWriterData.segments) {
+    alert('Please upload or load a document first.');
+    return;
+  }
+
+  const btn = document.getElementById('btn-run-humanizer');
+  const origBtnText = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span>Processing De-Roboticization...</span>';
+  }
+
+  const customPrompt = document.getElementById('hw-guidance-prompt')?.value.trim() || '';
+  const apiKey = localStorage.getItem('lg_api_key') || '';
+  const provider = localStorage.getItem('lg_provider') || 'offline';
+
+  try {
+    const res = await fetch('/api/human-writer/humanize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        segments: currentHumanWriterData.segments,
+        profile: currentHumanWriterProfile,
+        custom_instructions: customPrompt,
+        api_key: apiKey,
+        provider: provider,
+      }),
+    });
+    const data = await res.json();
+    if (!data.success) {
+      alert('Humanization error: ' + (data.error || 'Failed to humanize document'));
+      return;
+    }
+
+    currentHumanWriterData.humanized_segments = data.humanized_segments;
+
+    // Render Right Stream (Humanized)
+    const humanStream = document.getElementById('hw-human-segments-stream');
+    if (humanStream) {
+      humanStream.innerHTML = '';
+      data.humanized_segments.forEach(seg => {
+        const card = document.createElement('div');
+        let cardClass = 'hw-segment-card ';
+        let pillHtml = '';
+        if (seg.is_cover_page) {
+          cardClass += 'card-cover';
+          pillHtml = '<span class="hw-seg-pill badge-blue">🛡️ Cover Page (Preserved)</span>';
+        } else {
+          cardClass += 'card-human';
+          pillHtml = '<span class="hw-seg-pill badge-green">✓ De-Roboticized</span>';
+        }
+        card.className = cardClass;
+
+        card.innerHTML = `
+          <div class="hw-seg-topbar">
+            <span style="font-weight: 600; color: var(--text-dim);">#${seg.id} &bull; ${seg.type.toUpperCase()}</span>
+            ${pillHtml}
+          </div>
+          <div class="hw-seg-text">${escapeHtml(seg.humanized_text || seg.text)}</div>
+        `;
+        humanStream.appendChild(card);
+      });
+    }
+
+    // Update Toolbar Metrics
+    const finalScoreEl = document.getElementById('hw-final-authenticity');
+    const wordsDeltaEl = document.getElementById('hw-words-delta');
+    if (finalScoreEl) finalScoreEl.textContent = `${data.authenticity_score}% Authentic Human (AI: ${data.new_ai_score}%)`;
+    if (wordsDeltaEl) {
+      const diff = data.words_before - data.words_after;
+      const sign = diff >= 0 ? '-' : '+';
+      wordsDeltaEl.textContent = `${data.words_before} → ${data.words_after} words (${sign}${Math.abs(diff)} delta, ${data.code_references_removed} code leaks purged)`;
+    }
+
+    const diffBench = document.getElementById('hw-diff-workbench');
+    if (diffBench) {
+      diffBench.style.display = 'flex';
+      diffBench.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    showToast(`✨ Humanization complete (${data.authenticity_score}% Authentic Human)`);
+  } catch (err) {
+    console.error('Error running humanizer:', err);
+    alert('Error running humanizer: ' + err);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origBtnText;
+    }
+  }
+}
+
+function toggleHumanWriterDiffMode() {
+  isHumanWriterDiffMode = !isHumanWriterDiffMode;
+  const grid = document.getElementById('hw-columns-grid');
+  const btn = document.getElementById('btn-toggle-hw-diff');
+  if (grid) {
+    if (isHumanWriterDiffMode) {
+      grid.classList.remove('single-column');
+      if (btn) btn.textContent = 'Show Humanized Only';
+    } else {
+      grid.classList.add('single-column');
+      if (btn) btn.textContent = 'Show Side-by-Side Diff';
+    }
+  }
+}
+
+async function exportHumanWriterDoc(format) {
+  if (!currentHumanWriterData) {
+    alert('No active document to export.');
+    return;
+  }
+  const segments = currentHumanWriterData.humanized_segments || currentHumanWriterData.segments;
+  const authorName = localStorage.getItem('lg_student_name') || 'Student';
+
+  showToast(`Generating sanitized ${format.toUpperCase()}...`);
+  try {
+    const res = await fetch('/api/human-writer/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        segments: segments,
+        format: format,
+        author_name: authorName,
+        title: currentHumanWriterData.filename ? currentHumanWriterData.filename.replace(/\.[^/.]+$/, '') : 'Academic Lab Report',
+      }),
+    });
+    const data = await res.json();
+    if (!data.success) {
+      alert('Export failed: ' + (data.error || 'Server error'));
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = data.download_url;
+    link.download = data.filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast(`Downloaded ${data.filename}`);
+  } catch (err) {
+    console.error('Export error:', err);
+    alert('Export error: ' + err);
+  }
+}
+
+function resetHumanWriter() {
+  const ws = document.getElementById('hw-workspace');
+  const diffBench = document.getElementById('hw-diff-workbench');
+  const uploadCard = document.getElementById('hw-upload-card');
+  const fileInput = document.getElementById('hw-file-input');
+
+  if (ws) ws.style.display = 'none';
+  if (diffBench) diffBench.style.display = 'none';
+  if (uploadCard) uploadCard.style.display = 'block';
+  if (fileInput) fileInput.value = '';
+  currentHumanWriterData = null;
+  showToast('Human Writer reset. Upload a document to begin.');
 }

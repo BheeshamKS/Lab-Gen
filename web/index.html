@@ -43,6 +43,14 @@
             </svg>
             <span class="rail-label">Playground</span>
           </button>
+          
+          <button type="button" class="rail-item" id="rail-item-humanwriter" onclick="openNavHumanWriter()" data-tooltip="Human Writer Studio">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 20h9"></path>
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+            </svg>
+            <span class="rail-label">Humanizer</span>
+          </button>
         </div>
       </div>
 
@@ -1195,6 +1203,215 @@
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- ================================================================ -->
+        <!-- VIEW 7: Human Writer Studio (#view-humanwriter) -->
+        <!-- ================================================================ -->
+        <div class="page-view" id="view-humanwriter" style="display: none;">
+          <div class="stage-container" style="max-width: 1360px;">
+            
+            <!-- Service Header -->
+            <div class="view-header">
+              <div class="view-header-title-wrap">
+                <div class="view-badge-pill">
+                  <span class="view-badge-dot"></span>
+                  <span>Autonomous Academic De-Roboticizer</span>
+                </div>
+                <h2>Human Writer Studio</h2>
+                <p class="view-subtitle">
+                  Inspect documents for AI tells, protect official cover pages, strip leaked code/variable references, and humanize academic prose with customizable profiles.
+                </p>
+              </div>
+              <div class="view-header-actions">
+                <button type="button" class="btn btn-outline" id="btn-hw-load-sample" onclick="loadHumanWriterSample()">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                  <span>Load Sample AI Report</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- 1. Document Upload & Intake Card -->
+            <div class="card" id="hw-upload-card">
+              <div class="drop-zone" id="hw-drop-zone" onclick="document.getElementById('hw-file-input').click()">
+                <div class="drop-zone-icon">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="12" y1="18" x2="12" y2="12"></line>
+                    <line x1="9" y1="15" x2="15" y2="15"></line>
+                  </svg>
+                </div>
+                <div class="drop-zone-title">Drop your document here for AI Analysis</div>
+                <div class="drop-zone-subtitle">Supports <strong>.docx</strong>, <strong>.pdf</strong>, <strong>.txt</strong>, or <strong>.md</strong> files</div>
+                <div class="drop-zone-btn-row">
+                  <button type="button" class="btn btn-secondary" onclick="event.stopPropagation(); document.getElementById('hw-file-input').click()">
+                    Browse Document File
+                  </button>
+                </div>
+                <input type="file" id="hw-file-input" accept=".docx,.doc,.pdf,.txt,.md" style="display: none;" onchange="handleHumanWriterFileSelect(this.files)">
+              </div>
+            </div>
+
+            <!-- 2. AI Analysis & Configuration Dashboard (shown after analysis) -->
+            <div class="hw-workspace" id="hw-workspace" style="display: none;">
+              
+              <!-- Metrics Bar -->
+              <div class="hw-metrics-grid">
+                <div class="hw-metric-card" id="hw-metric-ai">
+                  <div class="hw-metric-label">AI Detection Probability</div>
+                  <div class="hw-metric-val-wrap">
+                    <span class="hw-metric-val" id="hw-val-ai-score">--</span>
+                    <span class="hw-metric-badge" id="hw-badge-ai-status">Analyzing</span>
+                  </div>
+                  <div class="hw-metric-desc" id="hw-desc-ai-status">Scanning document structure...</div>
+                </div>
+
+                <div class="hw-metric-card" id="hw-metric-cover">
+                  <div class="hw-metric-label">Cover Page &amp; Metadata</div>
+                  <div class="hw-metric-val-wrap">
+                    <span class="hw-metric-val" id="hw-val-cover-status">Protected</span>
+                    <span class="hw-metric-badge badge-blue">Locked</span>
+                  </div>
+                  <div class="hw-metric-desc">Student metadata &amp; cover layout untouched</div>
+                </div>
+
+                <div class="hw-metric-card" id="hw-metric-refs">
+                  <div class="hw-metric-label">Code / Variable Leaks</div>
+                  <div class="hw-metric-val-wrap">
+                    <span class="hw-metric-val" id="hw-val-code-leaks">0</span>
+                    <span class="hw-metric-badge badge-amber" id="hw-badge-code-leaks">Flagged</span>
+                  </div>
+                  <div class="hw-metric-desc" id="hw-desc-code-leaks">Raw code signatures detected in prose</div>
+                </div>
+
+                <div class="hw-metric-card" id="hw-metric-stats">
+                  <div class="hw-metric-label">Document Volume</div>
+                  <div class="hw-metric-val-wrap">
+                    <span class="hw-metric-val" id="hw-val-words">0</span>
+                    <span class="hw-metric-unit">words</span>
+                  </div>
+                  <div class="hw-metric-desc" id="hw-val-paras">0 structural segments</div>
+                </div>
+              </div>
+
+              <!-- Humanization Controls & Profiles -->
+              <div class="card hw-controls-card">
+                <div class="hw-controls-header">
+                  <div class="hw-controls-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                    <span>Humanization Configuration</span>
+                  </div>
+                  <span class="section-tag">Stylistic Steering</span>
+                </div>
+
+                <!-- Profile Selection -->
+                <div class="form-group" style="margin-bottom: 12px;">
+                  <label>Select Tone &amp; Rewriting Profile</label>
+                  <div class="hw-profile-chips">
+                    <div class="hw-profile-chip active" id="hw-prof-academic_student" onclick="selectHumanWriterProfile('academic_student')">
+                      <span class="chip-name">Academic Student</span>
+                      <span class="chip-desc">Natural college student voice; direct &amp; unpretentious</span>
+                    </div>
+                    <div class="hw-profile-chip" id="hw-prof-de_roboticizer" onclick="selectHumanWriterProfile('de_roboticizer')">
+                      <span class="chip-name">De-Roboticizer</span>
+                      <span class="chip-desc">Purge variable names, prompt leaks &amp; formulaic AI tells</span>
+                    </div>
+                    <div class="hw-profile-chip" id="hw-prof-concise" onclick="selectHumanWriterProfile('concise')">
+                      <span class="chip-name">Concise &amp; Direct</span>
+                      <span class="chip-desc">Cut wordy preambles &amp; unnecessary passive hedging</span>
+                    </div>
+                    <div class="hw-profile-chip" id="hw-prof-casual_viva" onclick="selectHumanWriterProfile('casual_viva')">
+                      <span class="chip-name">Casual Viva</span>
+                      <span class="chip-desc">Conversational active voice for lab questions &amp; viva</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Guidance Prompt Box -->
+                <div class="form-group" style="margin-bottom: 14px;">
+                  <label for="hw-guidance-prompt">
+                    <span>Custom Guidance Prompt (Optional)</span>
+                    <span class="label-hint">Provide specific instructions on tone, style, or academic level</span>
+                  </label>
+                  <textarea 
+                    id="hw-guidance-prompt" 
+                    class="hw-guidance-prompt" 
+                    rows="2" 
+                    placeholder="e.g. 'Write like a sophomore computer engineering student, remove internal python variable names from explanations, keep conclusions brief and grounded in empirical data...'"
+                  ></textarea>
+                </div>
+
+                <!-- Action Bar -->
+                <div class="hw-action-row">
+                  <button type="button" class="btn btn-primary" id="btn-run-humanizer" onclick="runHumanWriterTransform()">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                    <span>Run Humanizer &amp; De-Roboticizer</span>
+                  </button>
+                  <button type="button" class="btn btn-outline" onclick="resetHumanWriter()">
+                    Upload Different Document
+                  </button>
+                </div>
+              </div>
+
+              <!-- 3. Side-by-Side Comparison Canvas & Diff Viewer -->
+              <div class="hw-diff-workbench" id="hw-diff-workbench" style="display: none;">
+                
+                <div class="hw-workbench-toolbar">
+                  <div class="hw-workbench-left">
+                    <div class="hw-result-badge">
+                      <span class="badge-dot dot-green"></span>
+                      <span>Target Met: <strong id="hw-final-authenticity">97.8% Authentic Human</strong></span>
+                    </div>
+                    <span class="hw-toolbar-divider">|</span>
+                    <span class="hw-words-delta" id="hw-words-delta">0 → 0 words</span>
+                  </div>
+
+                  <div class="hw-workbench-right">
+                    <button type="button" class="btn btn-sm btn-outline" id="btn-toggle-hw-diff" onclick="toggleHumanWriterDiffMode()">
+                      Toggle Side-by-Side Diff
+                    </button>
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="exportHumanWriterDoc('docx')">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                      <span>Download .docx</span>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="exportHumanWriterDoc('pdf')">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                      <span>Download PDF</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Columns Container -->
+                <div class="hw-columns-grid" id="hw-columns-grid">
+                  <!-- Left: Original with AI Flags -->
+                  <div class="hw-col hw-col-orig" id="hw-col-orig">
+                    <div class="hw-col-header">
+                      <span>Original Document (Inspected)</span>
+                      <span class="hw-col-badge badge-amber">AI Flagged</span>
+                    </div>
+                    <div class="hw-segments-stream" id="hw-orig-segments-stream">
+                      <!-- Rendered by JS -->
+                    </div>
+                  </div>
+
+                  <!-- Right: Humanized with Clean Prose -->
+                  <div class="hw-col hw-col-human" id="hw-col-human">
+                    <div class="hw-col-header">
+                      <span>Humanized Output (De-Roboticized)</span>
+                      <span class="hw-col-badge badge-green">Human Authentic</span>
+                    </div>
+                    <div class="hw-segments-stream" id="hw-human-segments-stream">
+                      <!-- Rendered by JS -->
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+
           </div>
         </div>
 
