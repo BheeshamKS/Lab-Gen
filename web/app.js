@@ -1431,9 +1431,6 @@ function navigateToView(viewName) {
   } else if (viewName === 'humanwriter') {
     if (railHW) railHW.classList.add('active');
   }
-  } else if (viewName === 'playground') {
-    if (railPlay) railPlay.classList.add('active');
-  }
 
   // Active Lab Name in header
   const labNameEl = document.getElementById('top-bar-lab-name');
