@@ -2026,6 +2026,54 @@ async def api_get_doc_tools_sample_files():
 # Human Writer Studio Endpoints
 # ==============================================================================
 
+@app.get("/api/human-writer/config")
+async def api_human_writer_get_config():
+    """Returns AI providers, active provider, and key availability."""
+    cfg = Config.load()
+    groq_key = os.environ.get("GROQ_API_KEY") or (cfg.ai.api_key if cfg.ai.provider == "groq" else "") or ""
+    gemini_key = os.environ.get("GEMINI_API_KEY") or (cfg.ai.api_key if cfg.ai.provider == "gemini" else "") or ""
+
+    return {
+        "success": True,
+        "active_provider": cfg.ai.provider,
+        "has_groq_key": bool(groq_key),
+        "groq_masked": f"{groq_key[:4]}...{groq_key[-4:]}" if len(groq_key) > 8 else ("Set" if groq_key else ""),
+        "has_gemini_key": bool(gemini_key),
+        "gemini_masked": f"{gemini_key[:4]}...{gemini_key[-4:]}" if len(gemini_key) > 8 else ("Set" if gemini_key else ""),
+        "providers": [
+            {"id": "groq", "name": "Groq LPU (LLaMA 3.3 70B)", "model": "llama-3.3-70b-versatile", "free_tier": True},
+            {"id": "gemini", "name": "Google Gemini", "model": "gemini-2.5-flash", "free_tier": True},
+            {"id": "offline", "name": "Offline De-Roboticizer", "model": "Local NLP Engine", "free_tier": True},
+        ],
+    }
+
+
+@app.post("/api/human-writer/config")
+async def api_human_writer_set_config(payload: Dict[str, Any] = Body(...)):
+    """Sets provider and API key in runtime session and optional .env."""
+    provider = payload.get("provider", "groq")
+    api_key = payload.get("api_key", "").strip()
+    save_to_env = payload.get("save_to_env", False)
+
+    if provider == "groq" and api_key:
+        os.environ["GROQ_API_KEY"] = api_key
+    elif provider == "gemini" and api_key:
+        os.environ["GEMINI_API_KEY"] = api_key
+
+    if save_to_env and api_key:
+        env_file = BASE_DIR / ".env"
+        lines = []
+        if env_file.exists():
+            lines = env_file.read_text(encoding="utf-8").splitlines()
+
+        target_var = "GROQ_API_KEY" if provider == "groq" else "GEMINI_API_KEY"
+        new_lines = [l for l in lines if not l.startswith(f"{target_var}=")]
+        new_lines.append(f"{target_var}={api_key}")
+        env_file.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+
+    return {"success": True, "provider": provider, "saved_to_env": save_to_env}
+
+
 @app.post("/api/human-writer/analyze")
 async def api_human_writer_analyze(
     file: Optional[UploadFile] = File(None),
@@ -2045,7 +2093,8 @@ async def api_human_writer_analyze(
         else:
             raise HTTPException(status_code=400, detail="No file or valid filepath provided.")
 
-        analysis = HumanWriterService.analyze_document(target_path)
+        cfg = Config.load()
+        analysis = HumanWriterService.analyze_document(target_path, cfg=cfg)
         return {
             "success": True,
             "analysis": {
@@ -2076,7 +2125,12 @@ async def api_human_writer_humanize(payload: Dict[str, Any] = Body(...)):
 
         cfg = Config.load()
         if payload.get("api_key"):
-            cfg.ai.api_key = payload["api_key"]
+            key = payload["api_key"].strip()
+            cfg.ai.api_key = key
+            if payload.get("provider") == "groq":
+                os.environ["GROQ_API_KEY"] = key
+            elif payload.get("provider") == "gemini":
+                os.environ["GEMINI_API_KEY"] = key
         if payload.get("provider"):
             cfg.ai.provider = payload["provider"]
 

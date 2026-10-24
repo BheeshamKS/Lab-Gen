@@ -11,6 +11,19 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 import yaml
 
+try:
+    from dotenv import load_dotenv
+    for _env_candidate in [
+        Path(".env"),
+        Path(__file__).parent.parent / ".env",
+        Path.cwd() / ".env",
+    ]:
+        if _env_candidate.exists():
+            load_dotenv(dotenv_path=_env_candidate, override=False)
+            break
+except Exception:
+    pass
+
 
 @dataclass
 class StudentProfile:
@@ -37,10 +50,12 @@ class SystemSettings:
 
 @dataclass
 class AISettings:
-    provider: str = "gemini"  # 'gemini', 'openai', 'anthropic', 'ollama', 'mock'
-    model: str = "gemini-2.5-pro"  # Google's flagship model: 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-1.5-pro'
+    provider: str = "gemini"  # 'groq', 'gemini', 'openai', 'anthropic', 'ollama', 'mock'
+    model: str = "gemini-2.5-flash"
     api_key_env: str = "GEMINI_API_KEY"
     api_key: Optional[str] = None
+    groq_model: str = "llama-3.3-70b-versatile"
+    gemini_model: str = "gemini-2.5-flash"
     ollama_url: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5-coder:7b"
     persona: str = "undergraduate_student"
@@ -102,22 +117,30 @@ class Config:
         doc_data = loaded_data.get("document", {})
 
         # Determine provider first to guess default env var
-        ai_provider = ai_data.get("provider", "mock")
-        
+        ai_provider = ai_data.get("provider", "gemini")
+        if not os.environ.get("GEMINI_API_KEY") and os.environ.get("GROQ_API_KEY"):
+            ai_provider = "groq"
+
         default_env = "GEMINI_API_KEY"
-        if ai_provider == "openai":
-            default_env = "OPENAI_API_KEY"
-        elif ai_provider == "groq":
+        default_model = "gemini-2.5-flash"
+        if ai_provider == "groq":
             default_env = "GROQ_API_KEY"
+            default_model = "llama-3.3-70b-versatile"
+        elif ai_provider == "openai":
+            default_env = "OPENAI_API_KEY"
+            default_model = "gpt-4o"
 
-        # Check API key from env if available
+        # Check API key from env or config if available
         api_key_env = ai_data.get("api_key_env", default_env)
-        env_key = os.environ.get(api_key_env) or os.environ.get("GEMINI_API_KEY") or os.environ.get("OPENAI_API_KEY") or os.environ.get("GROQ_API_KEY")
-
-        # If user has no API key set, fallback gracefully to mock/auto
-        if ai_provider == "gemini" and not env_key:
-            # If no key is set yet, we will notify and allow mock mode or direct input
-            pass
+        env_key = (
+            ai_data.get("api_key")
+            or os.environ.get(api_key_env)
+            or (os.environ.get("GROQ_API_KEY") if ai_provider == "groq" else None)
+            or (os.environ.get("GEMINI_API_KEY") if ai_provider == "gemini" else None)
+            or os.environ.get("GROQ_API_KEY")
+            or os.environ.get("GEMINI_API_KEY")
+            or os.environ.get("OPENAI_API_KEY")
+        )
 
         return cls(
             student=StudentProfile(
@@ -141,9 +164,11 @@ class Config:
             ),
             ai=AISettings(
                 provider=ai_provider,
-                model=ai_data.get("model", "gemini-2.5-flash"),
+                model=ai_data.get("model") or default_model,
                 api_key_env=api_key_env,
                 api_key=env_key,
+                groq_model=ai_data.get("groq_model", "llama-3.3-70b-versatile"),
+                gemini_model=ai_data.get("gemini_model", "gemini-2.5-flash"),
                 ollama_url=ai_data.get("ollama_url", "http://localhost:11434"),
                 ollama_model=ai_data.get("ollama_model", "qwen2.5-coder:7b"),
                 persona=ai_data.get("persona", "undergraduate_student"),

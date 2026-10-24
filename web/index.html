@@ -1306,6 +1306,45 @@
                   <span class="section-tag">Stylistic Steering</span>
                 </div>
 
+                <!-- AI Engine & Provider Selector Bar -->
+                <div class="hw-engine-bar" id="hw-engine-bar" style="margin-bottom: 16px; padding: 12px 14px; background: var(--bg-surface-soft, rgba(255,255,255,0.03)); border: 1px solid var(--border-hairline); border-radius: var(--radius-md, 8px);">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span style="font-size: 13px; font-weight: 600; color: var(--text-main);">AI Engine:</span>
+                      <select id="hw-provider-select" class="form-select form-select-sm" style="font-size: 12.5px; padding: 4px 10px; border-radius: 6px; background: var(--bg-surface); border: 1px solid var(--border-hairline); color: var(--text-main);" onchange="handleHumanWriterProviderChange(this.value)">
+                        <option value="groq">Groq LPU (LLaMA-3.3-70B • Fast &amp; Free)</option>
+                        <option value="gemini">Google Gemini (gemini-2.5-flash)</option>
+                        <option value="offline">Offline De-Roboticizer (Local Rules &amp; Stylometrics)</option>
+                      </select>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span class="hw-engine-badge badge-green" id="hw-engine-status-badge">● Engine Ready</span>
+                      <span class="hw-quality-gate-badge" id="hw-quality-gate-badge" title="Segments exceeding 30% AI will automatically be re-humanized up to 3 times" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: rgba(59, 130, 246, 0.12); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.25);">
+                        🛡️ Quality Gate: Target &le; 30% AI
+                      </span>
+                    </div>
+                  </div>
+
+                  <div id="hw-api-key-row" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 220px; position: relative;">
+                      <input 
+                        type="password" 
+                        id="hw-api-key-input" 
+                        class="form-input form-input-sm" 
+                        placeholder="Enter Groq API Key (gsk_...) or set in .env" 
+                        style="width: 100%; font-size: 12px; font-family: monospace; padding-right: 32px;"
+                        oninput="handleHumanWriterKeyInput(this.value)"
+                      />
+                      <button type="button" onclick="toggleHumanWriterKeyVisibility()" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-dim); padding: 0;" title="Toggle Visibility">
+                        <svg id="hw-eye-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                      </button>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline" id="btn-save-hw-key" onclick="saveHumanWriterKey(false)">Save Key</button>
+                    <button type="button" class="btn btn-sm btn-secondary" id="btn-save-env-key" onclick="saveHumanWriterKey(true)" title="Saves to .env in project root">Save to .env</button>
+                    <span id="hw-key-status" style="font-size: 11px; color: var(--text-dim);"></span>
+                  </div>
+                </div>
+
                 <!-- Profile Selection -->
                 <div class="form-group" style="margin-bottom: 12px;">
                   <label>Select Tone &amp; Rewriting Profile</label>

@@ -1430,6 +1430,7 @@ function navigateToView(viewName) {
     if (railPlay) railPlay.classList.add('active');
   } else if (viewName === 'humanwriter') {
     if (railHW) railHW.classList.add('active');
+    initHumanWriterEngineBar();
   }
 
   // Active Lab Name in header
@@ -4436,6 +4437,146 @@ function renderHumanWriterAnalysis(analysis) {
   ws.scrollIntoView({ behavior: 'smooth' });
 }
 
+let currentHumanWriterProvider = 'groq';
+
+async function initHumanWriterEngineBar() {
+  const providerSelect = document.getElementById('hw-provider-select');
+  const keyInput = document.getElementById('hw-api-key-input');
+  const statusBadge = document.getElementById('hw-engine-status-badge');
+  const keyStatus = document.getElementById('hw-key-status');
+
+  const savedProvider = localStorage.getItem('hw_active_provider') || 'groq';
+  currentHumanWriterProvider = savedProvider;
+  if (providerSelect) providerSelect.value = savedProvider;
+
+  try {
+    const res = await fetch('/api/human-writer/config');
+    const data = await res.json();
+    if (data.success) {
+      if (savedProvider === 'groq' && data.has_groq_key) {
+        if (statusBadge) {
+          statusBadge.className = 'hw-engine-badge badge-green';
+          statusBadge.textContent = '● Groq Ready (LLaMA-3.3-70B)';
+        }
+        if (keyStatus) keyStatus.textContent = `Active Key: ${data.groq_masked}`;
+      } else if (savedProvider === 'gemini' && data.has_gemini_key) {
+        if (statusBadge) {
+          statusBadge.className = 'hw-engine-badge badge-green';
+          statusBadge.textContent = '● Gemini Ready (gemini-2.5-flash)';
+        }
+        if (keyStatus) keyStatus.textContent = `Active Key: ${data.gemini_masked}`;
+      } else if (savedProvider === 'offline') {
+        if (statusBadge) {
+          statusBadge.className = 'hw-engine-badge badge-blue';
+          statusBadge.textContent = '● Offline De-Roboticizer Ready';
+        }
+        if (keyStatus) keyStatus.textContent = 'Rule-based & Stylometrics';
+      } else {
+        const localKey = localStorage.getItem(`hw_${savedProvider}_key`) || '';
+        if (localKey) {
+          if (keyInput) keyInput.value = localKey;
+          if (statusBadge) {
+            statusBadge.className = 'hw-engine-badge badge-green';
+            statusBadge.textContent = `● ${savedProvider.toUpperCase()} Key Set`;
+          }
+        } else {
+          if (statusBadge) {
+            statusBadge.className = 'hw-engine-badge badge-amber';
+            statusBadge.textContent = '● Key Not Set (Using Offline Fallback)';
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Could not fetch HW config:', err);
+  }
+}
+
+function handleHumanWriterProviderChange(prov) {
+  currentHumanWriterProvider = prov;
+  localStorage.setItem('hw_active_provider', prov);
+  const keyRow = document.getElementById('hw-api-key-row');
+  const keyInput = document.getElementById('hw-api-key-input');
+  const statusBadge = document.getElementById('hw-engine-status-badge');
+  const keyStatus = document.getElementById('hw-key-status');
+
+  if (prov === 'offline') {
+    if (keyRow) keyRow.style.display = 'none';
+    if (statusBadge) {
+      statusBadge.className = 'hw-engine-badge badge-blue';
+      statusBadge.textContent = '● Offline De-Roboticizer Ready';
+    }
+    if (keyStatus) keyStatus.textContent = 'Rule-based & Stylometrics';
+  } else {
+    if (keyRow) keyRow.style.display = 'flex';
+    const localKey = localStorage.getItem(`hw_${prov}_key`) || '';
+    if (keyInput) {
+      keyInput.value = localKey;
+      keyInput.placeholder = prov === 'groq' 
+        ? 'Enter Groq API Key (gsk_...) or set in .env'
+        : 'Enter Google Gemini API Key (AIza...) or set in .env';
+    }
+    if (statusBadge) {
+      statusBadge.className = localKey ? 'hw-engine-badge badge-green' : 'hw-engine-badge badge-amber';
+      statusBadge.textContent = localKey ? `● ${prov.toUpperCase()} Key Set` : '● Key Needed for LLM Mode';
+    }
+    if (keyStatus) keyStatus.textContent = '';
+  }
+}
+
+function handleHumanWriterKeyInput(val) {
+  if (currentHumanWriterProvider !== 'offline') {
+    localStorage.setItem(`hw_${currentHumanWriterProvider}_key`, val.trim());
+  }
+}
+
+function toggleHumanWriterKeyVisibility() {
+  const inp = document.getElementById('hw-api-key-input');
+  if (inp) {
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+  }
+}
+
+async function saveHumanWriterKey(saveToEnv = false) {
+  const keyInput = document.getElementById('hw-api-key-input');
+  const keyVal = keyInput ? keyInput.value.trim() : '';
+  const keyStatus = document.getElementById('hw-key-status');
+  const statusBadge = document.getElementById('hw-engine-status-badge');
+
+  if (!keyVal && currentHumanWriterProvider !== 'offline') {
+    alert('Please enter an API key first.');
+    return;
+  }
+
+  localStorage.setItem(`hw_${currentHumanWriterProvider}_key`, keyVal);
+
+  try {
+    const res = await fetch('/api/human-writer/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: currentHumanWriterProvider,
+        api_key: keyVal,
+        save_to_env: saveToEnv
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      if (statusBadge) {
+        statusBadge.className = 'hw-engine-badge badge-green';
+        statusBadge.textContent = `● ${currentHumanWriterProvider.toUpperCase()} Connected`;
+      }
+      if (keyStatus) {
+        keyStatus.textContent = saveToEnv ? '✓ Saved to .env and active' : '✓ Saved for session';
+      }
+      showToast(`Key configured for ${currentHumanWriterProvider.toUpperCase()} ${saveToEnv ? 'in .env' : ''}`);
+    }
+  } catch (err) {
+    console.error('Failed to save key:', err);
+    alert('Failed to save key: ' + err);
+  }
+}
+
 function selectHumanWriterProfile(profileId) {
   currentHumanWriterProfile = profileId;
   document.querySelectorAll('.hw-profile-chip').forEach(chip => chip.classList.remove('active'));
@@ -4454,12 +4595,15 @@ async function runHumanWriterTransform() {
   const origBtnText = btn ? btn.innerHTML : '';
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = '<span>Processing De-Roboticization...</span>';
+    btn.innerHTML = '<span>Processing Quality Gate Loop...</span>';
   }
 
   const customPrompt = document.getElementById('hw-guidance-prompt')?.value.trim() || '';
-  const apiKey = localStorage.getItem('lg_api_key') || '';
-  const provider = localStorage.getItem('lg_provider') || 'offline';
+  const provider = currentHumanWriterProvider || 'groq';
+  const apiKey = document.getElementById('hw-api-key-input')?.value.trim()
+    || localStorage.getItem(`hw_${provider}_key`)
+    || localStorage.getItem('lg_api_key')
+    || '';
 
   try {
     const res = await fetch('/api/human-writer/humanize', {
@@ -4481,7 +4625,7 @@ async function runHumanWriterTransform() {
 
     currentHumanWriterData.humanized_segments = data.humanized_segments;
 
-    // Render Right Stream (Humanized)
+    // Render Right Stream (Humanized with Quality Gate Telemetry)
     const humanStream = document.getElementById('hw-human-segments-stream');
     if (humanStream) {
       humanStream.innerHTML = '';
@@ -4492,11 +4636,20 @@ async function runHumanWriterTransform() {
         if (seg.is_cover_page) {
           cardClass += 'card-cover';
           pillHtml = '<span class="hw-seg-pill badge-blue">🛡️ Cover Page (Preserved)</span>';
-        } else {
+        } else if (seg.gate_passed) {
           cardClass += 'card-human';
-          pillHtml = '<span class="hw-seg-pill badge-green">✓ De-Roboticized</span>';
+          pillHtml = `<span class="hw-seg-pill badge-green">✓ Verified Human (${Math.round(seg.post_ai_score * 100)}% AI &bull; Pass ${seg.iteration_count}/3)</span>`;
+        } else {
+          cardClass += 'card-ai';
+          pillHtml = `<span class="hw-seg-pill badge-amber">⚡ Quality Gate Retry (${Math.round(seg.post_ai_score * 100)}% AI &bull; ${seg.iteration_count} passes)</span>`;
         }
         card.className = cardClass;
+
+        let loopProgressHtml = '';
+        if (seg.pass_scores && seg.pass_scores.length > 1) {
+          const passPills = seg.pass_scores.map((sc, i) => `Pass ${i+1}: ${Math.round(sc*100)}%`).join(' &rarr; ');
+          loopProgressHtml = `<div style="font-size: 11px; margin-top: 6px; color: var(--text-dim); display: flex; align-items: center; gap: 4px;"><span>Quality Gate Loop:</span> <span style="font-family: monospace; color: #60a5fa;">${passPills}</span></div>`;
+        }
 
         card.innerHTML = `
           <div class="hw-seg-topbar">
@@ -4504,6 +4657,7 @@ async function runHumanWriterTransform() {
             ${pillHtml}
           </div>
           <div class="hw-seg-text">${escapeHtml(seg.humanized_text || seg.text)}</div>
+          ${loopProgressHtml}
         `;
         humanStream.appendChild(card);
       });
@@ -4512,7 +4666,10 @@ async function runHumanWriterTransform() {
     // Update Toolbar Metrics
     const finalScoreEl = document.getElementById('hw-final-authenticity');
     const wordsDeltaEl = document.getElementById('hw-words-delta');
-    if (finalScoreEl) finalScoreEl.textContent = `${data.authenticity_score}% Authentic Human (AI: ${data.new_ai_score}%)`;
+    if (finalScoreEl) {
+      const gateStatus = data.quality_gate_passed ? '✓ Quality Gate Met (≤30% AI)' : '⚠ Max Iterations Reached';
+      finalScoreEl.innerHTML = `${data.authenticity_score}% Authentic Human (AI: ${data.new_ai_score}%) &bull; <span style="color: ${data.quality_gate_passed ? '#10b981' : '#f59e0b'}; font-weight: 600;">${gateStatus}</span>`;
+    }
     if (wordsDeltaEl) {
       const diff = data.words_before - data.words_after;
       const sign = diff >= 0 ? '-' : '+';

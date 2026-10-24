@@ -162,7 +162,9 @@ class TestHumanWriterService(unittest.TestCase):
         self.assertEqual(resp_hum.status_code, 200)
         hum_data = resp_hum.json()
         self.assertTrue(hum_data["success"])
-        self.assertGreater(hum_data["authenticity_score"], 80.0)
+        self.assertLessEqual(hum_data["new_ai_score"], 30.0)
+        self.assertGreaterEqual(hum_data["authenticity_score"], 70.0)
+        self.assertTrue(hum_data["quality_gate_passed"])
 
         # 4. Export endpoint
         resp_exp = self.client.post("/api/human-writer/export", json={
@@ -192,6 +194,82 @@ class TestHumanWriterService(unittest.TestCase):
         self.assertIn('id="hw-guidance-prompt"', html)
         self.assertIn('id="hw-diff-workbench"', html)
         self.assertIn('id="btn-run-humanizer"', html)
+        self.assertIn('id="hw-provider-select"', html)
+        self.assertIn('id="hw-api-key-input"', html)
+
+    def test_08_iterative_quality_gate_loop(self):
+        """Verifies that the quality gate loop regenerates segments scoring > 30% AI."""
+        segments = [
+            {
+                "id": 1,
+                "type": "paragraph",
+                "text": "Furthermore, this algorithm delves into the intricate tapestry of thread priority queues and plays a pivotal role in system daemons.",
+                "is_cover_page": False,
+                "ai_score": 0.95,
+                "is_ai": True,
+            }
+        ]
+        res = HumanWriterService.humanize_document(
+            segments,
+            profile="academic_student",
+            custom_instructions="Write like a college student, keep it simple and casual",
+        )
+        self.assertTrue(res["success"])
+        self.assertLessEqual(res["new_ai_score"], 30.0, f"Expected final score <= 30.0%, got {res['new_ai_score']}%")
+        self.assertTrue(res["quality_gate_passed"])
+
+        seg = res["humanized_segments"][0]
+        self.assertLessEqual(seg["post_ai_score"], 0.30)
+        self.assertTrue(seg["gate_passed"])
+        self.assertGreaterEqual(len(seg["pass_scores"]), 1)
+
+    def test_09_custom_guidance_prompt_offline_and_llm(self):
+        """Verifies that custom guidance prompt instructions are parsed and actively applied."""
+        text = "It is important to note that the test was observed and was performed meticulously."
+        # Test custom prompt requesting casual voice and contractions
+        out = HumanizationEngine.humanize_segment_offline(
+            text,
+            profile="casual_viva",
+            custom_instructions="Make it casual, use first person we, and contractions",
+        )
+        self.assertIn("we performed", out)
+        self.assertNotIn("was performed meticulously", out)
+
+    def test_10_groq_provider_initialization_and_methods(self):
+        """Verifies GroqProvider initialization and methods."""
+        from labgenius.providers.groq import GroqProvider
+        from labgenius.config import Config
+
+        cfg = Config.load()
+        cfg.ai.api_key = "test_key_dummy"
+        cfg.ai.provider = "groq"
+        prov = GroqProvider(cfg)
+        self.assertEqual(prov.model_name, "llama-3.3-70b-versatile")
+
+        # Test evaluation fallback with dummy key handles errors gracefully
+        res = prov.evaluate_ai_authenticity("Test text segment for detection")
+        self.assertIn("ai_score", res)
+        self.assertIn("reasons", res)
+
+    def test_11_config_endpoints_and_env_support(self):
+        """Verifies GET and POST /api/human-writer/config endpoints."""
+        # 1. GET config
+        get_res = self.client.get("/api/human-writer/config")
+        self.assertEqual(get_res.status_code, 200)
+        data = get_res.json()
+        self.assertTrue(data["success"])
+        self.assertIn("providers", data)
+        self.assertTrue(any(p["id"] == "groq" for p in data["providers"]))
+
+        # 2. POST config
+        post_res = self.client.post("/api/human-writer/config", json={
+            "provider": "groq",
+            "api_key": "gsk_test1234567890abcdef",
+            "save_to_env": False,
+        })
+        self.assertEqual(post_res.status_code, 200)
+        self.assertTrue(post_res.json()["success"])
+        self.assertEqual(os.environ.get("GROQ_API_KEY"), "gsk_test1234567890abcdef")
 
 
 if __name__ == "__main__":
