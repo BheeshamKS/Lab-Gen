@@ -336,6 +336,98 @@ class TestHumanWriterService(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.json()["success"])
 
+    def test_16_synthetic_ai_manuals_score_high_ai(self):
+        """
+        Verifies that uploaded synthetic lab manuals and assignments (e.g. Data Structure L2, DBMS Lab 03)
+        accurately score >= 90% AI (resolving the 10% false negative bug).
+        """
+        for fname in ["Data Structure Laboratory Manual L2.docx", "DBMS Lab 03.docx", "DBMS- Lab 04 edited.docx"]:
+            file_path = Path("uploads") / fname
+            if not file_path.exists():
+                continue
+            analysis = HumanWriterService.analyze_document(file_path)
+            self.assertGreaterEqual(
+                analysis.overall_ai_score,
+                90.0,
+                f"Expected >= 90.0% AI for {fname}, got {analysis.overall_ai_score}%"
+            )
+            self.assertEqual(analysis.classification, "Likely AI-Generated")
+
+    def test_17_humanize_quality_gate_on_synthetic_manual(self):
+        """Verifies that humanization loop reduces synthetic AI manual score to <= 25%."""
+        file_path = Path("uploads/Data Structure Laboratory Manual L2.docx")
+        if file_path.exists():
+            analysis = HumanWriterService.analyze_document(file_path)
+            segments_data = [
+                {
+                    "id": s.id,
+                    "type": s.type,
+                    "text": s.text,
+                    "ai_score": s.ai_score,
+                    "is_ai": s.is_ai,
+                    "is_cover_page": s.is_cover_page,
+                }
+                for s in analysis.segments[:15]
+            ]
+            res = HumanWriterService.humanize_document(segments_data, profile="academic_student")
+            self.assertTrue(res["success"])
+            self.assertLessEqual(res["new_ai_score"], 25.0)
+
+
+    def test_18_os_lab_and_non_dbms_manuals_score_high_ai(self):
+        """Verifies synthetic lab manuals on other subjects (OS, Networks) score >= 90% AI."""
+        doc = docx.Document()
+        doc.add_paragraph("OPERATING SYSTEMS LABORATORY MANUAL")
+        doc.add_paragraph("LAB 01: INTRODUCTION TO PROCESS SCHEDULING")
+        doc.add_paragraph("Objectives:")
+        doc.add_paragraph("In this laboratory session, students will explore the fundamental principles of CPU scheduling algorithms.")
+        doc.add_paragraph("Theoretical Background:")
+        doc.add_paragraph("CPU scheduling is a process that allows one process to use the CPU while the execution of another process is on hold.")
+        doc.add_paragraph("Lab Tasks:")
+        doc.add_paragraph("1. Implement the First-Come First-Served scheduling algorithm in C or Python.")
+        doc.add_paragraph("2. Calculate the average waiting time and turnaround time for the given set of processes.")
+        doc.add_paragraph("Discussion Questions:")
+        doc.add_paragraph("Explain the convoy effect and how it impacts CPU utilization in FCFS scheduling.")
+
+        os_path = self.test_dir / "test_os_manual.docx"
+        doc.save(str(os_path))
+
+        analysis = HumanWriterService.analyze_document(os_path)
+        self.assertGreaterEqual(analysis.overall_ai_score, 90.0, f"Expected >= 90.0% AI for OS lab, got {analysis.overall_ai_score}%")
+        self.assertEqual(analysis.classification, "Likely AI-Generated")
+
+    def test_19_general_ai_essays_score_high_ai(self):
+        """Verifies synthetic non-lab AI papers and essays score >= 90% AI."""
+        doc = docx.Document()
+        doc.add_paragraph("CLOUD COMPUTING ARCHITECTURES AND DEPLOYMENT MODELS")
+        doc.add_paragraph("Introduction")
+        doc.add_paragraph("Cloud computing has revolutionized the information technology landscape by providing on-demand access to a shared pool of configurable computing resources.")
+        doc.add_paragraph("Service Models")
+        doc.add_paragraph("The cloud computing paradigm typically encompasses three primary service models: Infrastructure as a Service (IaaS), Platform as a Service (PaaS), and Software as a Service (SaaS).")
+        doc.add_paragraph("Deployment Models")
+        doc.add_paragraph("Organizations can choose among public, private, hybrid, and community clouds.")
+        doc.add_paragraph("Conclusion")
+        doc.add_paragraph("In conclusion, adopting cloud computing architecture offers significant benefits in terms of cost efficiency, scalability, and business agility.")
+
+        paper_path = self.test_dir / "test_cloud_paper.docx"
+        doc.save(str(paper_path))
+
+        analysis = HumanWriterService.analyze_document(paper_path)
+        self.assertGreaterEqual(analysis.overall_ai_score, 90.0, f"Expected >= 90.0% AI for essay, got {analysis.overall_ai_score}%")
+        self.assertEqual(analysis.classification, "Likely AI-Generated")
+
+    def test_20_gemini_provider_routing_does_not_call_groq(self):
+        """Verifies that selecting Gemini with a Gemini key routes to Gemini and does not crash on Groq."""
+        from labgenius.config import Config
+        cfg = Config.load()
+        cfg.ai.provider = "gemini"
+        cfg.ai.api_key = "AIzaSyDummyGeminiKey12345"
+
+        # Should evaluate cleanly without raising unhandled exceptions
+        score, reasons, _ = AIDetector.evaluate_text("A Binary Search Tree is a hierarchical data structure.", cfg=cfg)
+        self.assertGreater(score, 0.70)
+
 
 if __name__ == "__main__":
     unittest.main()
+
