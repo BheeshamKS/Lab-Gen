@@ -32,6 +32,8 @@ class TestHumanWriterService(unittest.TestCase):
 
     def tearDown(self):
         self.temp_dir.cleanup()
+        os.environ.pop("GROQ_API_KEY", None)
+        os.environ.pop("GEMINI_API_KEY", None)
 
     def test_01_cover_page_detection_and_preservation(self):
         """Verifies that academic cover pages / title blocks are detected and strictly preserved."""
@@ -270,6 +272,69 @@ class TestHumanWriterService(unittest.TestCase):
         self.assertEqual(post_res.status_code, 200)
         self.assertTrue(post_res.json()["success"])
         self.assertEqual(os.environ.get("GROQ_API_KEY"), "gsk_test1234567890abcdef")
+
+    def test_12_chatgpt_typical_definitions_score_high_ai(self):
+        """
+        Verifies that pure ChatGPT-generated explanations (BST, OOP, SQL)
+        accurately score >= 85% AI (preventing the 6.2% false negative bug).
+        """
+        bst_text = (
+            "A Binary Search Tree (BST) is a hierarchical data structure in which each node has at most two children, "
+            "referred to as the left child and the right child. For every node, the left subtree contains only nodes "
+            "with values less than the node’s key, and the right subtree contains only nodes with values greater than the node’s key. "
+            "This ordering property enables logarithmic search, insertion, and deletion operations under balanced conditions."
+        )
+        score_bst, reasons_bst, _ = AIDetector.evaluate_text(bst_text)
+        self.assertGreaterEqual(score_bst, 0.85, f"Expected >= 0.85 for ChatGPT BST text, got {score_bst}")
+        self.assertTrue(any("definition" in r.lower() or "enablement" in r.lower() or "cadence" in r.lower() for r in reasons_bst))
+
+        oop_text = (
+            "Object-Oriented Programming (OOP) is a programming paradigm based on the concept of objects, which can contain "
+            "data and code. The four primary pillars of OOP are encapsulation, abstraction, inheritance, and polymorphism. "
+            "By bundling data and methods together, OOP promotes code reusability, modularity, and maintainability across large-scale software systems."
+        )
+        score_oop, reasons_oop, _ = AIDetector.evaluate_text(oop_text)
+        self.assertGreaterEqual(score_oop, 0.85, f"Expected >= 0.85 for ChatGPT OOP text, got {score_oop}")
+
+        sql_text = (
+            "The SQL SELECT statement is used to retrieve data from a database. The data returned is stored in a result table, "
+            "called the result-set. It allows users to filter, sort, and group data according to specific business requirements, "
+            "ensuring efficient and reliable data access."
+        )
+        score_sql, reasons_sql, _ = AIDetector.evaluate_text(sql_text)
+        self.assertGreaterEqual(score_sql, 0.80, f"Expected >= 0.80 for ChatGPT SQL text, got {score_sql}")
+
+    def test_13_authentic_student_writing_scores_low_ai(self):
+        """Verifies authentic student lab report text scores <= 20% AI."""
+        student_text = (
+            "In this lab, we installed SQL Server 2022 Express and SSMS on our system. We had some trouble "
+            "connecting to the localhost instance at first, but it turned out the service wasn't running. "
+            "Once we started it in the services manager, we ran the test query and successfully created the CUSTOMERS table."
+        )
+        score, reasons, _ = AIDetector.evaluate_text(student_text)
+        self.assertLessEqual(score, 0.20, f"Expected <= 0.20 for authentic student text, got {score}")
+        self.assertTrue(any("student lab voice" in r.lower() or "contractions" in r.lower() for r in reasons))
+
+    def test_14_pdf_running_headers_and_segmentation(self):
+        """Verifies that PDF running headers are not classified as body cover pages."""
+        pdf_path = Path("uploads/DBMS - Lab 05-edit.pdf")
+        if pdf_path.exists():
+            analysis = HumanWriterService.analyze_document(pdf_path)
+            self.assertGreater(len(analysis.segments), 20, "Should extract clean paragraphs rather than full-page blobs")
+            # Pages 2-6 must NOT be marked as cover pages
+            body_segments = [s for s in analysis.segments if not s.is_cover_page]
+            self.assertGreater(len(body_segments), 15)
+
+    def test_15_api_forwarding_provider_and_key(self):
+        """Verifies that /api/human-writer/analyze accepts and utilizes provider and api_key."""
+        sample_path = HumanWriterService.get_or_create_sample_doc(Path(self.test_dir / "sample_api.docx"))
+        resp = self.client.post("/api/human-writer/analyze", data={
+            "filepath": str(sample_path),
+            "provider": "offline",
+            "api_key": "test_key_dummy"
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
 
 
 if __name__ == "__main__":

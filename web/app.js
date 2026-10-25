@@ -4320,6 +4320,15 @@ async function handleHumanWriterFileSelect(files) {
   const formData = new FormData();
   formData.append('file', file);
 
+  const provider = currentHumanWriterProvider || 'groq';
+  const keyInput = document.getElementById('hw-api-key-input');
+  const apiKey = (keyInput ? keyInput.value.trim() : '')
+    || localStorage.getItem(`hw_${provider}_key`)
+    || localStorage.getItem('lg_api_key')
+    || '';
+  if (provider) formData.append('provider', provider);
+  if (apiKey) formData.append('api_key', apiKey);
+
   showToast(`Analyzing ${file.name} for AI and structure...`);
   try {
     const res = await fetch('/api/human-writer/analyze', {
@@ -4350,6 +4359,15 @@ async function loadHumanWriterSample() {
     }
     const formData = new FormData();
     formData.append('filepath', sData.path);
+
+    const provider = currentHumanWriterProvider || 'groq';
+    const keyInput = document.getElementById('hw-api-key-input');
+    const apiKey = (keyInput ? keyInput.value.trim() : '')
+      || localStorage.getItem(`hw_${provider}_key`)
+      || localStorage.getItem('lg_api_key')
+      || '';
+    if (provider) formData.append('provider', provider);
+    if (apiKey) formData.append('api_key', apiKey);
 
     const aRes = await fetch('/api/human-writer/analyze', {
       method: 'POST',

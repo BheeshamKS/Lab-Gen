@@ -2078,6 +2078,8 @@ async def api_human_writer_set_config(payload: Dict[str, Any] = Body(...)):
 async def api_human_writer_analyze(
     file: Optional[UploadFile] = File(None),
     filepath: Optional[str] = Form(None),
+    provider: Optional[str] = Form(None),
+    api_key: Optional[str] = Form(None),
 ):
     """Analyzes a document for AI mannerisms, structure, and code references."""
     temp_dir = Path(tempfile.mkdtemp(prefix="labgen_hw_upload_"))
@@ -2094,6 +2096,16 @@ async def api_human_writer_analyze(
             raise HTTPException(status_code=400, detail="No file or valid filepath provided.")
 
         cfg = Config.load()
+        if api_key and api_key.strip():
+            key = api_key.strip()
+            cfg.ai.api_key = key
+            if provider == "groq":
+                os.environ["GROQ_API_KEY"] = key
+            elif provider == "gemini":
+                os.environ["GEMINI_API_KEY"] = key
+        if provider:
+            cfg.ai.provider = provider
+
         analysis = HumanWriterService.analyze_document(target_path, cfg=cfg)
         return {
             "success": True,

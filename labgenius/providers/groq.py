@@ -131,7 +131,7 @@ class GroqProvider(BaseAIProvider):
             reasons = list(parsed.get("reasons", []))
             return {"ai_score": max(0.0, min(1.0, score)), "reasons": reasons}
         except Exception as e:
-            return {"ai_score": 0.5, "reasons": [f"LLM detector evaluation unavailable ({e})"]}
+            return {"ai_score": None, "error": str(e), "reasons": [f"LLM detector evaluation unavailable ({e})"]}
 
     def humanize_text(
         self,
