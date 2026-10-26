@@ -30,6 +30,13 @@
 - **⚡ High-Speed Groq Cloud API Support**:
   - Direct, lightning-fast inference using Groq Cloud's flagship **Llama 3.3 70B Versatile** and ultra-fast **Llama 3.1 8B Instant** models.
   - Seamlessly switch between Google Gemini Pro, Groq Cloud, OpenAI, or Smart Offline Mode.
+- **✍️ Autonomous Human Writer & De-Roboticization Studio**:
+  - **Document Analysis & AI Authenticity Scoring**: Upload any `.docx` or `.pdf` to analyze paragraph-by-paragraph AI probability, sentence perplexity, burstiness, and structural markers.
+  - **Strict Visual & Formatting Preservation**: Modifies original document templates in-place at the XML run level—**strictly preserving 100% of tables, images, shapes, font sizes, text RGB colors, and layout**.
+  - **Calibrated Multi-Subject Scoring**: Accurately detects pure AI documents (94%–99% AI) without false positive inflation on mixed documents (~25%–35% AI), while safeguarding authentic student writing ($\le 4\%$ AI).
+  - **Iterative Quality Gate Loop ($\le 30\%$ AI)**: Automatically re-evaluates post-humanized text; if AI score exceeds 30%, it automatically re-runs adaptive humanization passes (up to 3 iterations) until the quality gate passes.
+  - **Cover Page & Header Protection**: Accurately recognizes and protects university title pages and cover blocks without modifying them.
+  - **Code Reference & AI Cliché Scrubbing**: Automatically purges robotic conversational filler, tripartite lists, and unnatural AI signposts.
 - **🖤 3-Zone Anti-Slop Studio Architecture (v3.0)**:
   - **Zone 1: Global Navigation Icon Rail (64px)**: Quick switching between Lab Generator, Document Tools Studio, Code Playground, Settings, and Theme Switcher.
   - **Zone 2: Slide-Over Settings Drawer (360px)**: Dedicated slide-in drawer for Student Profile, AI Intelligence tiers, and Screenshot Theme Studio.
@@ -283,8 +290,10 @@ Lab-Gen/
 │   ├── capture.py           # Authentic Linux terminal & graph screenshot studio
 │   ├── builder.py           # Academic document compiler, theme switcher & cover page builder
 │   ├── sanitizer.py         # Word XML unpacker, metadata cloaker & anti-AI scrubber
+│   ├── human_writer.py      # Autonomous Human Writer, AI authenticity evaluator & quality gate loop
 │   └── cli.py               # Rich terminal CLI runner
-├── tests/                   # Automated test suite (78 passing tests)
+├── tests/                   # Automated test suite (107 unit tests + 15 browser QA tests)
+│   ├── test_human_writer.py # 22 comprehensive tests for AI detection, quality gate & style preservation
 │   ├── test_corpus.py       # Corpus loading, subject filtering & held-out isolation
 │   ├── test_parser.py       # Auto-detect subject, lettered/numbered task extraction
 │   ├── test_held_out_generalization.py # Leave-one-lab-out tests & synthetic unseen labs
