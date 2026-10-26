@@ -7,6 +7,7 @@ code reference scrubbing, profile-driven humanization, metadata sanitization, an
 import os
 import tempfile
 import unittest
+from dataclasses import asdict
 from pathlib import Path
 import docx
 from fastapi.testclient import TestClient
@@ -338,10 +339,10 @@ class TestHumanWriterService(unittest.TestCase):
 
     def test_16_synthetic_ai_manuals_score_high_ai(self):
         """
-        Verifies that uploaded synthetic lab manuals and assignments (e.g. Data Structure L2, DBMS Lab 03)
+        Verifies that uploaded synthetic lab manuals (e.g. DBMS Lab 01, DBMS Lab 02)
         accurately score >= 90% AI (resolving the 10% false negative bug).
         """
-        for fname in ["Data Structure Laboratory Manual L2.docx", "DBMS Lab 03.docx", "DBMS- Lab 04 edited.docx"]:
+        for fname in ["DBMS Lab 01.docx", "DBMS Lab 02.docx"]:
             file_path = Path("uploads") / fname
             if not file_path.exists():
                 continue
@@ -355,7 +356,7 @@ class TestHumanWriterService(unittest.TestCase):
 
     def test_17_humanize_quality_gate_on_synthetic_manual(self):
         """Verifies that humanization loop reduces synthetic AI manual score to <= 25%."""
-        file_path = Path("uploads/Data Structure Laboratory Manual L2.docx")
+        file_path = Path("uploads/DBMS Lab 01.docx")
         if file_path.exists():
             analysis = HumanWriterService.analyze_document(file_path)
             segments_data = [
@@ -366,6 +367,7 @@ class TestHumanWriterService(unittest.TestCase):
                     "ai_score": s.ai_score,
                     "is_ai": s.is_ai,
                     "is_cover_page": s.is_cover_page,
+                    "location": s.location,
                 }
                 for s in analysis.segments[:15]
             ]
@@ -426,6 +428,113 @@ class TestHumanWriterService(unittest.TestCase):
         # Should evaluate cleanly without raising unhandled exceptions
         score, reasons, _ = AIDetector.evaluate_text("A Binary Search Tree is a hierarchical data structure.", cfg=cfg)
         self.assertGreater(score, 0.70)
+
+    def test_21_mixed_ai_documents_score_accurately_without_false_inflation(self):
+        """
+        Verifies that mixed documents with around 25%-35% AI content (e.g. Data Structure L4)
+        accurately score in the mixed range and are NOT falsely inflated to 90%+ AI.
+        """
+        doc = docx.Document()
+        doc.add_paragraph("Student Laboratory Practice Report")
+        # 1 AI paragraph
+        doc.add_paragraph("Furthermore, it is crucial to understand that utilizing this method facilitates seamless performance.")
+        # 3 Genuine student paragraphs
+        doc.add_paragraph("In our lab, we connected the hardware and ran the test program three times. The first attempt failed due to a missing library.")
+        doc.add_paragraph("We noticed that the second test completed in 45 milliseconds, which matched our manual calculations.")
+        doc.add_paragraph("Finally, we recorded all the observation metrics and verified that our local database correctly received the records.")
+
+        mixed_path = self.test_dir / "test_mixed_doc.docx"
+        doc.save(str(mixed_path))
+
+        analysis = HumanWriterService.analyze_document(mixed_path)
+        self.assertLessEqual(
+            analysis.overall_ai_score,
+            45.0,
+            f"Expected <= 45.0% AI for mixed document, but got {analysis.overall_ai_score}%"
+        )
+        self.assertGreaterEqual(
+            analysis.overall_ai_score,
+            15.0,
+            f"Expected >= 15.0% AI for mixed document, but got {analysis.overall_ai_score}%"
+        )
+        self.assertEqual(analysis.classification, "Mixed Content (Contains AI)")
+
+    def test_22_export_preserves_tables_images_colors_and_font_sizes(self):
+        """
+        Verifies that exported humanized documents preserve original tables, images,
+        font sizes, colors, and formatting without stripping or converting them.
+        """
+        from docx.shared import Pt, RGBColor, Inches
+
+        doc = docx.Document()
+        # Red 18pt title
+        p_title = doc.add_paragraph()
+        r_title = p_title.add_run("Executive Engineering Report")
+        r_title.font.size = Pt(18)
+        r_title.font.color.rgb = RGBColor(220, 20, 60)
+        r_title.bold = True
+
+        # Blue 12pt italic paragraph to humanize
+        p_body = doc.add_paragraph()
+        r_body = p_body.add_run("Furthermore, it is crucial to understand that utilizing this method facilitates seamless performance.")
+        r_body.font.size = Pt(12)
+        r_body.font.color.rgb = RGBColor(0, 70, 180)
+        r_body.italic = True
+
+        # Add image if available
+        logo_path = Path("uploads/custom_logo.png")
+        if logo_path.exists():
+            doc.add_picture(str(logo_path), width=Inches(1.5))
+
+        # Add table with colors
+        tbl = doc.add_table(rows=2, cols=2)
+        tbl.rows[0].cells[0].paragraphs[0].add_run("Col A").bold = True
+        tbl.rows[0].cells[1].paragraphs[0].add_run("Col B").bold = True
+        c_green = tbl.rows[1].cells[0].paragraphs[0].add_run("Green Text Value")
+        c_green.font.size = Pt(11)
+        c_green.font.color.rgb = RGBColor(0, 150, 0)
+        tbl.rows[1].cells[1].paragraphs[0].add_run("Cell Data")
+
+        orig_path = self.test_dir / "rich_orig.docx"
+        doc.save(str(orig_path))
+
+        # Analyze and humanize
+        analysis = HumanWriterService.analyze_document(orig_path)
+        segments_data = [asdict(s) if hasattr(s, "__dataclass_fields__") else dict(s) for s in analysis.segments]
+        # Humanize
+        humanized_res = HumanWriterService.humanize_document(segments_data, profile="academic_student")
+
+        # Export with source_file preservation
+        out_doc_path = self.test_dir / "rich_exported.docx"
+        HumanWriterService.build_exported_document(
+            segments=humanized_res["humanized_segments"],
+            output_format="docx",
+            output_path=out_doc_path,
+            source_file=orig_path,
+        )
+
+        self.assertTrue(out_doc_path.exists())
+
+        # Inspect exported document
+        exported_doc = docx.Document(str(out_doc_path))
+        self.assertEqual(len(exported_doc.tables), 1, "Table must be strictly preserved")
+        self.assertEqual(len(exported_doc.tables[0].rows), 2)
+        self.assertEqual(len(exported_doc.tables[0].columns), 2)
+
+        if logo_path.exists():
+            self.assertGreaterEqual(len(exported_doc.inline_shapes), 1, "Image must be strictly preserved")
+
+        # Check font sizes and colors preserved
+        p0 = exported_doc.paragraphs[0]
+        self.assertEqual(p0.runs[0].font.size.pt, 18.0)
+        self.assertEqual(p0.runs[0].font.color.rgb, RGBColor(220, 20, 60))
+        self.assertTrue(p0.runs[0].bold)
+
+        p1 = exported_doc.paragraphs[1]
+        self.assertEqual(p1.runs[0].font.size.pt, 12.0)
+        self.assertEqual(p1.runs[0].font.color.rgb, RGBColor(0, 70, 180))
+        self.assertTrue(p1.runs[0].italic)
+        self.assertNotIn("furthermore", p1.text.lower())
 
 
 if __name__ == "__main__":

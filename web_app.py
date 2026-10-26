@@ -2082,14 +2082,13 @@ async def api_human_writer_analyze(
     api_key: Optional[str] = Form(None),
 ):
     """Analyzes a document for AI mannerisms, structure, and code references."""
-    temp_dir = Path(tempfile.mkdtemp(prefix="labgen_hw_upload_"))
     try:
         if file and file.filename:
             safe_name = Path(file.filename).name
-            dest_path = temp_dir / safe_name
-            with open(dest_path, "wb") as buf:
+            target_filename = f"hw_{int(datetime.now().timestamp())}_{safe_name}"
+            target_path = UPLOADS_DIR / target_filename
+            with open(target_path, "wb") as buf:
                 shutil.copyfileobj(file.file, buf)
-            target_path = dest_path
         elif filepath and Path(filepath).exists():
             target_path = Path(filepath)
         else:
@@ -2119,12 +2118,11 @@ async def api_human_writer_analyze(
                 "classification": analysis.classification,
                 "code_references_found": analysis.code_references_found,
                 "segments": [asdict(s) for s in analysis.segments],
+                "source_file": str(target_path.resolve()),
             }
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 @app.post("/api/human-writer/humanize")
@@ -2159,12 +2157,13 @@ async def api_human_writer_humanize(payload: Dict[str, Any] = Body(...)):
 
 @app.post("/api/human-writer/export")
 async def api_human_writer_export(payload: Dict[str, Any] = Body(...)):
-    """Assembles and exports a sanitized Word (.docx) or PDF document."""
+    """Assembles and exports a sanitized Word (.docx) or PDF document with table and image preservation."""
     try:
         segments = payload.get("segments", [])
         out_fmt = payload.get("format", "docx").lower()
         author_name = payload.get("author_name") or "Student"
         doc_title = payload.get("title") or "Academic Laboratory Report"
+        source_file = payload.get("source_file")
 
         timestamp = int(datetime.now().timestamp())
         out_filename = f"Humanized_{timestamp}.{out_fmt}"
@@ -2176,6 +2175,7 @@ async def api_human_writer_export(payload: Dict[str, Any] = Body(...)):
             output_path=out_path,
             author_name=author_name,
             document_title=doc_title,
+            source_file=source_file,
         )
 
         return {

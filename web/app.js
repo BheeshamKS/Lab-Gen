@@ -4734,8 +4734,9 @@ async function exportHumanWriterDoc(format) {
   }
   const segments = currentHumanWriterData.humanized_segments || currentHumanWriterData.segments;
   const authorName = localStorage.getItem('lg_student_name') || 'Student';
+  const srcFile = currentHumanWriterData ? currentHumanWriterData.source_file : null;
 
-  showToast(`Generating sanitized ${format.toUpperCase()}...`);
+  showToast(`Generating sanitized ${format.toUpperCase()} (preserving tables, images & styles)...`);
   try {
     const res = await fetch('/api/human-writer/export', {
       method: 'POST',
@@ -4745,6 +4746,7 @@ async function exportHumanWriterDoc(format) {
         format: format,
         author_name: authorName,
         title: currentHumanWriterData.filename ? currentHumanWriterData.filename.replace(/\.[^/.]+$/, '') : 'Academic Lab Report',
+        source_file: srcFile,
       }),
     });
     const data = await res.json();

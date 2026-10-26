@@ -13,7 +13,7 @@ import tempfile
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Union
 
 import docx
 from pypdf import PdfReader, PdfWriter
@@ -24,9 +24,9 @@ from .doc_tools import _run_libreoffice_convert
 
 @dataclass
 class DocumentSegment:
-    """Represents a discrete structural unit (paragraph, heading, cover element)."""
+    """Represents a discrete structural unit (paragraph, heading, cover element, table cell)."""
     id: int
-    type: str  # 'cover', 'heading', 'paragraph', 'code', 'table'
+    type: str  # 'cover', 'heading', 'paragraph', 'code', 'table_cell'
     text: str
     ai_score: float = 0.0  # 0.0 (Human) to 1.0 (Blatant AI)
     is_ai: bool = False
@@ -37,6 +37,7 @@ class DocumentSegment:
     pass_scores: List[float] = field(default_factory=list)
     iteration_count: int = 1
     gate_passed: bool = False
+    location: Optional[Dict[str, Any]] = None  # Tracks source element location for in-place formatting preservation
 
 
 @dataclass
@@ -50,6 +51,67 @@ class HumanWriterAnalysis:
     classification: str     # 'Likely AI-Generated', 'Mixed Content', 'Authentic Human'
     segments: List[DocumentSegment]
     code_references_found: List[str]
+    source_file: Optional[str] = None
+
+
+def apply_text_preserving_runs_and_images(paragraph: Any, new_text: str):
+    """
+    Replaces the text of a paragraph while strictly preserving its original font family,
+    font size, colors, bold, italic, underline, and any embedded drawings or images.
+    """
+    runs = getattr(paragraph, "runs", [])
+    if not runs:
+        paragraph.add_run(new_text)
+        return
+
+    # Separate drawing runs (images, shapes) from text runs
+    text_runs = []
+    for r in runs:
+        if not r._r.xpath(".//w:drawing | .//w:pict"):
+            text_runs.append(r)
+
+    # If the paragraph only contains drawings (e.g. standalone screenshot/figure), do not touch
+    if not text_runs:
+        return
+
+    # Pick the primary run to extract styling
+    primary_run = text_runs[0]
+    for r in text_runs:
+        if r.text.strip():
+            primary_run = r
+            break
+
+    font_name = primary_run.font.name
+    font_size = primary_run.font.size
+    is_bold = primary_run.bold
+    is_italic = primary_run.italic
+    is_underline = primary_run.underline
+    font_color_rgb = primary_run.font.color.rgb if primary_run.font.color else None
+    highlight_color = primary_run.font.highlight_color
+
+    # Assign new text to primary run
+    primary_run.text = new_text
+
+    # Re-apply styling explicitly to ensure Word/OpenXML does not discard properties
+    if font_name:
+        primary_run.font.name = font_name
+    if font_size:
+        primary_run.font.size = font_size
+    if is_bold is not None:
+        primary_run.bold = is_bold
+    if is_italic is not None:
+        primary_run.italic = is_italic
+    if is_underline is not None:
+        primary_run.underline = is_underline
+    if font_color_rgb:
+        primary_run.font.color.rgb = font_color_rgb
+    if highlight_color:
+        primary_run.font.highlight_color = highlight_color
+
+    # Blank out subsequent text runs while leaving drawing runs intact
+    for r in text_runs:
+        if r is not primary_run:
+            r.text = ""
 
 
 def normalize_text(text: str) -> str:
@@ -115,7 +177,8 @@ class AIDetector:
         r"\bsheds light on\b": "cliché 'sheds light on'",
         r"\bat its core\b": "formulaic 'at its core'",
         r"\bnot only (?:does|is|can)\b.+\bbut (?:it )?also\b": "formulaic balanced syntax",
-        r"\bby (?:leveraging|utilizing|employing)\b": "formulaic participle opener",
+        r"\bby (?:leveraging|utilizing|employing|providing|enabling|facilitating)\b": "formulaic participle clause",
+        r"\b(?:revolutionized|transformed)\s+(?:the\s+)?[\w\s]+?\s+landscape\b": "formulaic landscape metaphor",
     }
 
     # Syntactic & structural AI signatures (high probability LLM templates)
@@ -124,7 +187,8 @@ class AIDetector:
         (r"\b(?:this|which)\s+[\w\s]{0,30}?(?:enables|allows for|provides for|ensures|facilitates|serves to)\b", "Formulaic functional enablement clause"),
         (r"\b(?:is (?:designed|used|utilized|employed|meant) to (?:facilitate|ensure|provide|enhance|allow|coordinate|handle|support))\b", "Formulaic passive capability phrasing"),
         (r"\b(?:efficient and reliable|robust and scalable|flexible and modular|scalable and efficient|accurate and efficient|seamless and intuitive|accurate and comprehensive)\b", "Paired adjective cliché"),
-        (r"\b(?:\w+,\s+)+\w+,\s+and\s+\w+\b", "Tripartite list cadence (A, B, and C)"),
+        (r"\b[A-Za-z0-9_\(\)]+[^,\n]{0,40},\s+[A-Za-z0-9_\(\)]+[^,\n]{0,40},\s+and\s+[A-Za-z0-9_\(\)]+\b", "Tripartite list cadence (A, B, and C)"),
+        (r"\b(?:typically\s+)?encompasses\s+(?:two|three|four|five|several)?\s*(?:primary|major|key|core)\b", "Taxonomic classification lead-in"),
         (r"\b(?:under (?:balanced|optimal|specific|normal|loaded) conditions)\b", "Stereotypical qualifying condition"),
         (r"\b(?:referred to as the|commonly known as|known as the|termed as)\b", "Expository signposting"),
         (r"\b(?:promotes|enhances|optimizes)\s+[\w\s]{2,30}?(?:across|throughout)\b", "Corporate optimization framing"),
@@ -1323,21 +1387,37 @@ class HumanWriterService:
 
     @classmethod
     def extract_text_segments(cls, file_path: Path, cfg: Optional[Config] = None) -> List[DocumentSegment]:
-        """Extracts text segments from .docx, .pdf, .txt, or .md with running-header filtering."""
+        """Extracts text segments from .docx, .pdf, .txt, or .md with DOM-level location tracking."""
         ext = file_path.suffix.lower()
-        raw_paragraphs: List[str] = []
+        raw_items: List[Tuple[str, Optional[Dict[str, Any]]]] = []
 
         if ext == ".docx":
             doc = docx.Document(str(file_path))
-            for p in doc.paragraphs:
+            for p_idx, p in enumerate(doc.paragraphs):
                 txt = p.text.strip()
                 if txt:
-                    raw_paragraphs.append(txt)
-            for table in doc.tables:
-                for row in table.rows:
-                    row_txt = " | ".join(c.text.strip() for c in row.cells if c.text.strip())
-                    if row_txt and row_txt not in raw_paragraphs:
-                        raw_paragraphs.append(f"[Table Row] {row_txt}")
+                    raw_items.append((txt, {"target": "body_p", "index": p_idx}))
+
+            for t_idx, table in enumerate(doc.tables):
+                visited_tc = set()
+                for r_idx, row in enumerate(table.rows):
+                    for c_idx, cell in enumerate(row.cells):
+                        if cell._tc in visited_tc:
+                            continue
+                        visited_tc.add(cell._tc)
+                        for cp_idx, cp in enumerate(cell.paragraphs):
+                            c_txt = cp.text.strip()
+                            if c_txt:
+                                raw_items.append((
+                                    c_txt,
+                                    {
+                                        "target": "table_cell",
+                                        "table_idx": t_idx,
+                                        "row_idx": r_idx,
+                                        "col_idx": c_idx,
+                                        "p_idx": cp_idx,
+                                    }
+                                ))
         elif ext == ".pdf":
             reader = PdfReader(str(file_path))
             pages_text = [p.extract_text() or "" for p in reader.pages]
@@ -1374,18 +1454,20 @@ class HumanWriterService:
                         if is_new_block:
                             p_txt = " ".join(curr).strip()
                             if p_txt:
-                                raw_paragraphs.append(p_txt)
+                                raw_items.append((p_txt, None))
                             curr = [line]
                         else:
                             curr.append(line)
                 if curr:
                     p_txt = " ".join(curr).strip()
                     if p_txt:
-                        raw_paragraphs.append(p_txt)
+                        raw_items.append((p_txt, None))
 
         elif ext in [".txt", ".md"]:
             content = file_path.read_text(encoding="utf-8", errors="replace")
-            raw_paragraphs = [p.strip() for p in content.split("\n\n") if p.strip()]
+            for p in content.split("\n\n"):
+                if p.strip():
+                    raw_items.append((p.strip(), None))
         else:
             temp_dir = Path(tempfile.mkdtemp(prefix="labgen_hw_convert_"))
             try:
@@ -1396,17 +1478,24 @@ class HumanWriterService:
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
         segments: List[DocumentSegment] = []
-        total_p = len(raw_paragraphs)
+        total_p = len(raw_items)
 
-        for idx, text in enumerate(raw_paragraphs):
+        for idx, (text, loc) in enumerate(raw_items):
             is_cover = CoverPageDetector.is_cover_segment(text, idx, total_p)
             words = text.split()
-            seg_type = "cover" if is_cover else ("heading" if len(words) < 8 and not text.endswith(".") else "paragraph")
+            if loc and loc.get("target") == "table_cell":
+                seg_type = "table_cell"
+            elif is_cover:
+                seg_type = "cover"
+            elif len(words) < 8 and not text.endswith("."):
+                seg_type = "heading"
+            else:
+                seg_type = "paragraph"
 
             if is_cover:
                 seg = DocumentSegment(
                     id=idx + 1,
-                    type="cover",
+                    type=seg_type,
                     text=text,
                     ai_score=0.02,
                     is_ai=False,
@@ -1414,6 +1503,7 @@ class HumanWriterService:
                     reasons=["Protected Cover Page / Title Block (Preserved)"],
                     humanized_text=text,
                     gate_passed=True,
+                    location=loc,
                 )
             else:
                 score, reasons, code_refs = AIDetector.evaluate_text(text, cfg=cfg)
@@ -1428,6 +1518,7 @@ class HumanWriterService:
                     reasons=reasons,
                     code_references=code_refs,
                     gate_passed=score <= 0.30,
+                    location=loc,
                 )
             segments.append(seg)
 
@@ -1435,7 +1526,7 @@ class HumanWriterService:
 
     @classmethod
     def analyze_document(cls, file_path: Path, cfg: Optional[Config] = None) -> HumanWriterAnalysis:
-        """Performs full document analysis with substantive paragraph weighting."""
+        """Performs full document analysis with substantive paragraph weighting and natural mixed scoring."""
         segments = cls.extract_text_segments(file_path, cfg=cfg)
         total_words = sum(len(s.text.split()) for s in segments)
         total_p = len(segments)
@@ -1455,7 +1546,9 @@ class HumanWriterService:
             overall_score = 5.0
 
         # Document-level AI manual contextual synthesis:
-        # Detect synthetic AI lab manuals / guides (e.g. ChatGPT-scaffolded manual with multiple landmarks, 0 student voice, 0 contractions)
+        # ONLY calibrate as an end-to-end synthetic AI manual when the vast majority (>= 80%) of substantive
+        # content is AI, with zero student markers and multiple structural landmarks.
+        # Mixed documents (~20%-50% AI) are NOT inflated to 90%+; they report their true natural percentage!
         full_body_text = "\n".join(s.text for s in body_segments)
         has_title = bool(re.search(r"\b(?:lab(?:oratory)?\s+manual|experiment\s+(?:no\.?|#)?\s*\d+|lab\s+session\s*\d+|lab\s+assignment|practical\s+(?:manual|session|guide)|assignment\s+\d+|lab\s+report)\b", full_body_text, re.I))
         has_obj = bool(re.search(r"\b(?:objectives?|aim(?:\s+of\s+the\s+experiment)?|learning\s+outcomes?|bloom(?:\'s)?\s+taxonomy|students\s+will\s+be\s+able\s+to|purpose\s+of\s+this\s+lab(?:oratory)?)\b", full_body_text, re.I))
@@ -1474,34 +1567,24 @@ class HumanWriterService:
             for s in body_segments
         )
         ai_substantive = [s for s in substantive if s.ai_score >= 0.70]
-
         student_marker_weight = total_human_markers + (total_contractions * 0.4)
         student_density = student_marker_weight / max(1, len(substantive))
+        ai_substantive_ratio = len(ai_substantive) / max(1, len(substantive))
 
-        is_synthetic_ai_manual = (
-            student_density < 0.20 and (
-                (landmarks_count >= 2 and len(substantive) >= 2) or
-                (len(substantive) >= 3 and (len(ai_substantive) / max(1, len(substantive))) >= 0.35) or
-                (overall_score >= 40.0 and len(substantive) >= 3)
-            )
+        is_pure_synthetic_ai_manual = (
+            student_density < 0.10 and
+            len(substantive) >= 3 and
+            ai_substantive_ratio >= 0.80 and
+            landmarks_count >= 2
         )
 
-        if is_synthetic_ai_manual:
-            # Calibrate document overall score to 92%-98% to match Turnitin / ZeroGPT / GPTZero
-            overall_score = max(94.0, min(99.0, 94.0 + (len(ai_substantive) / max(1, len(substantive))) * 5.0))
+        if is_pure_synthetic_ai_manual:
+            overall_score = max(94.0, min(99.0, overall_score))
             overall_score = round(overall_score, 1)
-            # Elevate substantive body segments in the synthetic AI manual so every AI segment is actionable
-            for s in body_segments:
-                if not s.is_cover_page and s.ai_score < 0.75 and len(s.text.split()) >= 6:
-                    s.ai_score = 0.85
-                    s.is_ai = True
-                    s.gate_passed = False
-                    if not any("synthetic" in r.lower() or "structural" in r.lower() for r in s.reasons):
-                        s.reasons.append("Synthetic lab manual structural component (uncontracted third-person AI template)")
 
         if overall_score >= 55.0:
             classification = "Likely AI-Generated"
-        elif overall_score >= 30.0:
+        elif overall_score >= 20.0:
             classification = "Mixed Content (Contains AI)"
         else:
             classification = "Authentic Human-Written"
@@ -1521,6 +1604,7 @@ class HumanWriterService:
             classification=classification,
             segments=segments,
             code_references_found=all_code_refs,
+            source_file=str(file_path.resolve()),
         )
 
     @classmethod
@@ -1662,50 +1746,104 @@ class HumanWriterService:
         output_path: Path,
         author_name: Optional[str] = None,
         document_title: Optional[str] = None,
+        source_file: Optional[Union[str, Path]] = None,
     ) -> Path:
         """
-        Assembles a cleanly formatted Word (.docx) or PDF document with humanized text
-        and sanitized metadata.
+        Assembles a Word (.docx) or PDF document with humanized text, strictly preserving
+        all original formatting, font sizes, text colors, tables, and images when source_file is provided.
         """
-        doc = docx.Document()
+        src_path = Path(source_file) if source_file else None
+        doc = None
+        temp_docx_to_clean = None
 
-        # Sanitize metadata
-        MetadataSanitizer.sanitize_docx(doc, student_name=author_name, title=document_title)
+        if src_path and src_path.exists():
+            ext = src_path.suffix.lower()
+            if ext == ".docx":
+                try:
+                    doc = docx.Document(str(src_path))
+                except Exception as e:
+                    print(f"[!] Warning: Failed to load source docx for in-place preservation: {e}")
+            elif ext == ".pdf":
+                temp_dir = Path(tempfile.mkdtemp(prefix="labgen_hw_src_pdf_"))
+                try:
+                    converted = _run_libreoffice_convert(src_path, "docx", temp_dir)
+                    if converted and converted.exists():
+                        doc = docx.Document(str(converted))
+                        temp_docx_to_clean = temp_dir
+                except Exception as e:
+                    print(f"[!] Warning: Failed to convert source pdf to docx template: {e}")
+                    shutil.rmtree(temp_dir, ignore_errors=True)
 
-        for seg in segments:
-            text = seg.get("humanized_text") or seg.get("text", "")
-            seg_type = seg.get("type", "paragraph")
-            is_cover = seg.get("is_cover_page", False)
+        if doc is not None:
+            # IN-PLACE PRESERVATION MODE: Tables, Images, Font Sizes, Colors, and Margins are 100% PRESERVED
+            MetadataSanitizer.sanitize_docx(doc, student_name=author_name, title=document_title)
 
-            if is_cover:
-                p = doc.add_paragraph()
-                p.paragraph_format.space_after = docx.shared.Pt(14)
-                run = p.add_run(text)
-                run.bold = True
-                run.font.size = docx.shared.Pt(14)
-            elif seg_type == "heading":
-                p = doc.add_heading(text, level=2)
-                p.paragraph_format.space_before = docx.shared.Pt(12)
-                p.paragraph_format.space_after = docx.shared.Pt(6)
-            elif seg_type == "code":
-                p = doc.add_paragraph()
-                p.paragraph_format.left_indent = docx.shared.Inches(0.25)
-                run = p.add_run(text)
-                run.font.name = "Consolas"
-                run.font.size = docx.shared.Pt(9.5)
-            elif text.startswith("[Table Row]"):
-                p = doc.add_paragraph()
-                p.paragraph_format.left_indent = docx.shared.Inches(0.15)
-                run = p.add_run(text.replace("[Table Row] ", ""))
-                run.font.size = docx.shared.Pt(10)
-            else:
-                p = doc.add_paragraph(text)
-                p.paragraph_format.space_after = docx.shared.Pt(8)
-                p.paragraph_format.line_spacing = 1.15
+            for seg in segments:
+                new_text = seg.get("humanized_text")
+                orig_text = seg.get("text", "")
+                if not new_text or not new_text.strip() or new_text.strip() == orig_text.strip():
+                    continue
+
+                loc = seg.get("location")
+                if loc and loc.get("target") == "body_p":
+                    p_idx = loc.get("index")
+                    if p_idx is not None and 0 <= p_idx < len(doc.paragraphs):
+                        apply_text_preserving_runs_and_images(doc.paragraphs[p_idx], new_text)
+                elif loc and loc.get("target") == "table_cell":
+                    t_idx = loc.get("table_idx")
+                    r_idx = loc.get("row_idx")
+                    c_idx = loc.get("col_idx")
+                    cp_idx = loc.get("p_idx", 0)
+                    if (
+                        t_idx is not None and 0 <= t_idx < len(doc.tables)
+                        and r_idx is not None and 0 <= r_idx < len(doc.tables[t_idx].rows)
+                        and c_idx is not None and 0 <= c_idx < len(doc.tables[t_idx].rows[r_idx].cells)
+                    ):
+                        cell = doc.tables[t_idx].rows[r_idx].cells[c_idx]
+                        if 0 <= cp_idx < len(cell.paragraphs):
+                            apply_text_preserving_runs_and_images(cell.paragraphs[cp_idx], new_text)
+        else:
+            # FALLBACK CLEAN ASSEMBLY (Programmatic or when no source file template is provided)
+            doc = docx.Document()
+            MetadataSanitizer.sanitize_docx(doc, student_name=author_name, title=document_title)
+
+            for seg in segments:
+                text = seg.get("humanized_text") or seg.get("text", "")
+                seg_type = seg.get("type", "paragraph")
+                is_cover = seg.get("is_cover_page", False)
+
+                if is_cover:
+                    p = doc.add_paragraph()
+                    p.paragraph_format.space_after = docx.shared.Pt(14)
+                    run = p.add_run(text)
+                    run.bold = True
+                    run.font.size = docx.shared.Pt(14)
+                elif seg_type == "heading":
+                    p = doc.add_heading(text, level=2)
+                    p.paragraph_format.space_before = docx.shared.Pt(12)
+                    p.paragraph_format.space_after = docx.shared.Pt(6)
+                elif seg_type == "code":
+                    p = doc.add_paragraph()
+                    p.paragraph_format.left_indent = docx.shared.Inches(0.25)
+                    run = p.add_run(text)
+                    run.font.name = "Consolas"
+                    run.font.size = docx.shared.Pt(9.5)
+                elif seg_type == "table_cell" or text.startswith("[Table Row]"):
+                    p = doc.add_paragraph()
+                    p.paragraph_format.left_indent = docx.shared.Inches(0.15)
+                    run = p.add_run(text.replace("[Table Row] ", ""))
+                    run.font.size = docx.shared.Pt(10)
+                else:
+                    p = doc.add_paragraph(text)
+                    p.paragraph_format.space_after = docx.shared.Pt(8)
+                    p.paragraph_format.line_spacing = 1.15
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         docx_temp_path = output_path.with_suffix(".docx")
         doc.save(str(docx_temp_path))
+
+        if temp_docx_to_clean and Path(temp_docx_to_clean).exists():
+            shutil.rmtree(temp_docx_to_clean, ignore_errors=True)
 
         if output_format.lower() == "pdf":
             temp_dir = Path(tempfile.mkdtemp(prefix="labgen_hw_pdf_"))
