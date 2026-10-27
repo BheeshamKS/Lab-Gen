@@ -503,6 +503,161 @@ class ReferenceCorpus:
                 assumptions_and_limitations="BETWEEN includes both boundary endpoints; parentheses must be used when combining AND with OR.",
                 verified=True,
             ),
+
+            # -------------------------------------------------------------
+            # INFORMATION SECURITY (IS) CANONICAL TASKS
+            # -------------------------------------------------------------
+            ReferenceTask(
+                lab_id="IS_LAB01",
+                task_id=1,
+                title="Symmetric Key Cryptography with Fernet and XOR",
+                original_task_statement="Implement symmetric encryption and decryption using cryptographic keys (Fernet/AES) and explain fundamental security properties of confidentiality, integrity, and availability.",
+                subject="is",
+                topic="Symmetric Key Cryptography",
+                keywords=["symmetric encryption", "fernet", "cryptography", "decryption", "confidentiality", "aes", "cipher"],
+                solution_approach="Generate a cryptographic symmetric key using Fernet or AES. Perform encryption and decrypt back to plaintext, verifying data confidentiality.",
+                code_pattern=(
+                    "from cryptography.fernet import Fernet\n\n"
+                    "key = Fernet.generate_key()\n"
+                    "cipher = Fernet(key)\n"
+                    "message = b'Secret Student Message'\n"
+                    "encrypted = cipher.encrypt(message)\n"
+                    "decrypted = cipher.decrypt(encrypted)\n"
+                    "print(f'Ciphertext: {encrypted}')\n"
+                    "print(f'Decrypted: {decrypted.decode()}')"
+                ),
+                explanation_depth="Explains symmetric encryption where the shared secret key is used for both encryption and decryption. Highlights CIA triad with emphasis on confidentiality and ciphertext entropy.",
+                assumptions_and_limitations="Key must be securely distributed out-of-band and kept confidential.",
+                verified=True,
+            ),
+            ReferenceTask(
+                lab_id="IS_LAB02",
+                task_id=1,
+                title="Data Integrity and Checksum Verification",
+                original_task_statement="Implement a program to calculate checksum or cryptographic hash of a message, simulate channel tampering, and verify message integrity at the receiver.",
+                subject="is",
+                topic="Data Integrity Verification",
+                keywords=["data integrity", "checksum", "hash", "tampering", "verification", "receiver", "integrity check"],
+                solution_approach="Compute checksum/hash at sender. Transmit data and checksum. Simulate byte alteration in transit. Receiver recomputes checksum and asserts mismatch.",
+                code_pattern=(
+                    "def calculate_checksum(data: str) -> int:\n"
+                    "    return sum(ord(c) for c in data) % 256\n\n"
+                    "message = 'Transfer $500 to Alice'\n"
+                    "checksum = calculate_checksum(message)\n\n"
+                    "# Receiver verification (unaltered)\n"
+                    "assert calculate_checksum(message) == checksum, 'Integrity violation!'\n\n"
+                    "# Tampering in transit\n"
+                    "tampered = 'Transfer $900 to Alice'\n"
+                    "if calculate_checksum(tampered) != checksum:\n"
+                    "    print('[ALERT] Tampering detected! Receiver rejects message.')"
+                ),
+                explanation_depth="Demonstrates integrity verification via one-way functions or parity checksums. Illustrates how any single-bit alteration alters the digest and triggers an alert.",
+                assumptions_and_limitations="Simple additive checksums are vulnerable to collision and intentional adversary recalculation; cryptographic HMAC/SHA-256 is required for tamper resistance.",
+                verified=True,
+            ),
+            ReferenceTask(
+                lab_id="IS_LAB03",
+                task_id=1,
+                title="Caesar Cipher Text Encryption and Decryption",
+                original_task_statement="Implement Caesar Cipher algorithm with fixed shift of 3 for text encryption and decryption, preserving casing and non-alphabetical characters.",
+                subject="is",
+                topic="Classical Substitution Ciphers",
+                keywords=["caesar cipher", "substitution cipher", "shift 3", "encryption", "decryption", "modular arithmetic"],
+                solution_approach="Apply mathematical shift C = (P + k) mod 26 for uppercase and lowercase letters. Decryption applies P = (C - k) mod 26. Leave digits and punctuation unchanged.",
+                code_pattern=(
+                    "def caesar_cipher(text: str, shift: int, decrypt: bool = False) -> str:\n"
+                    "    s = -shift if decrypt else shift\n"
+                    "    res = []\n"
+                    "    for ch in text:\n"
+                    "        if ch.isupper():\n"
+                    "            res.append(chr((ord(ch) - 65 + s) % 26 + 65))\n"
+                    "        elif ch.islower():\n"
+                    "            res.append(chr((ord(ch) - 97 + s) % 26 + 97))\n"
+                    "        else:\n"
+                    "            res.append(ch)\n"
+                    "    return ''.join(res)"
+                ),
+                explanation_depth="Applies modular arithmetic over alphabet space Z_26. Discusses vulnerability to frequency analysis and brute-force key search across only 25 possible shifts.",
+                assumptions_and_limitations="Alphabetical characters wrapped modulo 26; non-alphabetic characters remain unshifted.",
+                verified=True,
+            ),
+            ReferenceTask(
+                lab_id="IS_LAB04",
+                task_id=1,
+                title="AES-128 Block Cipher in CBC and CFB Modes",
+                original_task_statement="Implement AES-128 symmetric encryption using Cipher Block Chaining (CBC) and Cipher Feedback (CFB) modes with PKCS7 padding and random Initialization Vectors (IV).",
+                subject="is",
+                topic="Advanced Encryption Standard (AES)",
+                keywords=["aes", "aes-128", "cbc", "cfb", "initialization vector", "iv", "symmetric block cipher", "pkcs7 padding"],
+                solution_approach="Generate a 16-byte key and 16-byte IV. Pad input plaintext according to PKCS7. Encrypt with AES-CBC or AES-CFB and decrypt back, asserting identity.",
+                code_pattern=(
+                    "import os\n"
+                    "from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes\n"
+                    "from cryptography.hazmat.primitives import padding\n\n"
+                    "key = os.urandom(16)\n"
+                    "iv = os.urandom(16)\n"
+                    "pad = padding.PKCS7(128).padder()\n"
+                    "padded = pad.update(b'Confidential Information') + pad.finalize()\n\n"
+                    "cipher = Cipher(algorithms.AES(key), modes.CBC(iv))\n"
+                    "encryptor = cipher.encryptor()\n"
+                    "ciphertext = encryptor.update(padded) + encryptor.finalize()\n\n"
+                    "decryptor = cipher.decryptor()\n"
+                    "plain_padded = decryptor.update(ciphertext) + decryptor.finalize()\n"
+                    "unpad = padding.PKCS7(128).unpadder()\n"
+                    "plaintext = unpad.update(plain_padded) + unpad.finalize()"
+                ),
+                explanation_depth="Explains AES-128 round pipeline (SubBytes, ShiftRows, MixColumns, AddRoundKey across 10 rounds). Explains how CBC uses IV chaining to prevent identical plaintext blocks from yielding identical ciphertexts.",
+                assumptions_and_limitations="Plaintext in CBC mode must be a multiple of 16 bytes (block size), requiring standard PKCS7 padding; IV must be unpredictable and unique per message.",
+                verified=True,
+            ),
+            ReferenceTask(
+                lab_id="IS_LAB06",
+                task_id=1,
+                title="Statistical Network Malware and Anomaly Detection (Z-Score)",
+                original_task_statement="Implement statistical anomaly detection using mean, standard deviation, and Z-score thresholding (|Z| > 2.0 or 3.0) to identify malicious traffic bursts and outliers.",
+                subject="is",
+                topic="Statistical Anomaly Detection",
+                keywords=["anomaly detection", "z-score", "standard deviation", "mean", "outlier", "network intrusion", "threshold"],
+                solution_approach="Compute sample mean and variance of baseline network traffic metric. Calculate Z = (X - mu) / sigma for incoming observations. Flag observations exceeding threshold as anomalous.",
+                code_pattern=(
+                    "import math\n\n"
+                    "def detect_anomalies(data: list[float], threshold: float = 2.0):\n"
+                    "    n = len(data)\n"
+                    "    mean = sum(data) / n\n"
+                    "    variance = sum((x - mean) ** 2 for x in data) / n\n"
+                    "    std = math.sqrt(variance)\n"
+                    "    anomalies = []\n"
+                    "    for idx, x in enumerate(data):\n"
+                    "        z = (x - mean) / std if std > 0 else 0\n"
+                    "        if abs(z) > threshold:\n"
+                    "            anomalies.append((idx, x, z))\n"
+                    "    return mean, std, anomalies"
+                ),
+                explanation_depth="Applies Gaussian normal distribution properties where 95.45% of normal data falls within mu +- 2 sigma. Observations with |Z| > 2.0 deviate significantly from baseline behavior, indicative of DoS or beaconing malware.",
+                assumptions_and_limitations="Assumes underlying traffic metric roughly follows a normal distribution; high variance or non-stationary traffic can cause false positives.",
+                verified=True,
+            ),
+            ReferenceTask(
+                lab_id="IS_WIRESHARK_HTTP",
+                task_id=1,
+                title="Wireshark Packet Sniffing & HTTP Protocol Analysis",
+                original_task_statement="Capture and analyze HTTP traffic using Wireshark packet sniffer. Inspect GET request methods, HTTP status codes (200 OK, 304 Not Modified, 401 Unauthorized), conditional GET If-Modified-Since headers, and TCP packet reassembly.",
+                subject="is",
+                topic="HTTP Protocol Analysis & Packet Sniffing",
+                keywords=["wireshark", "http", "packet sniffing", "conditional get", "status code", "get request", "if-modified-since", "packet analysis"],
+                solution_approach="Use Wireshark with display filter 'http' to inspect request/response exchanges. Extract client IP (192.168.1.105), server IP (128.119.245.12), HTTP version 1.1, status codes, and entity body sizes.",
+                code_pattern=(
+                    "# Wireshark HTTP Protocol Analysis & Packet Filter Guide\n"
+                    "# Filter: http or (tcp.port == 80)\n"
+                    "# 1. Inspect HTTP GET: Method, Request-URI, User-Agent, Accept\n"
+                    "# 2. Inspect Server Response: Status Code (200 OK), Content-Type, Content-Length\n"
+                    "# 3. Conditional GET: Check 'If-Modified-Since' header and '304 Not Modified'\n"
+                    "# 4. Multi-part / Embedded: Trace parallel TCP segments and image downloads"
+                ),
+                explanation_depth="Provides line-by-line protocol breakdown of client-server application-layer exchanges, HTTP/1.1 persistent connections, conditional cache validation, and authentication challenges.",
+                assumptions_and_limitations="HTTP unencrypted traffic is fully readable; HTTPS requires TLS decryption keys (SSLKEYLOGFILE) for payload inspection.",
+                verified=True,
+            ),
         ]
 
     def save(self):

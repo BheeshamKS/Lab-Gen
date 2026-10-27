@@ -146,7 +146,7 @@ class CodeRunner:
 
         elif lang in ["cpp", "c++"]:
             bin_name = code_path.stem
-            compile_cmd = ["g++", "-O2", "-o", bin_name, fname, "-lm"]
+            compile_cmd = ["g++", "-O2", "-o", bin_name, fname, "-lm", "-lssl", "-lcrypto"]
             run_cmd = [f"./{bin_name}"]
             display_cmd = f"g++ -o {bin_name} {fname} && ./{bin_name}"
             return run_cmd, display_cmd, compile_cmd

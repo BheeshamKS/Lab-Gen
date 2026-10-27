@@ -45,6 +45,7 @@ class TaskSolution:
     is_gui_or_plot: bool = False
 
 
+
 class AntiAIFilter:
     """Detects and scrubs stereotypical AI phrases from student answers and code."""
 
@@ -837,6 +838,9 @@ class TaskSolver:
             "   - 'filename': (e.g. 'query_01.sql', 'program_01.c', or 'task_01.py')\n"
         )
 
+        from .is_solver import InformationSecuritySolver
+        is_is = InformationSecuritySolver.is_security_task(task, lab_context)
+
         if is_sql:
             base += (
                 "\nSUBJECT GUIDELINES (DBMS / Microsoft SQL Server):\n"
@@ -844,6 +848,17 @@ class TaskSolver:
                 "- Use exact table, column names, and constraints specified in the manual context.\n"
                 "- Terminate each statement with a semicolon (;).\n"
                 "- Include verification SELECT queries after DDL/DML statements so terminal output clearly shows the affected state.\n"
+            )
+        elif is_is:
+            base += (
+                "\nSUBJECT GUIDELINES (Information Security / Cryptography & Protocols):\n"
+                "- Write authentic Python or C++ implementations demonstrating cryptographic operations.\n"
+                "- Clearly output keys, initialization vectors (IVs), ciphertexts, and verified decrypted messages.\n"
+                "- For Caesar cipher, use modular arithmetic C = (P + k) mod 26 and brute-force key exploration.\n"
+                "- For data integrity, calculate character checksums and verify tamper detection.\n"
+                "- For AES encryption, demonstrate 128-bit key management, CBC/CFB modes, and hex formatting.\n"
+                "- For anomaly detection, calculate mean and standard deviation to detect outliers where |Z| > threshold.\n"
+                "- For Wireshark analysis, cite exact packet numbers, protocol versions, IP addresses, and HTTP headers.\n"
             )
         else:
             base += (
@@ -862,7 +877,12 @@ class TaskSolver:
             )
 
         # Architectural guidance from verified reference corpus
-        subject_name = "dbms" if is_sql else "dsa"
+        if is_sql:
+            subject_name = "dbms"
+        elif is_is:
+            subject_name = "is"
+        else:
+            subject_name = "dsa"
         refs = self.corpus.find_relevant_references(subject_name, task.title, task.description)
         if refs:
             base += "\n\n" + self.corpus.format_guidance_for_prompt(refs)
@@ -1186,6 +1206,13 @@ class TaskSolver:
     def _solve_offline_raw(self, task: LabTask, lab_context: Optional[str] = None) -> TaskSolution:
         desc = (task.title + " " + task.description).lower()
         ctx = (lab_context or "").lower()
+
+        # =============================================================
+        # 0. INFORMATION SECURITY / CRYPTOGRAPHY / WIRESHARK LAB TASKS
+        # =============================================================
+        from .is_solver import InformationSecuritySolver
+        if InformationSecuritySolver.is_security_task(task, lab_context):
+            return InformationSecuritySolver.solve(task, lab_context)
 
         # =============================================================
         # 1. SQL / DATABASE LAB TASKS

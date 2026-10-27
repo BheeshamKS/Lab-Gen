@@ -133,7 +133,9 @@ class DocumentBuilder:
         for idx, task in enumerate(manual.tasks):
             sol = next((s for s in solutions if s.task_id == task.task_id), solutions[idx] if idx < len(solutions) else None)
             res = next((r for r in exec_results if r.task_id == task.task_id), exec_results[idx] if idx < len(exec_results) else None)
-            code_img, out_img = task_screenshots[idx] if idx < len(task_screenshots) else (None, None)
+            shots = task_screenshots[idx] if idx < len(task_screenshots) else (None, None)
+            code_img = shots[0] if len(shots) > 0 else None
+            out_img = shots[1] if len(shots) > 1 else None
 
             # 1. Task Question / Problem Statement FIRST
             raw_title = task.title.strip()
@@ -212,6 +214,31 @@ class DocumentBuilder:
                     r_out = p_out.add_run(out_text)
                     r_out.font.name = "Consolas"
                     r_out.font.size = Pt(9.5)
+
+            # 4. Architectural Diagram / Visual Demonstration / Wireshark Dissection
+            diag_img = None
+            if idx < len(task_screenshots) and len(task_screenshots[idx]) > 2 and task_screenshots[idx][2]:
+                diag_img = task_screenshots[idx][2]
+            elif res and getattr(res, "output_files", None):
+                for fname, fpath in res.output_files.items():
+                    if hasattr(fpath, "is_file") and fpath.is_file() and fpath.suffix.lower() in [".png", ".jpg", ".jpeg"] and fpath != code_img and fpath != out_img:
+                        diag_img = fpath
+                        break
+
+            if diag_img and diag_img.exists():
+                p_d_lbl = doc.add_paragraph()
+                is_ws = "wireshark" in diag_img.stem.lower() or "wireshark" in (task.title + (task.description or "")).lower()
+                diag_title = "WIRESHARK PROTOCOL ANALYSIS & LADDER DIAGRAM:" if is_ws else "ARCHITECTURAL DIAGRAM / VISUAL DEMONSTRATION:"
+                r_dl = p_d_lbl.add_run(diag_title)
+                r_dl.font.bold = True
+                r_dl.font.size = Pt(13.0)
+                p_d_lbl.paragraph_format.space_before = Pt(6)
+                p_d_lbl.paragraph_format.space_after = Pt(4)
+
+                p_diag_img = doc.add_paragraph()
+                p_diag_img.paragraph_format.space_before = Pt(0)
+                p_diag_img.paragraph_format.space_after = Pt(6)
+                self._add_image_natural(p_diag_img, diag_img, max_width_in=6.0, max_height_in=4.5)
 
             # Page break between programs (except the last one)
             if idx < len(manual.tasks) - 1:
@@ -433,16 +460,18 @@ class DocumentBuilder:
         for idx, task in enumerate(manual.tasks):
             sol = next((s for s in solutions if s.task_id == task.task_id), solutions[idx] if idx < len(solutions) else None)
             res = next((r for r in exec_results if r.task_id == task.task_id), exec_results[idx] if idx < len(exec_results) else None)
-            code_img, out_img = task_screenshots[idx] if idx < len(task_screenshots) else (None, None)
+            shots = task_screenshots[idx] if idx < len(task_screenshots) else (None, None)
+            code_img = shots[0] if len(shots) > 0 else None
+            out_img = shots[1] if len(shots) > 1 else None
 
             prefix = "Query" if task.language == "sql" else "Program"
             lines.append(f"## {prefix} {task.task_id:02d}: {task.title}\n")
             if task.description:
                 lines.append(f"> {task.description}\n")
-
             lines.append(f"### {'QUERY' if task.language == 'sql' else 'CODE'}:\n")
             if sol and sol.code:
-                lines.append(f"```{task.language}\n{sol.code}\n```\n")
+                lang_tag = sol.language if (sol and sol.language) else task.language
+                lines.append(f"```{lang_tag}\n{sol.code}\n```\n")
 
             if code_img and code_img.exists():
                 lines.append(f"![Code Screenshot]({code_img.name})\n")
@@ -453,6 +482,19 @@ class DocumentBuilder:
 
             if out_img and out_img.exists():
                 lines.append(f"![Output Screenshot]({out_img.name})\n")
+
+            diag_img = None
+            if idx < len(task_screenshots) and len(task_screenshots[idx]) > 2 and task_screenshots[idx][2]:
+                diag_img = task_screenshots[idx][2]
+            elif res and getattr(res, "output_files", None):
+                for fname, fpath in res.output_files.items():
+                    if hasattr(fpath, "is_file") and fpath.is_file() and fpath.suffix.lower() in [".png", ".jpg", ".jpeg"] and fpath != code_img and fpath != out_img:
+                        diag_img = fpath
+                        break
+
+            if diag_img and diag_img.exists():
+                lines.append(f"### Visual Demonstration / Protocol Dissection:\n")
+                lines.append(f"![Visual Artifact]({diag_img.name})\n\n")
 
             if sol and sol.explanation:
                 lines.append(f"**Explanation:** {sol.explanation}\n")
@@ -529,7 +571,9 @@ class DocumentBuilder:
 
             sol = next((s for s in solutions if s.task_id == task.task_id), solutions[idx] if idx < len(solutions) else None)
             res = next((r for r in exec_results if r.task_id == task.task_id), exec_results[idx] if idx < len(exec_results) else None)
-            code_img, out_img = task_screenshots[idx] if idx < len(task_screenshots) else (None, None)
+            shots = task_screenshots[idx] if idx < len(task_screenshots) else (None, None)
+            code_img = shots[0] if len(shots) > 0 else None
+            out_img = shots[1] if len(shots) > 1 else None
 
             code_src = ""
             if code_img and code_img.exists():
@@ -538,6 +582,19 @@ class DocumentBuilder:
             out_src = ""
             if out_img and out_img.exists():
                 out_src = self._img_to_data_uri(out_img) if embed_base64 else f"/workspace/task_{task_id_disp}/{out_img.name}"
+
+            diag_img = None
+            if idx < len(task_screenshots) and len(task_screenshots[idx]) > 2 and task_screenshots[idx][2]:
+                diag_img = task_screenshots[idx][2]
+            elif res and getattr(res, "output_files", None):
+                for fname, fpath in res.output_files.items():
+                    if hasattr(fpath, "is_file") and fpath.is_file() and fpath.suffix.lower() in [".png", ".jpg", ".jpeg"] and fpath != code_img and fpath != out_img:
+                        diag_img = fpath
+                        break
+
+            diag_src = ""
+            if diag_img and diag_img.exists():
+                diag_src = self._img_to_data_uri(diag_img) if embed_base64 else f"/workspace/task_{task_id_disp}/{diag_img.name}"
 
             prefix = "Query" if task.language == "sql" else "Program"
             code_val = html.escape(sol.code) if sol and sol.code else ""
@@ -564,6 +621,9 @@ class DocumentBuilder:
               <h3 class="section-label">OUTPUT:</h3>
               {f"<div class='img-container'><img src='{out_src}' alt='Output Screenshot' /></div>" if out_src else ""}
               {f"<div class='console-box'><pre>{out_val}</pre></div>" if out_val else ""}
+
+              {f'''<h3 class="section-label">VISUAL DEMONSTRATION / PROTOCOL DISSECTION:</h3>
+              <div class="img-container"><img src="{diag_src}" alt="Visual Artifact" /></div>''' if diag_src else ""}
 
               {f"<div class='exp-box'><strong>Explanation:</strong> {exp_val}</div>" if exp_val else ""}
               {viva_html}

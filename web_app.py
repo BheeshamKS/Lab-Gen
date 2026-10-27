@@ -240,11 +240,20 @@ def _build_tasks_response(tasks, solutions, exec_results, screenshots):
     for idx, task in enumerate(tasks):
         sol = next((s for s in solutions if s.task_id == task.task_id), solutions[idx] if idx < len(solutions) else None)
         res = next((r for r in exec_results if r.task_id == task.task_id), exec_results[idx] if idx < len(exec_results) else None)
-        code_img, out_img = screenshots[idx] if idx < len(screenshots) else (None, None)
+        shots = screenshots[idx] if idx < len(screenshots) else (None, None, None)
+        code_img = shots[0] if len(shots) > 0 else None
+        out_img = shots[1] if len(shots) > 1 else None
+        diag_img = shots[2] if len(shots) > 2 else None
+        if not diag_img and res and getattr(res, "output_files", None):
+            for fname, fpath in res.output_files.items():
+                if hasattr(fpath, "is_file") and fpath.is_file() and fpath.suffix.lower() in [".png", ".jpg", ".jpeg"] and fpath != code_img and fpath != out_img:
+                    diag_img = fpath
+                    break
 
         ts = int(time.time() * 1000)
         code_url = f"/{code_img.resolve().relative_to(BASE_DIR.resolve()).as_posix()}?t={ts}" if code_img and code_img.exists() else ""
         out_url = f"/{out_img.resolve().relative_to(BASE_DIR.resolve()).as_posix()}?t={ts}" if out_img and out_img.exists() else ""
+        diag_url = f"/{diag_img.resolve().relative_to(BASE_DIR.resolve()).as_posix()}?t={ts}" if diag_img and diag_img.exists() else ""
 
         tasks_response.append({
             "task_id": task.task_id,
@@ -256,6 +265,7 @@ def _build_tasks_response(tasks, solutions, exec_results, screenshots):
             "answers": sol.discussion_answers if sol else {},
             "code_screenshot_url": code_url,
             "output_screenshot_url": out_url,
+            "diagram_screenshot_url": diag_url,
             "screenshot_url": out_url or code_url,
             "success": res.success if res else True,
         })
@@ -403,7 +413,10 @@ async def run_lab(
                 "error": "Please enter your custom Subject / Course name."
             }
 
-        if sub_raw == "dbms":
+        if sub_raw in ["is", "information security", "cyber security", "network security"]:
+            sub_clean = "is"
+            course_name_val = "Information Security (IS)"
+        elif sub_raw == "dbms":
             sub_clean = "dbms"
             course_name_val = "Database Management Systems (DBMS)"
         elif sub_raw == "dsa":
@@ -536,7 +549,9 @@ async def run_lab(
         parser_obj = ManualParser(str(target_manual_path), subject=parser_subject, subject_name=parser_course)
         lab_manual = parser_obj.parse()
         if sub_clean == "auto":
-            if lab_manual.course_name and any(k in lab_manual.course_name.lower() for k in ["database", "dbms", "sql"]):
+            if lab_manual.course_name and any(k in lab_manual.course_name.lower() for k in ["information security", "cyber security", "network security", "cryptography", "wireshark", "is"]):
+                course_name_val = "Information Security (IS)"
+            elif lab_manual.course_name and any(k in lab_manual.course_name.lower() for k in ["database", "dbms", "sql"]):
                 course_name_val = "Database Management Systems (DBMS)"
             elif lab_manual.course_name and any(k in lab_manual.course_name.lower() for k in ["data structure", "algorithm", "dsa"]):
                 course_name_val = "Data Structures and Algorithms"
@@ -642,8 +657,8 @@ async def run_lab(
 
         screenshots = []
         for sol, res in zip(solutions, exec_results):
-            code_img, out_img = studio.capture_task_screenshots(sol, res)
-            screenshots.append((code_img, out_img))
+            shots = studio.capture_task_artifacts(sol, res)
+            screenshots.append(shots)
 
         # Populate Observation Tables if present in manual
         if getattr(lab_manual, "observation_tables", None):
@@ -723,7 +738,10 @@ async def extract_manual(
                 "error": "Please enter your custom Subject / Course name."
             }
 
-        if sub_raw == "dbms":
+        if sub_raw in ["is", "information security", "cyber security", "network security"]:
+            sub_clean = "is"
+            course_name_val = "Information Security (IS)"
+        elif sub_raw == "dbms":
             sub_clean = "dbms"
             course_name_val = "Database Management Systems (DBMS)"
         elif sub_raw == "dsa":
@@ -792,7 +810,9 @@ async def extract_manual(
         parser_obj = ManualParser(str(target_manual_path), subject=parser_subject, subject_name=parser_course)
         lab_manual = parser_obj.parse()
         if sub_clean == "auto":
-            if lab_manual.course_name and any(k in lab_manual.course_name.lower() for k in ["database", "dbms", "sql"]):
+            if lab_manual.course_name and any(k in lab_manual.course_name.lower() for k in ["information security", "cyber security", "network security", "cryptography", "wireshark", "is"]):
+                course_name_val = "Information Security (IS)"
+            elif lab_manual.course_name and any(k in lab_manual.course_name.lower() for k in ["database", "dbms", "sql"]):
                 course_name_val = "Database Management Systems (DBMS)"
             elif lab_manual.course_name and any(k in lab_manual.course_name.lower() for k in ["data structure", "algorithm", "dsa"]):
                 course_name_val = "Data Structures and Algorithms"
@@ -1063,8 +1083,8 @@ async def generate_from_session(payload: dict = Body(...)):
 
         screenshots = []
         for sol, res in zip(solutions, exec_results):
-            code_img, out_img = studio.capture_task_screenshots(sol, res)
-            screenshots.append((code_img, out_img))
+            shots = studio.capture_task_artifacts(sol, res)
+            screenshots.append(shots)
 
         if getattr(lab_manual, "observation_tables", None):
             solver_tmp = TaskSolver(cfg)
@@ -1151,8 +1171,8 @@ async def refine_lab(
             res = runner.execute(refined_sol, sample_input=task.sample_input)
             exec_results[idx] = res
 
-            code_img, out_img = studio.capture_task_screenshots(refined_sol, res)
-            screenshots[idx] = (code_img, out_img)
+            shots = studio.capture_task_artifacts(refined_sol, res)
+            screenshots[idx] = shots
 
         # Recompile all formats
         compiled_files = _recompile_all_formats(
@@ -1213,9 +1233,8 @@ async def edit_task(
         res = runner.execute(sol, sample_input=task.sample_input)
         exec_results[task_idx] = res
 
-        # Capture authentic screenshots
-        code_img, out_img = studio.capture_task_screenshots(sol, res)
-        screenshots[task_idx] = (code_img, out_img)
+        shots = studio.capture_task_artifacts(sol, res)
+        screenshots[task_idx] = shots
 
         # Recompile all formats
         compiled_files = _recompile_all_formats(
@@ -1488,8 +1507,8 @@ async def save_document_canvas(payload: dict = Body(...)):
                         if reexecute and runner and studio:
                             res = runner.execute(sol, sample_input=task.sample_input)
                             exec_results[idx] = res
-                            c_img, o_img = studio.capture_task_screenshots(sol, res)
-                            screenshots[idx] = (c_img, o_img)
+                            shots = studio.capture_task_artifacts(sol, res)
+                            screenshots[idx] = shots
                     break
 
         # 3. Update Analysis Answers & Observation Tables if present

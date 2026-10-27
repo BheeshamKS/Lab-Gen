@@ -75,8 +75,8 @@ class ManualParser:
     }
 
     TASK_KEYWORD_PATTERN = (
-        r"^(?:lab|task|assignment|experiment|exercise|activity|problem|program|part|query|question)"
-        r"\s*#?\s*(?:0*([1-9][0-9]*)|([ivxldcm]+))\b(?:\s*[\u2013\u2014\-:\.]\s*(.*)|$)"
+        r"^(?:(?:sample|sampel|smapel)\s+)?(?:lab|task|assignment|experiment|exercise|activity|problem|program|part|query|question)"
+        r"\s*[:\-]?\s*#?\s*(?:0*([0-9]+)|([ivxldcm]+))\b(?:\s*[\u2013\u2014\-:\.]\s*(.*)|$)"
     )
 
     END_SECTION_MARKERS = [
@@ -120,6 +120,10 @@ class ManualParser:
         if self.subject == "dbms":
             return "sql"
         if self.subject == "dsa":
+            return "python"
+        if self.subject in ["is", "information security"]:
+            if any(k in text.lower() for k in ["#include <iostream>", "g++", "cryptopp", "crypto++", "std::vector", "cmath", "include <vector>"]):
+                return "cpp"
             return "python"
 
         text_lower = text.lower()
@@ -201,16 +205,22 @@ class ManualParser:
             course_name = "Database Management Systems (DBMS)"
         elif self.subject == "dsa":
             course_name = "Data Structures and Algorithms"
+        elif self.subject in ["is", "information security"]:
+            course_name = "Information Security (IS)"
         elif self.subject_name:
             course_name = self.subject_name
         elif overall_lang == "sql" or "dbms" in self.path.stem.lower() or "database" in full_text.lower()[:300]:
             course_name = "Database Management Systems (DBMS)"
+        elif any(k in self.path.stem.lower() or k in full_text.lower()[:400] for k in ["information security", "data integrity", "caesar cipher", "symmetric encryption", "anomaly detection", "wireshark"]):
+            course_name = "Information Security (IS)"
         else:
             course_name = "Programming / Data Science"
             for p in paragraphs_text[:15]:
-                if any(k in p.lower() for k in ["course", "subject", "data science", "computer science"]):
-                    course_name = p.replace("Course:", "").replace("Subject:", "").strip()
-                    break
+                if any(p.lower().startswith(k) for k in ["course:", "subject:"]):
+                    cand = p.split(":", 1)[1].strip()
+                    if len(cand) > 2 and len(cand) < 60:
+                        course_name = cand
+                        break
 
         # 2. Find and Extract ONLY the Task Section, Viva Questions, Analysis Questions, and Tables
         tasks, preamble_context, viva_questions, analysis_questions, observation_tables = self._extract_tasks_from_docx_body(doc, lab_number, overall_lang, title=title)
@@ -281,12 +291,17 @@ class ManualParser:
                 continue
             m = task_kw_regex.match(p)
             if m:
-                num = int(m.group(1))
+                num = int(m.group(1)) if m.group(1) else (self.ROMAN_NUMERALS.get(m.group(2).lower(), 1) if m.group(2) else 1)
                 if i < 8 and re.match(r"^(?:lab|experiment|session)\b", p, re.IGNORECASE) and num == doc_lab_num:
                     continue
                 explicit_headings.append(num)
 
         has_explicit_experiment_headings = len(explicit_headings) >= 2 or (len(explicit_headings) >= 1 and explicit_headings[0] == 1)
+
+        is_is_manual = (
+            self.subject in ["is", "information security"]
+            or any(k in self.path.stem.lower() or k in title.lower() for k in ["information security", "caesar", "symmetric encryption", "data integrity", "anomaly detection", "wireshark"])
+        )
 
         def save_task():
             nonlocal current_task_num, current_task_title, current_task_lines, in_algorithm_block
@@ -313,12 +328,23 @@ class ManualParser:
                         clean_sub = re.sub(r"\s+that$", "", clean_sub, flags=re.IGNORECASE).strip()
                     current_task_title = f"Task {current_task_num}: {clean_sub}"
 
+                task_lang = default_lang
+                desc_lower = desc.lower()
+                if any(k in desc_lower for k in ["!pip install", "from crypto", "import aes", "def ", "import math", "import base64"]) and not "#include" in desc_lower:
+                    task_lang = "python"
+                elif any(k in desc_lower for k in ["#include <iostream>", "#include <vector>", "#include <cryptopp", "using namespace std;", "int main("]):
+                    task_lang = "cpp"
+                elif any(k in desc_lower for k in ["#include <stdio.h>", "#include <stdlib.h>", "printf("]):
+                    task_lang = "c"
+                elif any(k in desc_lower for k in ["select * from", "create table", "alter table", "insert into"]):
+                    task_lang = "sql"
+
                 tasks.append(
                     LabTask(
                         task_id=current_task_num,
                         title=current_task_title,
                         description=desc,
-                        language=default_lang,
+                        language=task_lang,
                     )
                 )
             current_task_lines = []
@@ -443,15 +469,21 @@ class ManualParser:
                         return tasks, "\n".join(preamble_lines).strip(), viva_questions, analysis_questions, observation_tables
 
                 m_plain_num = re.match(r"^0*([1-9][0-9]*)[\.\)]\s+(.*)", p_text)
+                m_bare_prog = re.match(r"^(?:(?:sample|sampel|smapel)\s+)?program\s*[:\-]\s*(.*)$", p_text, re.IGNORECASE)
+
                 if m_exp and not is_manual_header:
+                    num_str = m_exp.group(1)
+                    num_val = int(num_str) if (num_str and int(num_str) > 0) else (current_task_num + 1)
+                    rest = m_exp.group(3).strip() if m_exp.group(3) else ""
+
+                    # Special check for Lab 02: 'Sample program: 02' when current_task_num == 2
+                    if is_is_manual and current_task_num > 0 and num_val == current_task_num and not rest:
+                        current_task_lines.append(p_text)
+                        continue
+
                     save_task()
                     in_task_section = True
-                    num_str = m_exp.group(1)
-                    if num_str:
-                        current_task_num = int(num_str)
-                    elif m_exp.group(2):
-                        current_task_num = self.ROMAN_NUMERALS.get(m_exp.group(2).lower(), 1)
-                    rest = m_exp.group(3).strip() if m_exp.group(3) else ""
+                    current_task_num = num_val
 
                     # If rest is empty, check next paragraph for task title
                     if not rest:
@@ -461,6 +493,15 @@ class ManualParser:
                             if next_p_text and len(next_p_text) < 120 and not any(next_p_text.lower().startswith(x) for x in ["objective", "theory", "scenario", "dataset", "tasks", "pre-lab"]):
                                 rest = next_p_text
 
+                    current_task_title = f"Task {current_task_num}: {rest}" if rest else f"Task {current_task_num}"
+                    current_task_lines = []
+                    continue
+
+                elif m_bare_prog and is_is_manual and not is_manual_header:
+                    rest = m_bare_prog.group(1).strip()
+                    save_task()
+                    in_task_section = True
+                    current_task_num += 1
                     current_task_title = f"Task {current_task_num}: {rest}" if rest else f"Task {current_task_num}"
                     current_task_lines = []
                     continue
@@ -502,7 +543,7 @@ class ManualParser:
                         preamble_lines.append(p_text)
                     continue
 
-                if re.search(r"^code\s*(?:\([^)]*\))?[\s:]*$", p_text, re.IGNORECASE) or (p_text.lower().startswith("code") and "attach" in p_text.lower()):
+                if (re.search(r"^code\s*(?:\([^)]*\))?[\s:]*$", p_text, re.IGNORECASE) or (p_text.lower().startswith("code") and "attach" in p_text.lower())) and not is_is_manual:
                     save_task()
                     in_task_section = False
                     in_algorithm_block = False
@@ -668,7 +709,97 @@ class ManualParser:
 
         reader = pypdf.PdfReader(self.path)
         full_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        if "wireshark" in self.path.stem.lower() or "wireshark" in full_text.lower()[:500]:
+            return self._parse_wireshark_pdf(full_text)
         return self._parse_from_text(full_text)
+
+    def _parse_wireshark_pdf(self, full_text: str) -> LabManual:
+        title = "WIRESHARK LAB: HTTP PROTOCOL ANALYSIS"
+        course_name = "Information Security (IS)"
+        lab_number = "09"
+
+        tasks = [
+            LabTask(
+                task_id=1,
+                title="Task 01: The Basic HTTP GET / Response Interaction (Questions 1-7)",
+                description=(
+                    "1. Is your browser running HTTP version 1.0, 1.1, or 2? What version of HTTP is the server running?\n"
+                    "2. What languages (if any) does your browser indicate that it can accept to the server?\n"
+                    "3. What is the IP address of your computer? What is the IP address of the gaia.cs.umass.edu server?\n"
+                    "4. What is the status code returned from the server to your browser?\n"
+                    "5. When was the HTML file that you are retrieving last modified at the server?\n"
+                    "6. How many bytes of content are being returned to your browser?\n"
+                    "7. By inspecting the raw data in the packet content window, do you see any headers within the data that are not displayed in the packet-listing window? If so, name one."
+                ),
+                language="python",
+            ),
+            LabTask(
+                task_id=2,
+                title="Task 02: The HTTP CONDITIONAL GET / Response Interaction (Questions 8-11)",
+                description=(
+                    "8. Inspect the contents of the first HTTP GET request from your browser to the server. Do you see an 'IF-MODIFIED-SINCE' line in the HTTP GET?\n"
+                    "9. Inspect the contents of the server response. Did the server explicitly return the contents of the file? How can you tell?\n"
+                    "10. Now inspect the contents of the second HTTP GET request from your browser to the server. Do you see an 'IF-MODIFIED-SINCE:' line in the HTTP GET? If so, what information follows the 'IF-MODIFIED-SINCE:' header?\n"
+                    "11. What is the HTTP status code and phrase returned from the server in response to this second HTTP GET? Did the server explicitly return the contents of the file? Explain."
+                ),
+                language="python",
+            ),
+            LabTask(
+                task_id=3,
+                title="Task 03: Retrieving Long Documents & TCP Packet Fragmentation (Questions 12-15)",
+                description=(
+                    "12. How many HTTP GET request messages did your browser send? Which packet number in the trace contains the GET message for the Bill or Rights?\n"
+                    "13. Which packet number in the trace contains the status code and phrase associated with the response to the HTTP GET request?\n"
+                    "14. What is the status code and phrase in the response?\n"
+                    "15. How many data-containing TCP segments were needed to carry the single HTTP response and the text of the Bill of Rights?"
+                ),
+                language="python",
+            ),
+            LabTask(
+                task_id=4,
+                title="Task 04: HTML Documents with Embedded Objects (Questions 16-17)",
+                description=(
+                    "16. How many HTTP GET request messages did your browser send? To which Internet addresses were these GET requests sent?\n"
+                    "17. Can you tell whether your browser downloaded the two images serially, or whether they were downloaded from the two web sites in parallel? Explain."
+                ),
+                language="python",
+            ),
+            LabTask(
+                task_id=5,
+                title="Task 05: HTTP Authentication & Credential Security (Questions 18-19)",
+                description=(
+                    "18. What is the server's response (status code and phrase) in response to the initial HTTP GET message from your browser?\n"
+                    "19. When your browser sends the HTTP GET message for the second time, what new field is included in the HTTP GET message? What is the base64-encoded username and password sent?"
+                ),
+                language="python",
+            ),
+        ]
+
+        return LabManual(
+            file_path=self.path,
+            title=title,
+            course_name=course_name,
+            lab_number=lab_number,
+            objectives=[
+                "Analyze network packets using Wireshark packet sniffer",
+                "Investigate HTTP GET and response message structures",
+                "Examine HTTP conditional validation, pipelining, and basic authentication security",
+            ],
+            tasks=tasks,
+            raw_text=full_text,
+            is_docx_template=False,
+            context="Wireshark Lab HTTP v9.0. Supplement to Computer Networking: A Top-Down Approach, 9th ed., Kurose & Ross.",
+            viva_questions=[
+                "What is the function of a packet sniffer like Wireshark?",
+                "How does HTTP Conditional GET optimize network bandwidth utilization?",
+                "Why is HTTP Basic Authentication vulnerable to eavesdropping attacks?",
+            ],
+            analysis_questions=[
+                "Explain the relationship between the HTTP entity body and TCP packet segmentation.",
+                "Compare the latency impact of persistent vs non-persistent HTTP connections when retrieving embedded objects.",
+            ],
+            observation_tables=[],
+        )
 
     def _parse_text(self) -> LabManual:
         with open(self.path, "r", encoding="utf-8", errors="replace") as f:

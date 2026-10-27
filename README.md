@@ -37,6 +37,16 @@
   - **Iterative Quality Gate Loop ($\le 30\%$ AI)**: Automatically re-evaluates post-humanized text; if AI score exceeds 30%, it automatically re-runs adaptive humanization passes (up to 3 iterations) until the quality gate passes.
   - **Cover Page & Header Protection**: Accurately recognizes and protects university title pages and cover blocks without modifying them.
   - **Code Reference & AI Cliché Scrubbing**: Automatically purges robotic conversational filler, tripartite lists, and unnatural AI signposts.
+- **🔒 Information Security (IS) Subject Support & Security Visual Studio**:
+  - **Comprehensive IS Lab Coverage**: Built-in support for Information Security labs including Symmetric Encryption (AES-128 CBC/CFB, Fernet), Data Integrity (checksum calculations & tamper detection), Classical Cryptography (Caesar cipher & brute-force cryptanalysis), Malware Anomaly Detection (Z-Score method), and Wireshark HTTP protocol inspection.
+  - **Programmatic Visual Artifact Studio (`security_visuals.py`)**: Automatically generates and embeds authentic high-resolution diagrams and GUI captures into `.docx`, `.pdf`, `.md`, and `.html`:
+    - **Wireshark Packet Sniffer GUI Screenshots**: Multi-pane packet sniffer captures (filter bar, packet list, packet tree, hex dump) across HTTP scenarios.
+    - **CIA Triad & Architecture Diagrams**: Clear visual models for Confidentiality, Integrity, and Availability.
+    - **Data Integrity & Checksum Verification Flowcharts**: Visual sender-to-receiver transmission and checksum verification pipelines.
+    - **Caesar Cipher Concentric Shift Wheels**: Circular modular shift diagrams ($C = (P + 3) \pmod{26}$).
+    - **AES-128 Pipeline Diagrams**: Visual representation of the 10-round substitution-permutation network.
+    - **Statistical Anomaly Detection Plots**: Normal distribution curves illustrating $\mu \pm 2\sigma$ normal zones and outlier anomalies.
+    - **HTTP Client-Server Ladder Sequence Diagrams**: Interactive protocol exchange diagrams.
 - **🖤 3-Zone Anti-Slop Studio Architecture (v3.0)**:
   - **Zone 1: Global Navigation Icon Rail (64px)**: Quick switching between Lab Generator, Document Tools Studio, Code Playground, Settings, and Theme Switcher.
   - **Zone 2: Slide-Over Settings Drawer (360px)**: Dedicated slide-in drawer for Student Profile, AI Intelligence tiers, and Screenshot Theme Studio.
@@ -283,6 +293,8 @@ Lab-Gen/
 │   ├── corpus.py            # Persistent reference corpus & held-out pattern selector
 │   ├── parser.py            # DOCX / PDF / TXT task extraction & subject auto-detector
 │   ├── solver.py            # AI solver, AST syntax validator & bounded auto-heal
+│   ├── is_solver.py         # Information Security solver for ciphers, integrity, AES & Wireshark
+│   ├── security_visuals.py  # Security Visual Studio for Wireshark GUI, ciphers & network diagrams
 │   ├── synthesizer.py       # Forward-looking dynamic query & algorithm synthesizer
 │   ├── runner.py            # Native multi-language code runner (Python, C, C++, Bash)
 │   ├── sql_runner.py        # T-SQL & SQLite executor with schema auto-heal & ASCII formatting
@@ -292,7 +304,8 @@ Lab-Gen/
 │   ├── sanitizer.py         # Word XML unpacker, metadata cloaker & anti-AI scrubber
 │   ├── human_writer.py      # Autonomous Human Writer, AI authenticity evaluator & quality gate loop
 │   └── cli.py               # Rich terminal CLI runner
-├── tests/                   # Automated test suite (107 unit tests + 15 browser QA tests)
+├── tests/                   # Automated test suite (134 unit tests + 15 browser QA tests = 149 tests)
+│   ├── test_is_subject.py   # 27 comprehensive tests for Information Security subject & visual artifacts
 │   ├── test_human_writer.py # 22 comprehensive tests for AI detection, quality gate & style preservation
 │   ├── test_corpus.py       # Corpus loading, subject filtering & held-out isolation
 │   ├── test_parser.py       # Auto-detect subject, lettered/numbered task extraction
@@ -301,7 +314,8 @@ Lab-Gen/
 │   ├── test_themes_and_ui.py # Theme system, secret protection & screenshot generation
 │   ├── run_ui_adversarial_test.py # 15-step automated browser & responsive QA audit
 │   └── test_workflow_e2e.py # End-to-end multi-lab consecutive session isolation
-├── uploads/                 # Original 10 unsolved reference lab manuals (DSA 1–5, DBMS 1–5)
+├── uploads/                 # Unsolved reference lab manuals (DSA, DBMS, and IS in uploads/IS)
+│   └── IS/                  # Information Security manuals (Labs 01-04, 06, Wireshark HTTP trace)
 ├── examples/                # Sample lab manuals & university templates
 │   ├── sample_lab_manual.docx
 │   └── first-page.doc       # Official Dawood University reference cover page

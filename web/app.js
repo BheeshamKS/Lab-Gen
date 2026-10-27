@@ -1060,6 +1060,12 @@ function handleSubjectSelectChange() {
       badge.textContent = 'Custom Subject';
       badge.className = 'hint-badge';
     }
+  } else if (val === 'is') {
+    if (otherContainer) otherContainer.style.display = 'none';
+    if (badge) {
+      badge.textContent = 'IS Active';
+      badge.className = 'hint-badge active-badge';
+    }
   } else if (val === 'dbms') {
     if (otherContainer) otherContainer.style.display = 'none';
     if (badge) {
@@ -1801,11 +1807,15 @@ function renderFullDocument(data) {
     const prefix = task.language === 'sql' ? 'Query' : 'Program';
     let codeImg = task.code_screenshot_url || task.screenshot_url || '';
     let outImg = task.output_screenshot_url || task.screenshot_url || '';
+    let diagImg = task.diagram_screenshot_url || '';
     if (codeImg && !codeImg.includes('_t=')) {
       codeImg += (codeImg.includes('?') ? `&_t=${ts}` : `?_t=${ts}`);
     }
     if (outImg && !outImg.includes('_t=')) {
       outImg += (outImg.includes('?') ? `&_t=${ts}` : `?_t=${ts}`);
+    }
+    if (diagImg && !diagImg.includes('_t=')) {
+      diagImg += (diagImg.includes('?') ? `&_t=${ts}` : `?_t=${ts}`);
     }
 
     let vivaHtml = '';
@@ -1855,6 +1865,13 @@ function renderFullDocument(data) {
           </div>
         ` : ''}
         <div class="doc-output-block" style="background:#0a0a0a; border: 1px solid #262626; padding: 10px 14px; margin: 10px 0 16px; border-radius: 4px; font-family: 'Fira Code', monospace; font-size: 12px; color: #ededed;"><pre style="margin:0;"><code contenteditable="true" spellcheck="false" data-task-id="${task.task_id}" data-task-field="output">${escapeHtml(task.output || '')}</code></pre></div>
+
+        ${diagImg ? `
+          <div class="doc-label">ARCHITECTURAL DIAGRAM / PROTOCOL DISSECTION:</div>
+          <div class="doc-image-frame" onclick="openModal('${diagImg}', 'Visual Artifact - Task ${task.task_id}')">
+            <img src="${diagImg}" alt="Visual Artifact">
+          </div>
+        ` : ''}
 
         <div class="doc-explanation-block">
           <strong style="color: #000000;">Explanation &amp; Methodology:</strong>
@@ -2560,11 +2577,15 @@ function renderTaskCards(data) {
 
     let codeImg = task.code_screenshot_url || task.screenshot_url || '';
     let outImg = task.output_screenshot_url || task.screenshot_url || '';
+    let diagImg = task.diagram_screenshot_url || '';
     if (codeImg && !codeImg.includes('_t=')) {
       codeImg += (codeImg.includes('?') ? `&_t=${ts}` : `?_t=${ts}`);
     }
     if (outImg && !outImg.includes('_t=')) {
       outImg += (outImg.includes('?') ? `&_t=${ts}` : `?_t=${ts}`);
+    }
+    if (diagImg && !diagImg.includes('_t=')) {
+      diagImg += (diagImg.includes('?') ? `&_t=${ts}` : `?_t=${ts}`);
     }
 
     card.innerHTML = `
@@ -2583,6 +2604,7 @@ function renderTaskCards(data) {
       <div class="task-tabs">
         <button class="task-tab-btn active" onclick="switchTaskTab(${idx}, 'code-img')">Code Screenshot</button>
         <button class="task-tab-btn" onclick="switchTaskTab(${idx}, 'out-img')">Console Output Screenshot</button>
+        ${diagImg ? `<button class="task-tab-btn" onclick="switchTaskTab(${idx}, 'diag-img')">Visual Artifact</button>` : ''}
         <button class="task-tab-btn" onclick="switchTaskTab(${idx}, 'raw-code')">Raw Source Code</button>
       </div>
 
@@ -2599,6 +2621,15 @@ function renderTaskCards(data) {
           <p class="screenshot-caption">Figure: Terminal Console Output Screenshot - Click to zoom</p>
         </div>
       </div>
+
+      ${diagImg ? `
+      <div class="tab-pane" id="tab-diag-img-${idx}">
+        <div class="screenshot-preview-wrapper" onclick="openModal('${diagImg}', 'Visual Artifact - Task ${task.task_id}')">
+          <img src="${diagImg}" alt="Visual Artifact">
+          <p class="screenshot-caption">Figure: Architectural Diagram / Visual Demonstration - Click to zoom</p>
+        </div>
+      </div>
+      ` : ''}
 
       <div class="tab-pane" id="tab-raw-code-${idx}">
         <div class="code-container">
@@ -4083,7 +4114,7 @@ function registerWebMCPTools() {
       properties: {
         subject: {
           type: 'string',
-          enum: ['auto', 'dbms', 'dsa', 'other'],
+          enum: ['auto', 'dbms', 'dsa', 'is', 'other'],
           description: 'Academic subject domain.'
         },
         custom_subject: {
