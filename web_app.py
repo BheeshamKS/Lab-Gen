@@ -655,9 +655,10 @@ async def run_lab(
         builder = DocumentBuilder(cfg)
         sanitizer = DocumentSanitizer(cfg)
 
+        sub_hint = (sub_clean if 'sub_clean' in locals() and sub_clean != 'auto' else None) or getattr(lab_manual, "course_name", None) or getattr(lab_manual, "subject", None)
         screenshots = []
         for sol, res in zip(solutions, exec_results):
-            shots = studio.capture_task_artifacts(sol, res)
+            shots = studio.capture_task_artifacts(sol, res, subject=sub_hint)
             screenshots.append(shots)
 
         # Populate Observation Tables if present in manual
@@ -1081,9 +1082,10 @@ async def generate_from_session(payload: dict = Body(...)):
         builder = DocumentBuilder(cfg)
         sanitizer = DocumentSanitizer(cfg)
 
+        sub_hint = (sub_clean if 'sub_clean' in locals() and sub_clean != 'auto' else None) or getattr(lab_manual, "course_name", None) or getattr(lab_manual, "subject", None)
         screenshots = []
         for sol, res in zip(solutions, exec_results):
-            shots = studio.capture_task_artifacts(sol, res)
+            shots = studio.capture_task_artifacts(sol, res, subject=sub_hint)
             screenshots.append(shots)
 
         if getattr(lab_manual, "observation_tables", None):
@@ -1171,7 +1173,8 @@ async def refine_lab(
             res = runner.execute(refined_sol, sample_input=task.sample_input)
             exec_results[idx] = res
 
-            shots = studio.capture_task_artifacts(refined_sol, res)
+            sub_hint = getattr(lab_manual, "course_name", None) or getattr(lab_manual, "subject", None)
+            shots = studio.capture_task_artifacts(refined_sol, res, subject=sub_hint)
             screenshots[idx] = shots
 
         # Recompile all formats
@@ -1233,7 +1236,8 @@ async def edit_task(
         res = runner.execute(sol, sample_input=task.sample_input)
         exec_results[task_idx] = res
 
-        shots = studio.capture_task_artifacts(sol, res)
+        sub_hint = getattr(lab_manual, "course_name", None) or getattr(lab_manual, "subject", None)
+        shots = studio.capture_task_artifacts(sol, res, subject=sub_hint)
         screenshots[task_idx] = shots
 
         # Recompile all formats
@@ -1507,7 +1511,8 @@ async def save_document_canvas(payload: dict = Body(...)):
                         if reexecute and runner and studio:
                             res = runner.execute(sol, sample_input=task.sample_input)
                             exec_results[idx] = res
-                            shots = studio.capture_task_artifacts(sol, res)
+                            sub_hint = getattr(lab_manual, "course_name", None) or getattr(lab_manual, "subject", None)
+                            shots = studio.capture_task_artifacts(sol, res, subject=sub_hint)
                             screenshots[idx] = shots
                     break
 

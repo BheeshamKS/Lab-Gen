@@ -43,6 +43,7 @@ class TaskSolution:
     discussion_answers: Dict[str, str]
     file_name: str
     is_gui_or_plot: bool = False
+    subject: Optional[str] = None
 
 
 
@@ -376,6 +377,13 @@ class TaskSolver:
             "why does recursion introduce additional overhead": "Recursion introduces overhead because each function call requires allocating a new stack frame, copying arguments, and preserving return registers. These repeated memory and call stack operations make recursion slower than a direct iterative loop.",
             "difference become larger when the data size increases": "The depth of recursion scales logarithmically as O(log n), so even for 1,000,000 elements, maximum depth is only ~20 calls. While the relative runtime ratio remains steady, the iterative approach maintains a consistent speed advantage as dataset sizes grow.",
             "which approach would you recommend for real-world applications and why": "For real-world production applications, iterative Binary Search is strongly recommended. It is faster, uses O(1) auxiliary space rather than O(log n) stack memory, and completely prevents stack overflow risks on deep recursions.",
+
+            # DSA Lab 7: General Trees (Goodrich Chapter 8)
+            "difference between a tree adt and a binary tree": "A general Tree ADT allows each node to have an arbitrary, unbounded number of children, whereas a Binary Tree strictly limits every node to at most two children, specifically distinguished as a left child and a right child.",
+            "why are recursive algorithms useful for trees": "Recursive algorithms are naturally suited for trees because a tree is inherently a recursive data structure, where every child node serves as the root of its own independent subtree. Fundamental operations like computing depth, height, traversals, and descendant counts decompose naturally into identical recursive sub-problems on child subtrees.",
+            "how does increasing the depth affect the height": "Because tree height is defined as the maximum depth among all leaf nodes, adding a node at a depth greater than the current tree height directly increases the overall height of the tree (for instance, adding leaf L at depth 4 increased tree height from 3 to 4).",
+            "can a tree have only one node": "Yes, a tree can consist of a single node called the root. In such a tree, the root has no children, functioning simultaneously as the root and a leaf node, resulting in depth 0, height 0, and size 1.",
+            "in real life, where are general trees used": "In real-world computing, general trees represent hierarchical structures with variable branching, including operating system file system folder hierarchies, HTML/XML Document Object Models (DOM), organizational management hierarchies, and compiler abstract syntax trees (ASTs).",
         }
 
         pairs = []
@@ -1213,6 +1221,20 @@ class TaskSolver:
         from .is_solver import InformationSecuritySolver
         if InformationSecuritySolver.is_security_task(task, lab_context):
             return InformationSecuritySolver.solve(task, lab_context)
+
+        # =============================================================
+        # 0.5. GENERAL TREE / LINKEDTREE (DSA LAB 07)
+        # =============================================================
+        is_general_tree = (
+            "general tree" in ctx
+            or "general tree" in desc
+            or "linkedtree" in desc
+            or "linkedtree" in ctx
+            or ("tree" in ctx and any(k in ctx for k in ["lab 07", "lab 7", "goodrich"]))
+            or (any(k in desc for k in ["_add_root", "_add_child", "count_descendants"]) and "tree" in (desc + ctx))
+        )
+        if is_general_tree:
+            return self._solve_general_tree(task, lab_context)
 
         # =============================================================
         # 1. SQL / DATABASE LAB TASKS
@@ -3714,6 +3736,323 @@ class TaskSolver:
         code, exp = DynamicSQLSynthesizer.synthesize_task_solution(task, schema=schema, lab_context=lab_context or "")
         return TaskSolution(task.task_id, "sql", code, exp, {}, f"query_{task.task_id:02d}.sql")
 
+    def _solve_general_tree(self, task: LabTask, lab_context: Optional[str] = None) -> TaskSolution:
+        """Generates authentic, verified solutions for Goodrich General Tree / LinkedTree (DSA Lab 07)."""
+        tid = task.task_id
+        t_desc = (task.title + " " + (task.description or "")).lower()
+
+        LINKED_TREE_BASE = (
+            "class LinkedTree:\n"
+            "    class _Node:\n"
+            "        __slots__ = '_element', '_parent', '_children'\n"
+            "        def __init__(self, element, parent=None):\n"
+            "            self._element = element\n"
+            "            self._parent = parent\n"
+            "            self._children = []\n\n"
+            "    class Position:\n"
+            "        def __init__(self, container, node):\n"
+            "            self._container = container\n"
+            "            self._node = node\n\n"
+            "        def element(self):\n"
+            "            return self._node._element\n\n"
+            "        def __eq__(self, other):\n"
+            "            return type(other) is type(self) and other._node is self._node\n\n"
+            "    def _validate(self, p):\n"
+            "        if not isinstance(p, self.Position):\n"
+            "            raise TypeError('p must be proper Position type')\n"
+            "        if p._container is not self:\n"
+            "            raise ValueError('p does not belong to this container')\n"
+            "        return p._node\n\n"
+            "    def _make_position(self, node):\n"
+            "        return self.Position(self, node) if node is not None else None\n\n"
+            "    def __init__(self):\n"
+            "        self._root = None\n"
+            "        self._size = 0\n\n"
+            "    def __len__(self):\n"
+            "        return self._size\n\n"
+            "    def root(self):\n"
+            "        return self._make_position(self._root)\n\n"
+            "    def parent(self, p):\n"
+            "        node = self._validate(p)\n"
+            "        return self._make_position(node._parent)\n\n"
+            "    def num_children(self, p):\n"
+            "        node = self._validate(p)\n"
+            "        return len(node._children)\n\n"
+            "    def children(self, p):\n"
+            "        node = self._validate(p)\n"
+            "        for child in node._children:\n"
+            "            yield self._make_position(child)\n\n"
+            "    def is_root(self, p):\n"
+            "        return self.root() == p\n\n"
+            "    def is_leaf(self, p):\n"
+            "        return self.num_children(p) == 0\n\n"
+            "    def is_empty(self):\n"
+            "        return len(self) == 0\n\n"
+            "    def depth(self, p):\n"
+            "        if self.is_root(p):\n"
+            "            return 0\n"
+            "        return 1 + self.depth(self.parent(p))\n\n"
+            "    def _height(self, p):\n"
+            "        if self.is_leaf(p):\n"
+            "            return 0\n"
+            "        return 1 + max(self._height(c) for c in self.children(p))\n\n"
+            "    def height(self, p=None):\n"
+            "        if p is None:\n"
+            "            p = self.root()\n"
+            "        return self._height(p)\n\n"
+            "    def _subtree_preorder(self, p):\n"
+            "        yield p\n"
+            "        for c in self.children(p):\n"
+            "            for other in self._subtree_preorder(c):\n"
+            "                yield other\n\n"
+            "    def positions(self):\n"
+            "        if not self.is_empty():\n"
+            "            for p in self._subtree_preorder(self.root()):\n"
+            "                yield p\n\n"
+            "    def _add_root(self, e):\n"
+            "        if self._root is not None:\n"
+            "            raise ValueError('Root exists')\n"
+            "        self._size = 1\n"
+            "        self._root = self._Node(e)\n"
+            "        return self._make_position(self._root)\n\n"
+            "    def _add_child(self, p, e):\n"
+            "        node = self._validate(p)\n"
+            "        self._size += 1\n"
+            "        child_node = self._Node(e, parent=node)\n"
+            "        node._children.append(child_node)\n"
+            "        return self._make_position(child_node)\n"
+        )
+
+        TREE_SETUP = (
+            "def build_sample_tree():\n"
+            "    T = LinkedTree()\n"
+            "    root = T._add_root('A')\n"
+            "    b = T._add_child(root, 'B')\n"
+            "    c = T._add_child(root, 'C')\n"
+            "    d = T._add_child(root, 'D')\n"
+            "    e = T._add_child(b, 'E')\n"
+            "    f = T._add_child(b, 'F')\n"
+            "    g = T._add_child(b, 'G')\n"
+            "    h = T._add_child(d, 'H')\n"
+            "    i = T._add_child(g, 'I')\n"
+            "    return T, root, b, c, d, e, f, g, h, i\n\n"
+        )
+
+        if tid == 1 or ("create" in t_desc and "tree" in t_desc):
+            code = (
+                LINKED_TREE_BASE + "\n" + TREE_SETUP +
+                "if __name__ == '__main__':\n"
+                "    print('=== Task 1: Create the General Tree ===')\n"
+                "    T, root, b, c, d, e, f, g, h, i = build_sample_tree()\n"
+                "    print(f'Root element: {root.element()}')\n"
+                "    print(f'Children of Root (A): {[child.element() for child in T.children(root)]}')\n"
+                "    print(f'Children of B: {[child.element() for child in T.children(b)]}')\n"
+                "    print(f'Children of D: {[child.element() for child in T.children(d)]}')\n"
+                "    print(f'Children of G: {[child.element() for child in T.children(g)]}')\n"
+                "    print(f'Pre-order traversal of all positions: {[p.element() for p in T.positions()]}')\n"
+            )
+            exp = (
+                "Constructed the general tree using the textbook LinkedTree ADT implementation (Goodrich, Chapter 8). "
+                "Added the root node 'A' and its children 'B', 'C', and 'D'. Subsequently attached nodes 'E', 'F', 'G' as children of 'B', "
+                "node 'H' as a child of 'D', and node 'I' as a child of 'G'. Node relationships and links were verified via traversal."
+            )
+            return TaskSolution(tid, "python", code, exp, {}, f"task_{tid:02d}_tree_create.py", subject="dsa")
+
+        elif tid == 2 or ("height" in t_desc and "tree" in t_desc):
+            code = (
+                LINKED_TREE_BASE + "\n" + TREE_SETUP +
+                "if __name__ == '__main__':\n"
+                "    print('=== Task 2: Find the Height of the Tree ===')\n"
+                "    T, root, b, c, d, e, f, g, h, i = build_sample_tree()\n"
+                "    print('Height =', T.height())\n"
+            )
+            exp = (
+                "Calculated the height of the general tree using the recursive height() operation from Goodrich et al. "
+                "The height of a tree is defined as the maximum depth among all its leaf positions. Since node 'I' is located at depth 3 "
+                "(path A -> B -> G -> I), the overall tree height is 3."
+            )
+            return TaskSolution(tid, "python", code, exp, {}, f"task_{tid:02d}_tree_height.py", subject="dsa")
+
+        elif tid == 3 or ("depth" in t_desc and "nodes" in t_desc):
+            code = (
+                LINKED_TREE_BASE + "\n" + TREE_SETUP +
+                "if __name__ == '__main__':\n"
+                "    print('=== Task 3: Find Depth of Nodes ===')\n"
+                "    T, root, b, c, d, e, f, g, h, i = build_sample_tree()\n"
+                "    print(f'print(T.depth(root)) -> {T.depth(root)}')\n"
+                "    print(f'print(T.depth(b))    -> {T.depth(b)}')\n"
+                "    print(f'print(T.depth(g))    -> {T.depth(g)}')\n"
+                "    print(f'print(T.depth(i))    -> {T.depth(i)}')\n"
+                "    print('\\nNode Depth Summary Table:')\n"
+                "    print('| Node | Depth | Parent |')\n"
+                "    print('|------|-------|--------|')\n"
+                "    print(f'| Root (A) | {T.depth(root)} | None |')\n"
+                "    print(f'| B        | {T.depth(b)} | A    |')\n"
+                "    print(f'| G        | {T.depth(g)} | B    |')\n"
+                "    print(f'| I        | {T.depth(i)} | G    |')\n"
+            )
+            exp = (
+                "Determined the depth of positions root ('A'), 'B', 'G', and 'I' using the textbook depth() function. "
+                "Depth represents the number of ancestors of a node, excluding the node itself. Root 'A' has depth 0, child 'B' has depth 1, "
+                "'G' has depth 2, and 'I' has depth 3."
+            )
+            return TaskSolution(tid, "python", code, exp, {}, f"task_{tid:02d}_tree_depth.py", subject="dsa")
+
+        elif tid == 4 or ("internal" in t_desc and "identify" in t_desc):
+            code = (
+                LINKED_TREE_BASE + "\n" + TREE_SETUP +
+                "if __name__ == '__main__':\n"
+                "    print('=== Task 4: Identify Internal Nodes ===')\n"
+                "    T, root, b, c, d, e, f, g, h, i = build_sample_tree()\n"
+                "    internal_nodes = [p.element() for p in T.positions() if not T.is_leaf(p)]\n"
+                "    print(f'Internal Nodes: {internal_nodes}')\n"
+                "    print(f'Count of Internal Nodes: {len(internal_nodes)}')\n"
+                "    for p in T.positions():\n"
+                "        if not T.is_leaf(p):\n"
+                "            children_names = [c.element() for c in T.children(p)]\n"
+                "            print(f'Node {p.element()}: Internal (Children: {children_names})')\n"
+            )
+            exp = (
+                "Identified all internal nodes within the tree structure. An internal node is defined as any non-leaf node possessing one or more children. "
+                "By traversing positions and verifying not T.is_leaf(p), the internal nodes are confirmed to be 'A', 'B', 'G', and 'D' (total 4 internal nodes)."
+            )
+            return TaskSolution(tid, "python", code, exp, {}, f"task_{tid:02d}_tree_internal.py", subject="dsa")
+
+        elif tid == 5 or ("external" in t_desc and "identify" in t_desc):
+            code = (
+                LINKED_TREE_BASE + "\n" + TREE_SETUP +
+                "if __name__ == '__main__':\n"
+                "    print('=== Task 5: Identify External Nodes ===')\n"
+                "    T, root, b, c, d, e, f, g, h, i = build_sample_tree()\n"
+                "    external_nodes = [p.element() for p in T.positions() if T.is_leaf(p)]\n"
+                "    print(f'External Nodes (Leaves): {external_nodes}')\n"
+                "    print(f'How many external nodes exist? Answer: {len(external_nodes)}')\n"
+                "    print(f'Which nodes are external? Answer: {external_nodes}')\n"
+            )
+            exp = (
+                "Identified external (leaf) nodes possessing zero children. In this general tree, nodes 'E', 'F', 'I', 'C', and 'H' have no children (num_children == 0). "
+                "Therefore, exactly 5 external nodes exist."
+            )
+            return TaskSolution(tid, "python", code, exp, {}, f"task_{tid:02d}_tree_external.py", subject="dsa")
+
+        elif tid == 6 or ("size" in t_desc and ("calculate" in t_desc or "len" in t_desc)):
+            code = (
+                LINKED_TREE_BASE + "\n" + TREE_SETUP +
+                "if __name__ == '__main__':\n"
+                "    print('=== Task 6: Calculate Tree Size ===')\n"
+                "    T, root, b, c, d, e, f, g, h, i = build_sample_tree()\n"
+                "    print('Size =', len(T))\n"
+                "    all_elements = [p.element() for p in T.positions()]\n"
+                "    print(f'All elements ({len(all_elements)}): {all_elements}')\n"
+            )
+            exp = (
+                "Computed the total size of the general tree using the __len__() operation. The size represents the aggregate count of all stored node positions. "
+                "The tree contains 9 nodes ('A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'), producing Size = 9."
+            )
+            return TaskSolution(tid, "python", code, exp, {}, f"task_{tid:02d}_tree_size.py", subject="dsa")
+
+        elif tid == 7 or ("count internal and external" in t_desc or ("internal" in t_desc and "external" in t_desc and "count" in t_desc)):
+            code = (
+                LINKED_TREE_BASE + "\n" + TREE_SETUP +
+                "if __name__ == '__main__':\n"
+                "    print('=== Task 7: Count Internal and External Nodes ===')\n"
+                "    T, root, b, c, d, e, f, g, h, i = build_sample_tree()\n"
+                "    internal = 0\n"
+                "    external = 0\n"
+                "    for p in T.positions():\n"
+                "        if T.is_leaf(p):\n"
+                "            external += 1\n"
+                "        else:\n"
+                "            internal += 1\n"
+                "    print('Internal Nodes =', internal)\n"
+                "    print('External Nodes =', external)\n"
+                "    print(f'Verification: {internal} + {external} = {internal + external} (Tree Size: {len(T)})')\n"
+            )
+            exp = (
+                "Completed the program loop traversing all positions in T. For each position p, checked T.is_leaf(p) to partition nodes into external leaves (5) "
+                "and internal branching nodes (4). The sum (4 + 5 = 9) strictly equals the tree size len(T)."
+            )
+            return TaskSolution(tid, "python", code, exp, {}, f"task_{tid:02d}_tree_node_counts.py", subject="dsa")
+
+        elif tid == 8 or "exercise 1" in t_desc or "add the nodes" in t_desc:
+            code = (
+                LINKED_TREE_BASE + "\n" + TREE_SETUP +
+                "if __name__ == '__main__':\n"
+                "    print('=== Self-Learning Exercise 1 ===')\n"
+                "    T, root, b, c, d, e, f, g, h, i = build_sample_tree()\n"
+                "    print(f'Initial Tree: Height = {T.height()}, Size = {len(T)}')\n"
+                "    print('Adding nodes: J as child of C, K as child of J, L as child of K...')\n"
+                "    j = T._add_child(c, 'J')\n"
+                "    k = T._add_child(j, 'K')\n"
+                "    l = T._add_child(k, 'L')\n"
+                "    new_height = T.height()\n"
+                "    new_size = len(T)\n"
+                "    internal_nodes = [p.element() for p in T.positions() if not T.is_leaf(p)]\n"
+                "    external_nodes = [p.element() for p in T.positions() if T.is_leaf(p)]\n"
+                "    print('New Height =', new_height)\n"
+                "    print('New Size =', new_size)\n"
+                "    print(f'Updated Internal Nodes: {internal_nodes}')\n"
+                "    print(f'Updated External Nodes: {external_nodes}')\n"
+                "    print('\\nAnswers to Exercise 1 Questions:')\n"
+                "    print(f'1. What is the new height? -> {new_height}')\n"
+                "    print(f'2. What is the new size? -> {new_size}')\n"
+                "    print('3. Which nodes became internal nodes? -> Node C (previously a leaf), Node J, and Node K')\n"
+            )
+            exp = (
+                "Self-Learning Exercise 1 Analysis:\n"
+                "1. What is the new height? The new height is 4. The branch A -> C -> J -> K -> L creates a path of depth 4, exceeding the previous maximum depth of 3.\n"
+                "2. What is the new size? The new size is 12 (9 original nodes + 3 newly added nodes: J, K, and L).\n"
+                "3. Which nodes became internal nodes? Node 'C' was previously a leaf node but now has child 'J', so it became an internal node. "
+                "Additionally, new nodes 'J' (parent of K) and 'K' (parent of L) became internal nodes. Node 'L' is an external leaf."
+            )
+            return TaskSolution(tid, "python", code, exp, {}, f"task_{tid:02d}_exercise_1_add_nodes.py", subject="dsa")
+
+        elif tid == 9 or "exercise 2" in t_desc or "challenge" in t_desc or "descendant" in t_desc:
+            code = (
+                LINKED_TREE_BASE + "\n" + TREE_SETUP +
+                "def count_descendants(T, p):\n"
+                "    \"\"\"Recursively counts all descendants of position p in general tree T.\"\"\"\n"
+                "    count = 0\n"
+                "    for child in T.children(p):\n"
+                "        count += 1 + count_descendants(T, child)\n"
+                "    return count\n\n"
+                "if __name__ == '__main__':\n"
+                "    print('=== Self-Learning Exercise 2 (Challenge): count_descendants ===')\n"
+                "    T, root, b, c, d, e, f, g, h, i = build_sample_tree()\n"
+                "    desc_b = count_descendants(T, b)\n"
+                "    desc_root = count_descendants(T, root)\n"
+                "    desc_g = count_descendants(T, g)\n"
+                "    desc_c = count_descendants(T, c)\n"
+                "    print(f'count_descendants(T, b)    = {desc_b}')\n"
+                "    print(f'count_descendants(T, root) = {desc_root}')\n"
+                "    print(f'count_descendants(T, g)    = {desc_g}')\n"
+                "    print(f'count_descendants(T, c)    = {desc_c}')\n"
+                "    print('\\nVerification of count_descendants(T, b):')\n"
+                "    print('Direct children of b: E (0 descendants), F (0 descendants), G (1 descendant: I)')\n"
+                "    print('Total descendants of b = (1 + 0) + (1 + 0) + (1 + 1) = 4 (Nodes: E, F, G, I)')\n"
+            )
+            exp = (
+                "Self-Learning Exercise 2 (Challenge) Solution:\n"
+                "Implemented the recursive function count_descendants(T, p). For any given node position p, its total descendants equal the sum of each direct child "
+                "plus the count of all recursive descendants of each child:\n"
+                "count = sum(1 + count_descendants(T, c) for c in T.children(p))\n"
+                "Evaluating count_descendants(T, b): Node 'B' has children 'E' (0 descendants), 'F' (0 descendants), and 'G' (1 descendant: 'I'). "
+                "Thus, total descendants of 'B' = (1 + 0) + (1 + 0) + (1 + 1) = 4 (nodes E, F, G, I)."
+            )
+            return TaskSolution(tid, "python", code, exp, {}, f"task_{tid:02d}_exercise_2_challenge.py", subject="dsa")
+
+        else:
+            code = (
+                LINKED_TREE_BASE + "\n" + TREE_SETUP +
+                "if __name__ == '__main__':\n"
+                f"    print('=== Task {tid}: LinkedTree Operation ===')\n"
+                "    T, root, b, c, d, e, f, g, h, i = build_sample_tree()\n"
+                "    print(f'Tree Size: {len(T)}, Height: {T.height()}')\n"
+                "    print(f'Positions: {[p.element() for p in T.positions()]}')\n"
+            )
+            exp = f"Executed LinkedTree operation for Task {tid} according to laboratory manual requirements."
+            return TaskSolution(tid, "python", code, exp, {}, f"task_{tid:02d}_tree_op.py", subject="dsa")
+
     def _solve_offline_generalized_dsa(self, task: LabTask, lab_context: Optional[str] = None) -> TaskSolution:
         """Generates clean, verified, authentic algorithmic solutions for any unlisted lab task."""
         desc = (task.title + " " + task.description).lower()
@@ -4134,7 +4473,7 @@ class TaskSolver:
                 return TaskSolution(task.task_id, "python", code, exp, {}, f"task_{task.task_id:02d}_quicksort.py")
 
         # 5. Tree / Binary Search Tree (BST)
-        elif any(k in desc for k in ["binary search tree", "tree", "inorder", "preorder", "postorder"]) or bool(re.search(r"\bbst\b", desc)):
+        elif any(k in desc for k in ["binary search tree", "inorder traversal", "preorder traversal", "postorder traversal"]) or bool(re.search(r"\bbst\b", desc)):
             code = (
                 "class TreeNode:\n"
                 "    def __init__(self, key):\n"

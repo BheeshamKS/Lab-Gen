@@ -52,15 +52,21 @@ class ScreenshotStudio:
                     pass
         return ImageFont.load_default()
 
-    def capture_task_screenshots(self, solution: TaskSolution, exec_result: ExecutionResult) -> Tuple[Path, Path]:
+    def capture_task_screenshots(self, solution: TaskSolution, exec_result: ExecutionResult, subject: Optional[str] = None) -> Tuple[Path, Path]:
         """Generates both the Code Screenshot and Output Screenshot for a task, and attaches any security diagrams."""
-        code_img, out_img, _ = self.capture_task_artifacts(solution, exec_result)
+        code_img, out_img, _ = self.capture_task_artifacts(solution, exec_result, subject=subject)
         return code_img, out_img
 
-    def capture_task_artifacts(self, solution: TaskSolution, exec_result: ExecutionResult) -> Tuple[Path, Path, Optional[Path]]:
+    def capture_task_artifacts(
+        self,
+        solution: TaskSolution,
+        exec_result: ExecutionResult,
+        subject: Optional[str] = None
+    ) -> Tuple[Path, Path, Optional[Path]]:
         """
         Generates Code Screenshot, Output Screenshot, and optional Specialized Visual Artifact
         (e.g., Wireshark GUI captures, Checksum Flowcharts, Caesar Wheels, AES Block Diagrams, Anomaly Plots).
+        Specialized diagrams are strictly gated to Information Security subject tasks.
         """
         code_img_path = exec_result.work_dir / f"screenshot_code_task_{solution.task_id:02d}.png"
         out_img_path = exec_result.work_dir / f"screenshot_output_task_{solution.task_id:02d}.png"
@@ -69,8 +75,27 @@ class ScreenshotStudio:
 
         text_ctx = (solution.file_name + " " + solution.code + " " + (solution.explanation or "")).lower()
 
-        # Check for Wireshark Packet Sniffer task
-        is_wireshark = any(k in text_ctx for k in ["wireshark", "http-wireshark", "http/1.1", "pdu", "packet capture", "sniff"]) or "wireshark" in exec_result.command_str.lower()
+        # Subject determination: strictly isolate Information Security visuals from DSA / DBMS / General labs
+        eff_sub = (subject or getattr(solution, "subject", None) or "").lower().strip()
+        is_security_subject = False
+        if eff_sub in ["is", "information security", "infosec", "security"]:
+            is_security_subject = True
+        elif eff_sub in ["dsa", "data structures", "dbms", "database"]:
+            is_security_subject = False
+        else:
+            try:
+                from .is_solver import InformationSecuritySolver
+                from .parser import LabTask
+                dummy_task = LabTask(solution.task_id, solution.file_name, solution.explanation or "")
+                is_security_subject = InformationSecuritySolver.is_security_task(dummy_task, solution.code)
+            except Exception:
+                is_security_subject = False
+
+        # Check for Wireshark Packet Sniffer task (strictly security domain)
+        is_wireshark = is_security_subject and (
+            any(k in text_ctx for k in ["wireshark", "http-wireshark", "http/1.1", "pdu", "packet capture", "sniff"])
+            or "wireshark" in exec_result.command_str.lower()
+        )
         if is_wireshark:
             # Determine scenario
             scenario = "http_basic"
@@ -110,36 +135,37 @@ class ScreenshotStudio:
                 command_str=exec_result.command_str
             )
 
-            # Check if domain-specific security visual diagram should be synthesized
-            if any(k in text_ctx for k in ["checksum", "calculate_checksum", "verify_checksum", "data integrity"]):
-                SecurityVisualStudio.generate_checksum_flow_diagram(diag_img_path)
-                special_diag = diag_img_path
-                exec_result.output_files["checksum_flow.png"] = diag_img_path
+            # Check if domain-specific security visual diagram should be synthesized (ONLY if IS subject)
+            if is_security_subject:
+                if any(k in text_ctx for k in ["checksum", "calculate_checksum", "verify_checksum", "data integrity"]):
+                    SecurityVisualStudio.generate_checksum_flow_diagram(diag_img_path)
+                    special_diag = diag_img_path
+                    exec_result.output_files["checksum_flow.png"] = diag_img_path
 
-            elif any(k in text_ctx for k in ["caesar", "caesar cipher", "fixed shift", "brute force"]) and "shift" in text_ctx:
-                SecurityVisualStudio.generate_caesar_cipher_diagram(diag_img_path, shift=3)
-                special_diag = diag_img_path
-                exec_result.output_files["caesar_wheel.png"] = diag_img_path
+                elif any(k in text_ctx for k in ["caesar", "caesar cipher", "fixed shift", "brute force"]) and "shift" in text_ctx:
+                    SecurityVisualStudio.generate_caesar_cipher_diagram(diag_img_path, shift=3)
+                    special_diag = diag_img_path
+                    exec_result.output_files["caesar_wheel.png"] = diag_img_path
 
-            elif any(k in text_ctx for k in ["aes", "cryptopp", "symmetric encryption", "rijndael", "cfb", "cbc"]):
-                SecurityVisualStudio.generate_aes_architecture_diagram(diag_img_path)
-                special_diag = diag_img_path
-                exec_result.output_files["aes_block.png"] = diag_img_path
+                elif any(k in text_ctx for k in ["aes", "cryptopp", "symmetric encryption", "rijndael", "cfb", "cbc"]):
+                    SecurityVisualStudio.generate_aes_architecture_diagram(diag_img_path)
+                    special_diag = diag_img_path
+                    exec_result.output_files["aes_block.png"] = diag_img_path
 
-            elif any(k in text_ctx for k in ["anomaly", "outlier", "z-score", "zscore", "calculatemean", "standarddeviation"]):
-                SecurityVisualStudio.generate_anomaly_detection_plot(diag_img_path)
-                special_diag = diag_img_path
-                exec_result.output_files["anomaly_plot.png"] = diag_img_path
+                elif any(k in text_ctx for k in ["anomaly", "outlier", "z-score", "zscore", "calculatemean", "standarddeviation"]):
+                    SecurityVisualStudio.generate_anomaly_detection_plot(diag_img_path)
+                    special_diag = diag_img_path
+                    exec_result.output_files["anomaly_plot.png"] = diag_img_path
 
-            elif any(k in text_ctx for k in ["confidentiality", "access control", "cia triad", "password confirmed", "get_user_details"]) or solution.task_id == 3:
-                SecurityVisualStudio.generate_cia_triad_diagram(diag_img_path)
-                special_diag = diag_img_path
-                exec_result.output_files["cia_triad.png"] = diag_img_path
+                elif any(k in text_ctx for k in ["confidentiality", "access control", "cia triad", "password confirmed", "get_user_details"]):
+                    SecurityVisualStudio.generate_cia_triad_diagram(diag_img_path)
+                    special_diag = diag_img_path
+                    exec_result.output_files["cia_triad.png"] = diag_img_path
 
-            elif any(k in text_ctx for k in ["symmetric key", "fernet", "encrypt_decrypt", "involutory", "xor-based"]) or ("xor" in text_ctx and "key" in text_ctx):
-                SecurityVisualStudio.generate_symmetric_crypto_flow_diagram(diag_img_path)
-                special_diag = diag_img_path
-                exec_result.output_files["symmetric_crypto_flow.png"] = diag_img_path
+                elif any(k in text_ctx for k in ["symmetric key", "fernet", "encrypt_decrypt", "involutory", "xor-based"]) or ("xor" in text_ctx and "key" in text_ctx):
+                    SecurityVisualStudio.generate_symmetric_crypto_flow_diagram(diag_img_path)
+                    special_diag = diag_img_path
+                    exec_result.output_files["symmetric_crypto_flow.png"] = diag_img_path
 
         return code_img_path, out_img_path, special_diag
 

@@ -76,7 +76,7 @@ class ManualParser:
 
     TASK_KEYWORD_PATTERN = (
         r"^(?:(?:sample|sampel|smapel)\s+)?(?:lab|task|assignment|experiment|exercise|activity|problem|program|part|query|question)"
-        r"\s*[:\-]?\s*#?\s*(?:0*([0-9]+)|([ivxldcm]+))\b(?:\s*[\u2013\u2014\-:\.]\s*(.*)|$)"
+        r"\s*[:\-]?\s*#?\s*(?:0*([0-9]+)|([ivxldcm]+))\b(?:\s*[\u2013\u2014\-:\.]\s*(.*)|\s*(\([^\)]*\).*)|$)"
     )
 
     END_SECTION_MARKERS = [
@@ -372,8 +372,8 @@ class ManualParser:
                     in_proc_section = False
                     continue
 
-                # Section: Analysis Questions
-                if re.search(r"^(?:\d+[\.\)]\s*)?(?:analysis\s*questions?|questions?\s+(?:for\s+)?analysis)[\s:]*$", p_text, re.IGNORECASE):
+                # Section: Analysis Questions & Post-Lab Reflections
+                if re.search(r"^(?:\d+[\.\)]\s*)?(?:analysis\s*questions?|questions?\s+(?:for\s+)?analysis|post[\s\-]*lab(?:\s+reflection|\s+questions?)?|reflection\s*questions?)[\s:]*$", p_text, re.IGNORECASE):
                     save_task()
                     in_analysis_section = True
                     in_viva_section = False
@@ -473,8 +473,8 @@ class ManualParser:
 
                 if m_exp and not is_manual_header:
                     num_str = m_exp.group(1)
-                    num_val = int(num_str) if (num_str and int(num_str) > 0) else (current_task_num + 1)
-                    rest = m_exp.group(3).strip() if m_exp.group(3) else ""
+                    num_val = int(num_str) if (num_str and int(num_str) > 0) else (len(tasks) + 1)
+                    rest = (m_exp.group(3) or (m_exp.group(4) if len(m_exp.groups()) >= 4 else None) or "").strip()
 
                     # Special check for Lab 02: 'Sample program: 02' when current_task_num == 2
                     if is_is_manual and current_task_num > 0 and num_val == current_task_num and not rest:
@@ -483,15 +483,20 @@ class ManualParser:
 
                     save_task()
                     in_task_section = True
+                    if len(tasks) >= num_val:
+                        num_val = len(tasks) + 1
                     current_task_num = num_val
 
-                    # If rest is empty, check next paragraph for task title
-                    if not rest:
+                    # If rest is empty or is a parenthesized label, check next paragraph for task title
+                    if not rest or rest.startswith("("):
                         curr_p_idx = all_p_elements.index(el) if el in all_p_elements else -1
                         if curr_p_idx >= 0 and curr_p_idx + 1 < len(all_p_elements):
                             next_p_text = docx.text.paragraph.Paragraph(all_p_elements[curr_p_idx + 1], doc).text.strip()
                             if next_p_text and len(next_p_text) < 120 and not any(next_p_text.lower().startswith(x) for x in ["objective", "theory", "scenario", "dataset", "tasks", "pre-lab"]):
-                                rest = next_p_text
+                                if rest:
+                                    rest = f"{rest} - {next_p_text}"
+                                else:
+                                    rest = next_p_text
 
                     current_task_title = f"Task {current_task_num}: {rest}" if rest else f"Task {current_task_num}"
                     current_task_lines = []
@@ -976,8 +981,8 @@ class ManualParser:
                 in_tasks = False
                 continue
 
-            # Analysis Questions section
-            if re.search(r"^(?:\d+[\.\)]\s*)?(?:analysis\s*questions?|questions?\s+(?:for\s+)?analysis)[\s:]*$", clean_line_no_fmt, re.IGNORECASE):
+            # Analysis Questions & Post-Lab Reflections
+            if re.search(r"^(?:\d+[\.\)]\s*)?(?:analysis\s*questions?|questions?\s+(?:for\s+)?analysis|post[\s\-]*lab(?:\s+reflection|\s+questions?)?|reflection\s*questions?)[\s:]*$", clean_line_no_fmt, re.IGNORECASE):
                 save_task()
                 in_analysis = True
                 in_viva = False
@@ -1041,10 +1046,17 @@ class ManualParser:
                 in_tasks = True
                 num_str = tm.group(1)
                 if num_str:
-                    current_task_num = int(num_str)
+                    num_val = int(num_str)
                 elif tm.group(2):
-                    current_task_num = self.ROMAN_NUMERALS.get(tm.group(2).lower(), 1)
-                rest = tm.group(3).strip() if tm.group(3) else ""
+                    num_val = self.ROMAN_NUMERALS.get(tm.group(2).lower(), 1)
+                else:
+                    num_val = len(tasks) + 1
+
+                if len(tasks) >= num_val:
+                    num_val = len(tasks) + 1
+                current_task_num = num_val
+
+                rest = (tm.group(3) or (tm.group(4) if len(tm.groups()) >= 4 else None) or "").strip()
                 current_task_title = f"Task {current_task_num}: {rest}" if rest else f"Task {current_task_num}"
                 current_lines = [rest] if rest else []
                 continue
