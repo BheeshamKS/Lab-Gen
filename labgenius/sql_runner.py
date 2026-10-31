@@ -80,7 +80,7 @@ def _auto_provision_missing_table(conn: sqlite3.Connection, table_name: str, db_
                 import json
                 with open(sc, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                ctx = data.get("manual", {}).get("context", "")
+                ctx = f"{data.get('manual', {}).get('context', '') or ''}\n{data.get('manual', {}).get('raw_text', '') or ''}".strip()
                 if ctx and table_name.lower() in ctx.lower():
                     tasks_data = data.get("manual", {}).get("tasks", [])
                     class DummyTask:

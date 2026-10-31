@@ -1708,6 +1708,16 @@ class TaskSolver:
                 exp = "Dropped Student2 table using DROP TABLE statement."
                 return TaskSolution(task.task_id, "sql", code, exp, {}, f"query_{task.task_id:02d}.sql")
 
+            # ---------------------------------------------------------
+            # DBMS Lab 08: Pattern Searching and Arithmetic Operators
+            # ---------------------------------------------------------
+            elif any(k in desc or k in ctx for k in [
+                "pattern searching", "arithmetic operators", "student practical tasks",
+                "students whose names start with", "students whose names end with",
+                "obtainedmarks", "totalmarks", "semesterfee", "remainingmarks"
+            ]) or ("students" in ctx and any(k in desc for k in ["start with", "end with", "contain ah", "second character", "modulo", "semester fee", "revised fee"])):
+                return self._solve_dbms_lab08(task, lab_context)
+
             # Generalized Schema-Aware SQL Solver for any unseen task
             else:
                 return self._solve_offline_generalized_sql(task, lab_context)
@@ -3735,6 +3745,156 @@ class TaskSolver:
         schema = DynamicSQLSynthesizer.extract_schema(lab_context or "", tasks=[task])
         code, exp = DynamicSQLSynthesizer.synthesize_task_solution(task, schema=schema, lab_context=lab_context or "")
         return TaskSolution(task.task_id, "sql", code, exp, {}, f"query_{task.task_id:02d}.sql")
+
+    def _solve_dbms_lab08(self, task: LabTask, lab_context: Optional[str] = None) -> TaskSolution:
+        """Generates authentic, verified SQL solutions for DBMS Lab 08: Pattern Searching and Arithmetic Operators."""
+        tid = task.task_id
+        desc = (task.title + " " + (task.description or "")).lower()
+
+        # Task 1: Names start with 'A'
+        if tid == 1 or ("start" in desc and "letter a" in desc) or ("names start with" in desc and " a" in desc):
+            code = (
+                "SELECT *\n"
+                "FROM Students\n"
+                "WHERE StudentName LIKE 'A%';\n"
+            )
+            exp = "Retrieved student records whose names start with the letter 'A' using the SQL LIKE operator and the '%' wildcard."
+            return TaskSolution(tid, "sql", code, exp, {}, f"query_{tid:02d}.sql")
+
+        # Task 2: Names end with 'Khan'
+        elif tid == 2 or ("end" in desc and "khan" in desc):
+            code = (
+                "SELECT *\n"
+                "FROM Students\n"
+                "WHERE StudentName LIKE '%Khan';\n"
+            )
+            exp = "Retrieved student records whose names terminate with 'Khan' using the LIKE operator and '%Khan' pattern matching."
+            return TaskSolution(tid, "sql", code, exp, {}, f"query_{tid:02d}.sql")
+
+        # Task 3: Names contain 'ah', case-insensitive
+        elif tid == 3 or ("contain" in desc and "ah" in desc):
+            code = (
+                "SELECT *\n"
+                "FROM Students\n"
+                "WHERE LOWER(StudentName) LIKE '%ah%';\n"
+            )
+            exp = "Used the LOWER() scalar function combined with LIKE '%ah%' to perform a case-insensitive search for names containing 'ah'."
+            return TaskSolution(tid, "sql", code, exp, {}, f"query_{tid:02d}.sql")
+
+        # Task 4: Second character is 'i'
+        elif tid == 4 or ("second character" in desc and "i" in desc):
+            code = (
+                "SELECT StudentName\n"
+                "FROM Students\n"
+                "WHERE StudentName LIKE '_i%';\n"
+            )
+            exp = "Used the single-character underscore (_) wildcard combined with '%' in LIKE '_i%' to find student names with 'i' at the second character position."
+            return TaskSolution(tid, "sql", code, exp, {}, f"query_{tid:02d}.sql")
+
+        # Task 5: Department does not contain 'Science'
+        elif tid == 5 or ("department" in desc and "not contain" in desc and "science" in desc):
+            code = (
+                "SELECT *\n"
+                "FROM Students\n"
+                "WHERE Department NOT LIKE '%Science%';\n"
+            )
+            exp = "Used the NOT LIKE operator to exclude all student records belonging to departments containing 'Science'."
+            return TaskSolution(tid, "sql", code, exp, {}, f"query_{tid:02d}.sql")
+
+        # Task 6: Obtained marks and remaining marks
+        elif tid == 6 or ("marks required" in desc or "remaining marks" in desc or ("obtained marks" in desc and "total" in desc)):
+            code = (
+                "SELECT StudentID,\n"
+                "       StudentName,\n"
+                "       ObtainedMarks,\n"
+                "       TotalMarks,\n"
+                "       (TotalMarks - ObtainedMarks) AS RemainingMarks\n"
+                "FROM Students;\n"
+            )
+            exp = "Calculated remaining marks required to reach the total using the subtraction arithmetic operator (TotalMarks - ObtainedMarks) aliased as RemainingMarks."
+            return TaskSolution(tid, "sql", code, exp, {}, f"query_{tid:02d}.sql")
+
+        # Task 7: Percentage to two decimal places
+        elif tid == 7 or ("percentage to two decimal places" in desc or ("percentage" in desc and "two decimal" in desc)):
+            code = (
+                "SELECT StudentID,\n"
+                "       StudentName,\n"
+                "       ObtainedMarks,\n"
+                "       TotalMarks,\n"
+                "       ROUND((CAST(ObtainedMarks AS FLOAT) / TotalMarks) * 100.0, 2) AS Percentage\n"
+                "FROM Students;\n"
+            )
+            exp = "Calculated each student's marks percentage to two decimal places using floating-point division and the ROUND() function."
+            return TaskSolution(tid, "sql", code, exp, {}, f"query_{tid:02d}.sql")
+
+        # Task 8: Semester fee increased by 10%
+        elif tid == 8 or ("semester fee by 10%" in desc or ("10%" in desc and "revised fee" in desc)):
+            code = (
+                "SELECT StudentID,\n"
+                "       StudentName,\n"
+                "       SemesterFee,\n"
+                "       ROUND(SemesterFee * 1.10, 2) AS RevisedSemesterFee\n"
+                "FROM Students;\n"
+            )
+            exp = "Calculated a 10% fee increase directly within the SELECT projection using multiplication (SemesterFee * 1.10) without mutating the table."
+            return TaskSolution(tid, "sql", code, exp, {}, f"query_{tid:02d}.sql")
+
+        # Task 9: Odd StudentID using modulo
+        elif tid == 9 or ("odd" in desc and ("modulo" in desc or "studentid" in desc)):
+            code = (
+                "SELECT *\n"
+                "FROM Students\n"
+                "WHERE StudentID % 2 = 1;\n"
+            )
+            exp = "Filtered students with odd StudentID values using the modulo arithmetic operator (StudentID % 2 = 1)."
+            return TaskSolution(tid, "sql", code, exp, {}, f"query_{tid:02d}.sql")
+
+        # Task 10: Data Science students with percentage >= 80%
+        elif tid == 10 or ("data science" in desc and "80%" in desc):
+            code = (
+                "SELECT StudentID,\n"
+                "       StudentName,\n"
+                "       Department,\n"
+                "       ROUND((CAST(ObtainedMarks AS FLOAT) / TotalMarks) * 100.0, 2) AS Percentage\n"
+                "FROM Students\n"
+                "WHERE Department = 'Data Science'\n"
+                "  AND ((CAST(ObtainedMarks AS FLOAT) / TotalMarks) * 100.0) >= 80.0;\n"
+            )
+            exp = "Combined Department equality filtering with an arithmetic percentage expression in the WHERE clause to select Data Science students with at least 80% marks."
+            return TaskSolution(tid, "sql", code, exp, {}, f"query_{tid:02d}.sql")
+
+        # Task 11: Names begin with S and 15% fee discount
+        elif tid == 11 or ("begin with s" in desc and "15%" in desc) or ("discount of 15%" in desc):
+            code = (
+                "SELECT StudentID,\n"
+                "       StudentName,\n"
+                "       SemesterFee,\n"
+                "       ROUND(SemesterFee * 0.85, 2) AS DiscountedSemesterFee\n"
+                "FROM Students\n"
+                "WHERE StudentName LIKE 'S%';\n"
+            )
+            exp = "Filtered students whose name begins with 'S' using LIKE 'S%' and computed their discounted semester fee after a 15% reduction using arithmetic multiplication (SemesterFee * 0.85)."
+            return TaskSolution(tid, "sql", code, exp, {}, f"query_{tid:02d}.sql")
+
+        # Task 12: Challenge: Science departments, sorted by percentage descending
+        elif tid == 12 or ("challenge" in desc or ("highest to lowest" in desc and "percentage" in desc)):
+            code = (
+                "SELECT StudentName,\n"
+                "       Department,\n"
+                "       ROUND((CAST(ObtainedMarks AS FLOAT) / TotalMarks) * 100.0, 2) AS Percentage,\n"
+                "       (TotalMarks - ObtainedMarks) AS RemainingMarks\n"
+                "FROM Students\n"
+                "WHERE Department LIKE '%Science%'\n"
+                "ORDER BY Percentage DESC;\n"
+            )
+            exp = "Projected StudentName, Department, calculated Percentage, and RemainingMarks for students in Science departments using LIKE '%Science%', sorted in descending order of percentage."
+            return TaskSolution(tid, "sql", code, exp, {}, f"query_{tid:02d}.sql")
+
+        # Fallback to dynamic synthesizer
+        from .synthesizer import DynamicSQLSynthesizer
+        schema = DynamicSQLSynthesizer.extract_schema(lab_context or "", tasks=[task])
+        code, exp = DynamicSQLSynthesizer.synthesize_task_solution(task, schema=schema, lab_context=lab_context or "")
+        return TaskSolution(tid, "sql", code, exp, {}, f"query_{tid:02d}.sql")
 
     def _solve_general_tree(self, task: LabTask, lab_context: Optional[str] = None) -> TaskSolution:
         """Generates authentic, verified solutions for Goodrich General Tree / LinkedTree (DSA Lab 07)."""

@@ -5,6 +5,7 @@ and validation gating for student lab reports.
 """
 
 import os
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from .config import Config
@@ -70,7 +71,8 @@ class TaskOrchestrator:
             try:
                 from .synthesizer import DynamicSQLSynthesizer
                 shared_db = (self.runner.base_workspace / "dbms_lab.db").resolve()
-                DynamicSQLSynthesizer.prepare_database(shared_db, getattr(manual, "context", "") or "", tasks=manual.tasks)
+                db_context = f"{getattr(manual, 'context', '') or ''}\n{getattr(manual, 'raw_text', '') or ''}".strip()
+                DynamicSQLSynthesizer.prepare_database(shared_db, db_context, tasks=manual.tasks)
             except Exception:
                 pass
 
@@ -81,6 +83,15 @@ class TaskOrchestrator:
                 req.status = RequirementStatus.GENERATING
 
             combined_context = f"{manual.title}\n{manual.course_name or ''}\n{manual.context or ''}".strip()
+            if not any(k in combined_context.lower() for k in ["create table", "table fields", "insert into"]) and getattr(manual, "raw_text", ""):
+                table_snippets = re.findall(
+                    r"(?:CREATE\s+TABLE|INSERT\s+INTO|REQUIRED\s+TABLE\s+CODE).*?(?=\n\s*(?:TASK|1\.|\n\n\n|$))",
+                    manual.raw_text,
+                    re.DOTALL | re.IGNORECASE
+                )
+                if table_snippets:
+                    combined_context += "\n\nDATABASE SCHEMA & REQUIRED TABLES:\n" + "\n".join(table_snippets)
+
             sol = self.provider.solve_task(task, custom_instructions=custom_instructions, lab_context=combined_context)
             solutions.append(sol)
 

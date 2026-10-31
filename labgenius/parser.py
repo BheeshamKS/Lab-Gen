@@ -57,6 +57,8 @@ class ManualParser:
     TASK_SECTION_MARKERS = [
         r"^(?:\d+[\.\)]\s*)?(?:lab\s+)?tasks?[\s:]*$",
         r"lab\s+tasks?:",
+        r"^(?:\d+[\.\)]\s*)?(?:student\s+)?(?:practical\s+)?tasks?[\s:]*$",
+        r"^(?:\d+[\.\)]\s*)?practical\s+(?:tasks?|exercises?|problems?)[\s:]*$",
         r"^(?:\d+[\.\)]\s*)?(?:lab\s+)?exercises?[\s:]*$",
         r"^(?:\d+[\.\)]\s*)?(?:lab\s+)?assignments?[\s:]*$",
         r"^(?:\d+[\.\)]\s*)?assignment\s*(?:/|and|&)?\s*(?:lab\s+)?tasks?[\s:]*$",
@@ -224,6 +226,15 @@ class ManualParser:
 
         # 2. Find and Extract ONLY the Task Section, Viva Questions, Analysis Questions, and Tables
         tasks, preamble_context, viva_questions, analysis_questions, observation_tables = self._extract_tasks_from_docx_body(doc, lab_number, overall_lang, title=title)
+
+        if not any(k in preamble_context.lower() for k in ["create table", "insert into", "table fields", "schema:"]):
+            extracted_ddl = re.findall(
+                r"(?:CREATE\s+TABLE|INSERT\s+INTO|REQUIRED\s+TABLE\s+CODE).*?(?=\n\s*(?:TASK|1\.|\n\n\n|$))",
+                full_text,
+                re.DOTALL | re.IGNORECASE
+            )
+            if extracted_ddl:
+                preamble_context = (preamble_context + "\n\n" + "\n".join(extracted_ddl)).strip()
 
         return LabManual(
             file_path=self.path,
@@ -537,7 +548,14 @@ class ManualParser:
                             after_colon = re.sub(marker, "", p_text, flags=re.IGNORECASE).strip()
                             p_text = after_colon
                             break
-                    if not in_task_section or not p_text:
+                    if not in_task_section:
+                        if any(k in p_text.lower() for k in [
+                            "create table", "insert into", "table code", "required table",
+                            "create database", "table fields", "schema", "table:", "drop table", "alter table"
+                        ]) or (p_text.startswith("(") and ")" in p_text and any(q in p_text for q in ["'", '"', ","])):
+                            preamble_lines.append(p_text)
+                        continue
+                    if not p_text:
                         continue
 
                 if re.search(r"^(?:algorithm|pseudocode)[\s:]", p_text, re.IGNORECASE):
@@ -595,6 +613,17 @@ class ManualParser:
                         current_task_title = f"Task {current_task_num}: {b_text[:130]}"
                         current_task_lines = [b_text]
                         continue
+
+                    # Check if line is a task header or DDL/DML table setup code
+                    if re.match(r"^tasks?[\s:]*$", p_text, re.IGNORECASE):
+                        continue
+
+                    if any(p_text.lower().startswith(k) for k in [
+                        "create table", "insert into", "required table", "table code", "create database"
+                    ]) or (p_text.startswith("(") and ")" in p_text and any(q in p_text for q in ["'", '"', ","])) or p_text.startswith(");"):
+                        if current_task_num == 0:
+                            preamble_lines.append(p_text)
+                            continue
 
                     if not in_algorithm_block:
                         first_word = p_text.split()[0].lower().rstrip(":,.-") if p_text.split() else ""
@@ -1103,6 +1132,15 @@ class ManualParser:
             tasks = [LabTask(task_id=1, title="Task 1", description="\n".join(lines[-10:]), language=overall_lang)]
 
         preamble_context = "\n".join(preamble_lines).strip()
+        if not any(k in preamble_context.lower() for k in ["create table", "insert into", "table fields", "schema:"]):
+            extracted_ddl = re.findall(
+                r"(?:CREATE\s+TABLE|INSERT\s+INTO|REQUIRED\s+TABLE\s+CODE).*?(?=\n\s*(?:TASK|1\.|\n\n\n|$))",
+                full_text,
+                re.DOTALL | re.IGNORECASE
+            )
+            if extracted_ddl:
+                preamble_context = (preamble_context + "\n\n" + "\n".join(extracted_ddl)).strip()
+
         return LabManual(
             file_path=self.path,
             title=title,

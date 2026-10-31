@@ -505,6 +505,36 @@ class ReferenceCorpus:
             ),
 
             # -------------------------------------------------------------
+            # DBMS LAB 08: Pattern Searching and Arithmetic Operators
+            # -------------------------------------------------------------
+            ReferenceTask(
+                lab_id="DBMS_LAB08",
+                task_id=1,
+                title="SQL Pattern Searching and Arithmetic Operators",
+                original_task_statement="Filter text values using LIKE, wildcards (%, _), NOT LIKE, and perform numeric calculations using arithmetic operators (+, -, *, /, %) in SELECT queries.",
+                subject="dbms",
+                topic="SQL Pattern Searching & Arithmetic Expressions",
+                keywords=["like", "wildcard", "underscore", "percent", "not like", "arithmetic operators", "percentage", "modulo", "pattern searching"],
+                solution_approach="Use LIKE with % (zero or more characters) and _ (exact single character) for text pattern filtering. Use arithmetic operators in SELECT projections to compute computed columns (e.g. RemainingMarks, Percentage, RevisedFee) and in WHERE clauses.",
+                code_pattern=(
+                    "-- Pattern searching\n"
+                    "SELECT * FROM Students WHERE StudentName LIKE 'A%';\n"
+                    "SELECT * FROM Students WHERE StudentName LIKE '%Khan';\n"
+                    "SELECT * FROM Students WHERE LOWER(StudentName) LIKE '%ah%';\n"
+                    "SELECT StudentName FROM Students WHERE StudentName LIKE '_i%';\n"
+                    "SELECT * FROM Students WHERE Department NOT LIKE '%Science%';\n\n"
+                    "-- Arithmetic calculations\n"
+                    "SELECT StudentID, StudentName, (TotalMarks - ObtainedMarks) AS RemainingMarks FROM Students;\n"
+                    "SELECT StudentID, StudentName, ROUND((CAST(ObtainedMarks AS FLOAT) / TotalMarks) * 100.0, 2) AS Percentage FROM Students;\n"
+                    "SELECT StudentID, StudentName, ROUND(SemesterFee * 1.10, 2) AS RevisedSemesterFee FROM Students;\n"
+                    "SELECT * FROM Students WHERE StudentID % 2 = 1;"
+                ),
+                explanation_depth="Explains character pattern matching using ANSI SQL wildcards and non-destructive arithmetic expressions in projections and filters.",
+                assumptions_and_limitations="SQLite and SQL Server both support LIKE, %, _, and basic arithmetic; division by integer in SQLite/SQL Server requires CAST to float for fractional precision.",
+                verified=True,
+            ),
+
+            # -------------------------------------------------------------
             # INFORMATION SECURITY (IS) CANONICAL TASKS
             # -------------------------------------------------------------
             ReferenceTask(
